@@ -40,9 +40,11 @@
 - [PRD-002: 매일 다른 질문 알림](prd/PRD-002-daily-questions.md)
 - [PRD-003: AI 편집 & 서사 구성](prd/PRD-003-ai-editing.md)
 - [PRD-004: 실물 책 제작](prd/PRD-004-book-production.md)
+- [PRD-005: 기록 미디어 통합](prd/PRD-005-media-records.md)
 
 ### 테스트 문서
 - [TEST-001: 음성 일기 기록 테스트](tests/TEST-001-voice-diary.md)
 - [TEST-002: 매일 다른 질문 알림 테스트](tests/TEST-002-daily-questions.md)
 - [TEST-003: AI 편집 & 서사 구성 테스트](tests/TEST-003-ai-editing.md)
 - [TEST-004: 실물 책 제작 테스트](tests/TEST-004-book-production.md)
+- [TEST-005: 기록 미디어 통합 테스트](tests/TEST-005-media-records.md)
