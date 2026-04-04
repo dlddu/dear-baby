@@ -56,6 +56,13 @@ jobs:
           xcrun simctl boot "$DEVICE_UDID"
           echo "DEVICE_ID=$DEVICE_UDID" >> "$GITHUB_ENV"
 
+      - name: Generate Flutter platform files
+        run: |
+          cd app
+          flutter create --org com.dearbaby --project-name dear_baby .
+          # Allow local networking for iOS simulator -> host communication
+          plutil -replace NSAppTransportSecurity -json '{"NSAllowsLocalNetworking":true}' ios/Runner/Info.plist
+
       - name: Run Flutter integration tests
         run: |
           cd app
