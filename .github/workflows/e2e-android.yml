@@ -79,7 +79,10 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
           script: |
+            rm -rf app/test
+            ls -la app/
             cd app && flutter test integration_test/health_test.dart \
+              -d emulator-5554 \
               --dart-define=BASE_URL=http://10.0.2.2:8080
 
       - name: Stop backend
