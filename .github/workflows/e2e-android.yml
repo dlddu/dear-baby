@@ -57,6 +57,9 @@ jobs:
       - name: Generate platform files
         run: cd app && flutter create --project-name dear_baby --org com.dearbaby .
 
+      - name: Remove generated unit tests
+        run: rm -rf app/test
+
       - name: Install dependencies
         run: cd app && flutter pub get
 
