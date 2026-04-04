@@ -17,6 +17,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: false
 
       - name: Build and start Go backend
         run: |
@@ -38,20 +39,20 @@ jobs:
 
       - name: Boot iOS Simulator
         run: |
-          DEVICE_UDID=$(xcrun simctl list devices available -j | \
-            python3 -c "
+          # List available runtimes and pick the latest iOS runtime
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c "
           import sys, json
-          data = json.load(sys.stdin)
-          devices = data['devices']
-          for runtime, dev_list in devices.items():
-              if 'iPhone' in runtime:
-                  for d in dev_list:
-                      if d.get('isAvailable', False):
-                          print(d['udid'])
-                          sys.exit(0)
-          sys.exit(1)
+          runtimes = json.load(sys.stdin).get('runtimes', [])
+          ios = [r for r in runtimes if r.get('isAvailable') and 'iOS' in r.get('name','')]
+          if ios:
+              print(ios[-1]['identifier'])
+          else:
+              sys.exit(1)
           ")
-          echo "Booting simulator: $DEVICE_UDID"
+          echo "Using runtime: $RUNTIME"
+          # Create and boot a new simulator
+          DEVICE_UDID=$(xcrun simctl create "test-iphone" "iPhone 16" "$RUNTIME")
+          echo "Created simulator: $DEVICE_UDID"
           xcrun simctl boot "$DEVICE_UDID"
           echo "DEVICE_ID=$DEVICE_UDID" >> "$GITHUB_ENV"
 
