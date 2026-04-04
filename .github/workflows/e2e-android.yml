@@ -48,6 +48,12 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Ensure Flutter platform files exist
+        run: |
+          cd app
+          flutter create --org com.dearbaby --project-name dear_baby .
+          sed -i 's/android:name="${applicationName}"/android:name="${applicationName}" android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
+
       - name: Run Flutter integration tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
