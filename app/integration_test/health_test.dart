@@ -10,18 +10,7 @@ void main() {
   group('Health endpoint E2E', () {
     testWidgets('should display OK after tapping Check Health button',
         (tester) async {
-      // Use localhost for iOS simulator, 10.0.2.2 for Android emulator.
-      // The CI workflow passes --dart-define=BASE_URL to override.
-      const baseUrl = String.fromEnvironment(
-        'BASE_URL',
-        defaultValue: defaultBaseUrl,
-      );
-
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: HealthCheckPage(baseUrl: baseUrl),
-        ),
-      );
+      await tester.pumpWidget(const DearBabyApp());
 
       // Verify initial state
       expect(find.text('Unknown'), findsOneWidget);

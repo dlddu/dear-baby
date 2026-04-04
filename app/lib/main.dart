@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-const String defaultBaseUrl = 'http://10.0.2.2:8080';
+const String baseUrl = String.fromEnvironment('BASE_URL');
 
 void main() {
   runApp(const DearBabyApp());
@@ -26,9 +26,7 @@ class DearBabyApp extends StatelessWidget {
 }
 
 class HealthCheckPage extends StatefulWidget {
-  final String baseUrl;
-
-  const HealthCheckPage({super.key, this.baseUrl = defaultBaseUrl});
+  const HealthCheckPage({super.key});
 
   @override
   State<HealthCheckPage> createState() => _HealthCheckPageState();
@@ -40,7 +38,7 @@ class _HealthCheckPageState extends State<HealthCheckPage> {
   Future<void> _checkHealth() async {
     try {
       final response = await http
-          .get(Uri.parse('${widget.baseUrl}/health'))
+          .get(Uri.parse('$baseUrl/health'))
           .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
