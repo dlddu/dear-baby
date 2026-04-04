@@ -56,12 +56,6 @@ jobs:
           xcrun simctl boot "$DEVICE_UDID"
           echo "DEVICE_ID=$DEVICE_UDID" >> "$GITHUB_ENV"
 
-      - name: Ensure Flutter platform files exist
-        run: |
-          cd app
-          flutter create --org com.dearbaby --project-name dear_baby .
-          plutil -replace NSAppTransportSecurity -json '{"NSAllowsLocalNetworking":true}' ios/Runner/Info.plist
-
       - name: Run Flutter integration tests
         run: |
           cd app
