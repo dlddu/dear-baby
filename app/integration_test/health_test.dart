@@ -16,12 +16,17 @@ void main() {
     expect(button, findsOneWidget);
     await tester.tap(button);
 
-    // Wait for HTTP response — pump with timeout
-    await tester.pumpAndSettle(const Duration(seconds: 10));
+    // Poll until the health status text appears (HTTP response is async)
+    final statusFinder = find.byKey(const Key('health-status'));
+    for (int i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      if (statusFinder.evaluate().isNotEmpty) {
+        break;
+      }
+    }
 
     // Verify the status text shows "ok"
-    final statusText = find.byKey(const Key('health-status'));
-    expect(statusText, findsOneWidget);
+    expect(statusFinder, findsOneWidget);
     expect(find.text('ok'), findsOneWidget);
   });
 }
