@@ -67,7 +67,9 @@ jobs:
 
       - name: Run integration tests
         run: |
-          cd app && flutter test integration_test/health_test.dart \
+          cd app && flutter drive \
+            --driver=test_driver/integration_test.dart \
+            --target=integration_test/health_test.dart \
             -d "$DEVICE_ID" \
             --dart-define=BASE_URL=http://localhost:8080
 
