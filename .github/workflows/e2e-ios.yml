@@ -49,6 +49,9 @@ jobs:
         with:
           channel: stable
 
+      - name: Generate platform files
+        run: cd app && flutter create --project-name dear_baby --org com.dearbaby .
+
       - name: Install dependencies
         run: cd app && flutter pub get
 
