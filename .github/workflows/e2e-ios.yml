@@ -8,7 +8,6 @@ on:
       - "app/**"
       - ".github/workflows/e2e-ios.yml"
   pull_request:
-    branches: [main]
     paths:
       - "backend/**"
       - "app/**"
@@ -48,12 +47,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-
-      - name: Generate platform files
-        run: cd app && flutter create --project-name dear_baby --org com.dearbaby .
-
-      - name: Remove generated unit tests
-        run: rm -rf app/test
 
       - name: Install dependencies
         run: cd app && flutter pub get
