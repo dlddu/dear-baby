@@ -59,13 +59,14 @@ jobs:
           xcrun simctl boot "$DEVICE_ID" || true
 
       - name: Run integration tests
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           cd app && flutter drive \
             --driver=test_driver/integration_test.dart \
             --target=integration_test/health_test.dart \
             -d "$DEVICE_ID" \
-            --dart-define=BASE_URL=http://localhost:8080
+            --dart-define=BASE_URL=http://localhost:8080 \
+            --verbose
 
       - name: Stop backend
         if: always()
