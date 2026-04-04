@@ -1,0 +1,69 @@
+name: E2E Tests (iOS)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e-ios:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build and start Go backend
+        run: |
+          cd backend
+          go build -o server .
+          ./server &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/health > /dev/null 2>&1; then
+              echo "Backend is ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.x'
+          channel: stable
+
+      - name: Boot iOS Simulator
+        run: |
+          DEVICE_UDID=$(xcrun simctl list devices available -j | \
+            python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          devices = data['devices']
+          for runtime, dev_list in devices.items():
+              if 'iPhone' in runtime:
+                  for d in dev_list:
+                      if d.get('isAvailable', False):
+                          print(d['udid'])
+                          sys.exit(0)
+          sys.exit(1)
+          ")
+          echo "Booting simulator: $DEVICE_UDID"
+          xcrun simctl boot "$DEVICE_UDID"
+          echo "DEVICE_ID=$DEVICE_UDID" >> "$GITHUB_ENV"
+
+      - name: Run Flutter integration tests
+        run: |
+          cd app
+          flutter pub get
+          flutter drive \
+            --driver=test_driver/integration_test.dart \
+            --target=integration_test/health_test.dart \
+            -d "$DEVICE_ID"
+
+      - name: Stop backend
+        if: always()
+        run: pkill -f 'backend/server' || true
