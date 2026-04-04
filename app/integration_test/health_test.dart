@@ -18,11 +18,19 @@ void main() {
       // Tap the health check button
       await tester.tap(find.byKey(const Key('health_button')));
 
-      // Wait for the HTTP request to complete
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      // Poll for the result with a timeout instead of pumpAndSettle
+      // (pumpAndSettle can hang if there are ongoing animations)
+      var found = false;
+      for (var i = 0; i < 50; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+        if (find.text('OK').evaluate().isNotEmpty) {
+          found = true;
+          break;
+        }
+      }
 
       // Verify the status changed to OK
-      expect(find.text('OK'), findsOneWidget);
+      expect(found, isTrue, reason: 'Health status should be OK');
     });
   });
 }
