@@ -2,7 +2,6 @@ name: Deploy to TestFlight
 
 on:
   pull_request:
-    types: [opened]
     paths:
       - "app/**"
       - ".github/workflows/testflight.yml"
