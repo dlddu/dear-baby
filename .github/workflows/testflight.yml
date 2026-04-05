@@ -88,6 +88,8 @@ jobs:
           EOF
 
       - name: Build IPA
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           BUILD_NUMBER=${{ github.run_number }}
           VERSION=${{ github.event.inputs.version }}
@@ -97,7 +99,12 @@ jobs:
             BUILD_ARGS="$BUILD_ARGS --build-name=$VERSION"
           fi
 
-          flutter build ipa $BUILD_ARGS
+          flutter build ipa $BUILD_ARGS \
+            -- \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
 
       - name: Upload to TestFlight
         env:
