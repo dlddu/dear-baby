@@ -66,11 +66,15 @@ jobs:
           PROVISIONING_PROFILE_SPECIFIER: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
           {
-            echo "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM"
-            echo "CODE_SIGN_STYLE=Manual"
-            echo "CODE_SIGN_IDENTITY=Apple Distribution"
-            echo "PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_SPECIFIER"
+            echo "DEVELOPMENT_TEAM = $DEVELOPMENT_TEAM"
+            echo "CODE_SIGN_STYLE = Manual"
+            echo "CODE_SIGN_IDENTITY = Apple Distribution"
+            echo "PROVISIONING_PROFILE_SPECIFIER = $PROVISIONING_PROFILE_SPECIFIER"
           } >> app/ios/Flutter/Release.xcconfig
+
+          PBXPROJ="app/ios/Runner.xcodeproj/project.pbxproj"
+          sed -i '' "s/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/" "$PBXPROJ"
+
           sed -i '' "s/XXXXXXXXXX/$DEVELOPMENT_TEAM/" app/ios/ExportOptions.plist
           sed -i '' "s/Dear Baby AppStore Profile/$PROVISIONING_PROFILE_SPECIFIER/" app/ios/ExportOptions.plist
 
