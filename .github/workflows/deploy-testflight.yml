@@ -63,8 +63,16 @@ jobs:
       - name: Set signing configuration
         env:
           DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          PROVISIONING_PROFILE_SPECIFIER: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
-          echo "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM" >> app/ios/Flutter/Release.xcconfig
+          {
+            echo "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM"
+            echo "CODE_SIGN_STYLE=Manual"
+            echo "CODE_SIGN_IDENTITY=Apple Distribution"
+            echo "PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_SPECIFIER"
+          } >> app/ios/Flutter/Release.xcconfig
+          sed -i '' "s/XXXXXXXXXX/$DEVELOPMENT_TEAM/" app/ios/ExportOptions.plist
+          sed -i '' "s/Dear Baby AppStore Profile/$PROVISIONING_PROFILE_SPECIFIER/" app/ios/ExportOptions.plist
 
       - name: Build IPA
         run: |
