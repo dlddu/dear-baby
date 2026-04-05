@@ -118,8 +118,7 @@ jobs:
           API_KEY_DIR="$HOME/private_keys"
           mkdir -p "$API_KEY_DIR"
           API_KEY_PATH="$API_KEY_DIR/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
-          echo -n "$APP_STORE_CONNECT_API_KEY" | base64 --decode -o "$API_KEY_PATH" 2>/dev/null \
-            || echo -n "$APP_STORE_CONNECT_API_KEY" > "$API_KEY_PATH"
+          echo "$APP_STORE_CONNECT_API_KEY" > "$API_KEY_PATH"
 
           IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -1)
 
