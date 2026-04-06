@@ -57,15 +57,11 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
 
-          PROFILE_NAME=$(security cms -D -i $PROFILE_PATH | plutil -extract Name raw -)
-          PROFILE_UUID=$(security cms -D -i $PROFILE_PATH | plutil -extract UUID raw -)
-          echo "PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
-          echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
-
       - name: Override Xcode signing settings for CI
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          PROFILE_NAME=$(security cms -D -i $RUNNER_TEMP/profile.mobileprovision | plutil -extract Name raw -)
           cat >> ios/Flutter/Release.xcconfig << EOF
           CODE_SIGN_STYLE=Manual
           CODE_SIGN_IDENTITY=Apple Distribution
