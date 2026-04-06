@@ -41,6 +41,8 @@ jobs:
 
       - name: Create kind cluster
         uses: helm/kind-action@v1
+        with:
+          config: k8s/kind-config.yaml
 
       - name: Load image into kind
         run: kind load docker-image ${{ env.IMAGE }}
@@ -53,9 +55,8 @@ jobs:
 
       - name: Smoke test – health endpoint
         run: |
-          NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
           for i in $(seq 1 10); do
-            STATUS=$(curl -sf "http://${NODE_IP}:30080/health" | jq -r .status) && break
+            STATUS=$(curl -sf http://localhost:8080/health | jq -r .status) && break
             sleep 2
           done
           echo "Health status: ${STATUS}"
