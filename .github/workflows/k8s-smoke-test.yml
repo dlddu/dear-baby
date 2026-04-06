@@ -42,7 +42,7 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@v1
         with:
-          config: k8s/kind-config.yaml
+          config: kind/config.yaml
           cluster_name: kind
 
       - name: Load image into kind
