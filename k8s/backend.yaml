@@ -17,7 +17,6 @@ spec:
       containers:
         - name: backend
           image: ghcr.io/dlddu/dear-baby-backend:latest
-          imagePullPolicy: Never
           ports:
             - containerPort: 8080
               hostPort: 8080

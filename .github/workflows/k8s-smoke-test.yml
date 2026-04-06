@@ -48,6 +48,10 @@ jobs:
       - name: Load image into kind
         run: kind load docker-image ${{ env.IMAGE }}
 
+      - name: Patch imagePullPolicy for kind
+        run: |
+          sed -i '/image: ghcr.io\/dlddu\/dear-baby-backend/a\          imagePullPolicy: Never' k8s/backend.yaml
+
       - name: Apply k8s manifests
         run: kubectl apply -f k8s/
 
