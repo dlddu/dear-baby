@@ -19,6 +19,7 @@ spec:
           image: ghcr.io/dlddu/dear-baby-backend:latest
           ports:
             - containerPort: 8080
+              hostPort: 8080
           readinessProbe:
             httpGet:
               path: /health
@@ -39,10 +40,9 @@ metadata:
   labels:
     app: backend
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: backend
   ports:
     - port: 8080
       targetPort: 8080
-      nodePort: 30080
