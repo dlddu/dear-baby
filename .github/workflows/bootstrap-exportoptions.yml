@@ -6,6 +6,9 @@ on:
     paths:
       - ".github/workflows/bootstrap-exportoptions.yml"
 
+permissions:
+  contents: write
+
 jobs:
   generate:
     runs-on: macos-15
