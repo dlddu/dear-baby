@@ -1,27 +1,27 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend
+  name: dear-baby-backend
   labels:
-    app: backend
+    app: dear-baby-backend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: backend
+      app: dear-baby-backend
   template:
     metadata:
       labels:
-        app: backend
+        app: dear-baby-backend
     spec:
       containers:
-        - name: backend
+        - name: dear-baby-backend
           image: ghcr.io/dlddu/dear-baby-backend:latest
           ports:
             - containerPort: 8080
               hostPort: 8080
           volumeMounts:
-            - name: sqlite-data
+            - name: dear-baby-sqlite-data
               mountPath: /data
           readinessProbe:
             httpGet:
@@ -36,20 +36,20 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:
-        - name: sqlite-data
+        - name: dear-baby-sqlite-data
           persistentVolumeClaim:
-            claimName: sqlite-data
+            claimName: dear-baby-sqlite-data
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend
+  name: dear-baby-backend
   labels:
-    app: backend
+    app: dear-baby-backend
 spec:
   type: ClusterIP
   selector:
-    app: backend
+    app: dear-baby-backend
   ports:
     - port: 8080
       targetPort: 8080
@@ -57,9 +57,9 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: sqlite-data
+  name: dear-baby-sqlite-data
   labels:
-    app: backend
+    app: dear-baby-backend
 spec:
   accessModes:
     - ReadWriteOnce

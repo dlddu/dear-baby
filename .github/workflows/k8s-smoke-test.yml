@@ -56,7 +56,7 @@ jobs:
         run: kubectl apply -f k8s/
 
       - name: Wait for rollout
-        run: kubectl rollout status deployment/backend --timeout=60s
+        run: kubectl rollout status deployment/dear-baby-backend --timeout=60s
 
       - name: Smoke test – health endpoint
         run: |
