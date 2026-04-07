@@ -158,7 +158,7 @@ jobs:
 
   deploy:
     needs: [changes, e2e-ios, e2e-android]
-    if: needs.changes.outputs.app == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.app == 'true'
     runs-on: macos-26
     timeout-minutes: 45
     defaults:
