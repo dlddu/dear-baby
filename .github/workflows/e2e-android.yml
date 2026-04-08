@@ -103,6 +103,19 @@ jobs:
           sed -i 's|<application |<application android:usesCleartextTraffic="true" |' "$MANIFEST"
           grep -q 'usesCleartextTraffic="true"' "$MANIFEST" || { echo "manifest patch failed"; cat "$MANIFEST"; exit 1; }
 
+      # Build the APK BEFORE starting the emulator. The assemble task does
+      # not need a device, and running it inside the emulator-runner script
+      # would leave the emulator idle for ~25 minutes, which reliably
+      # triggers a "Pixel Launcher isn't responding" ANR dialog that
+      # covers the app under test.
+      - name: Build Android release APK
+        working-directory: app/android
+        env:
+          EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
+        run: |
+          echo "EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL"
+          ./gradlew assembleRelease --no-daemon
+
       # reactivecircus/android-emulator-runner splits `script:` on newlines and
       # runs each line as its own `sh -c`, so `cd` and shell options don't
       # persist across lines. We instead write the whole flow to a file and
@@ -112,13 +125,7 @@ jobs:
           cat > /tmp/e2e-android.sh <<'SCRIPT'
           #!/usr/bin/env bash
           set -eux
-          echo "EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL:-<unset>}"
-          cd "$GITHUB_WORKSPACE/app/android"
-          # Release build embeds the JS bundle via the RN Gradle plugin
-          # (bundleReleaseJsAndAssets). Signed with the debug keystore by
-          # default, which is fine for CI E2E runs.
-          ./gradlew assembleRelease --no-daemon
-          cd ..
+          cd "$GITHUB_WORKSPACE/app"
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
           echo "Installing $APK"
           adb install -r "$APK"
