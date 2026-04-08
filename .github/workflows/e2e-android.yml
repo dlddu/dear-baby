@@ -125,6 +125,21 @@ jobs:
           cat > /tmp/e2e-android.sh <<'SCRIPT'
           #!/usr/bin/env bash
           set -eux
+
+          # Give the system launcher time to fully settle on a cold boot and
+          # dismiss any stray "isn't responding" dialogs before we start.
+          adb shell input keyevent KEYCODE_WAKEUP || true
+          adb shell input keyevent KEYCODE_HOME || true
+          sleep 10
+          for _ in 1 2 3; do
+            if adb shell dumpsys window windows 2>/dev/null | grep -q "isn't responding"; then
+              adb shell input keyevent KEYCODE_BACK || true
+              sleep 2
+            else
+              break
+            fi
+          done
+
           cd "$GITHUB_WORKSPACE/app"
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
           echo "Installing $APK"
@@ -140,10 +155,13 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
         with:
-          api-level: 34
-          target: google_apis
+          # API 30 + default profile is much more stable than API 34 + pixel_6
+          # on a cold-booted emulator — the heavier Pixel Launcher on 34
+          # reliably ANRs during the HOME transition that Maestro triggers
+          # when it does `launchApp` with `clearState: true`.
+          api-level: 30
+          target: default
           arch: x86_64
-          profile: pixel_6
           ram-size: 4096M
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none

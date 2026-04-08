@@ -2,6 +2,13 @@ appId: com.dlddu.dearbaby
 ---
 - launchApp:
     clearState: true
+# If a system "isn't responding" dialog covers the app (Pixel Launcher
+# can ANR on cold-booted CI emulators), tap "Wait" to dismiss it.
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
 - assertVisible:
     id: "check-health-button"
 - tapOn:
