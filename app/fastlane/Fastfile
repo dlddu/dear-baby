@@ -1,5 +1,7 @@
 default_platform(:ios)
 
+APPLE_TEAM_ID = "RBX39XRW2J".freeze
+
 platform :ios do
   desc "Build the iOS app and upload it to TestFlight"
   lane :beta do
@@ -63,14 +65,14 @@ platform :ios do
       output_directory: File.expand_path("../build", __dir__),
       xcargs: [
         "CODE_SIGN_STYLE=Manual",
-        "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']}",
+        "DEVELOPMENT_TEAM=#{APPLE_TEAM_ID}",
         "PROVISIONING_PROFILE_SPECIFIER=#{profile_name.shellescape}",
         "CURRENT_PROJECT_VERSION=#{build_number}",
       ].join(" "),
       export_options: {
         method: "app-store",
         signingStyle: "manual",
-        teamID: ENV["APPLE_TEAM_ID"],
+        teamID: APPLE_TEAM_ID,
         provisioningProfiles: {
           "com.dlddu.dearbaby" => profile_name,
         },

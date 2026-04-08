@@ -1,2 +1,2 @@
 app_identifier("com.dlddu.dearbaby")
-team_id(ENV["APPLE_TEAM_ID"])
+team_id("RBX39XRW2J")
