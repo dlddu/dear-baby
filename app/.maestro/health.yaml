@@ -1,0 +1,11 @@
+appId: com.dlddu.dearbaby
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "check-health-button"
+- tapOn:
+    id: "check-health-button"
+- assertVisible:
+    id: "health-status"
+- assertVisible: "status: ok"
