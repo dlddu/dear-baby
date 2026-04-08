@@ -1,0 +1,120 @@
+default_platform(:ios)
+
+APPLE_TEAM_ID = "RBX39XRW2J".freeze
+
+platform :ios do
+  desc "Build the iOS app and upload it to TestFlight"
+  lane :beta do
+    setup_ci
+
+    # Resolve the workspace (produced by `expo prebuild`) relative to this
+    # Fastfile so the lane is invariant to where it is invoked from.
+    ios_dir = File.expand_path("../ios", __dir__)
+    workspace = Dir.glob("#{ios_dir}/*.xcworkspace").first
+    UI.user_error!("No .xcworkspace found under #{ios_dir}. Did you run `expo prebuild`?") unless workspace
+    scheme = File.basename(workspace, ".xcworkspace")
+
+    tmp_dir = ENV["RUNNER_TEMP"] || Dir.mktmpdir("fastlane-signing")
+    FileUtils.mkdir_p(tmp_dir)
+    cert_path = File.join(tmp_dir, "ios_distribution.p12")
+    profile_path = File.join(tmp_dir, "profile.mobileprovision")
+
+    # Decode the distribution certificate and provisioning profile from the
+    # base64-encoded secrets injected by CI. Format matches PR #7's
+    # `testflight.yml` (reverted) so the existing GitHub Actions secrets can
+    # be reused verbatim.
+    sh("echo \"$IOS_DISTRIBUTION_CERTIFICATE_BASE64\" | base64 --decode -o #{cert_path.shellescape}")
+    sh("echo \"$IOS_PROVISIONING_PROFILE_BASE64\" | base64 --decode -o #{profile_path.shellescape}")
+
+    keychain_name = "fastlane_tmp_keychain"
+    keychain_password = ENV["MATCH_KEYCHAIN_PASSWORD"] || SecureRandom.hex(16)
+
+    create_keychain(
+      name: keychain_name,
+      password: keychain_password,
+      default_keychain: false,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false,
+    )
+
+    import_certificate(
+      certificate_path: cert_path,
+      certificate_password: ENV["IOS_DISTRIBUTION_CERTIFICATE_PASSWORD"],
+      keychain_name: keychain_name,
+      keychain_password: keychain_password,
+    )
+
+    install_provisioning_profile(path: profile_path)
+
+    # Derive the profile's display name at runtime so the Fastfile never
+    # hardcodes it. Mirrors the pattern from PR #7's testflight.yml.
+    profile_name = sh(
+      "security cms -D -i #{profile_path.shellescape} | plutil -extract Name raw -",
+      log: false,
+    ).strip
+
+    build_number = (ENV["GITHUB_RUN_NUMBER"] || "1").to_i + 10_000
+
+    build_app(
+      workspace: workspace,
+      scheme: scheme,
+      configuration: "Release",
+      export_method: "app-store",
+      clean: true,
+      output_directory: File.expand_path("../build", __dir__),
+      xcargs: [
+        "CODE_SIGN_STYLE=Manual",
+        "CODE_SIGN_IDENTITY=#{'Apple Distribution'.shellescape}",
+        "DEVELOPMENT_TEAM=#{APPLE_TEAM_ID}",
+        "PROVISIONING_PROFILE_SPECIFIER=#{profile_name.shellescape}",
+        "CURRENT_PROJECT_VERSION=#{build_number}",
+      ].join(" "),
+      export_options: {
+        method: "app-store",
+        signingStyle: "manual",
+        teamID: APPLE_TEAM_ID,
+        provisioningProfiles: {
+          "com.dlddu.dearbaby" => profile_name,
+        },
+      },
+    )
+
+    # Write the App Store Connect API key to disk in the exact format PR #7
+    # used. The `APP_STORE_CONNECT_API_KEY` secret is the raw .p8 contents
+    # (NOT base64), so we must not decode it.
+    api_key_dir = File.expand_path("~/private_keys")
+    FileUtils.mkdir_p(api_key_dir)
+    api_key_path = File.join(api_key_dir, "AuthKey_#{ENV['APP_STORE_CONNECT_API_KEY_ID']}.p8")
+    File.write(api_key_path, ENV["APP_STORE_CONNECT_API_KEY"])
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_filepath: api_key_path,
+      in_house: false,
+    )
+
+    changelog = "PR ##{ENV['PR_NUMBER']} · #{ENV['GIT_SHA'].to_s[0, 7]}"
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      changelog: changelog,
+    )
+  end
+
+  after_all do |lane|
+    cleanup_signing_artifacts
+  end
+
+  error do |lane, exception|
+    cleanup_signing_artifacts
+  end
+end
+
+def cleanup_signing_artifacts
+  sh("security delete-keychain fastlane_tmp_keychain || true", log: false)
+  api_key_dir = File.expand_path("~/private_keys")
+  FileUtils.rm_rf(api_key_dir) if Dir.exist?(api_key_dir)
+end
