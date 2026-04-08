@@ -106,7 +106,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            set -euxo pipefail
+            set -eux
             cd app/android
             # Release build embeds the JS bundle via the RN Gradle plugin
             # (bundleReleaseJsAndAssets). Signed with the debug keystore by
