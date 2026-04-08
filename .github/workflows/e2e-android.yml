@@ -92,6 +92,17 @@ jobs:
         working-directory: app
         run: npx expo prebuild --platform android --clean
 
+      # Android 9+ blocks cleartext HTTP in release builds by default. The
+      # Expo prebuild template only enables it for the debug variant (via
+      # `debug/AndroidManifest.xml`). For this E2E test we hit the host
+      # backend over plain http://10.0.2.2:8080 from a Release APK, so we
+      # patch the main manifest to allow cleartext. CI-only hack.
+      - name: Allow cleartext HTTP in Android manifest
+        run: |
+          MANIFEST=app/android/app/src/main/AndroidManifest.xml
+          sed -i 's|<application |<application android:usesCleartextTraffic="true" |' "$MANIFEST"
+          grep -q 'usesCleartextTraffic="true"' "$MANIFEST" || { echo "manifest patch failed"; cat "$MANIFEST"; exit 1; }
+
       # reactivecircus/android-emulator-runner splits `script:` on newlines and
       # runs each line as its own `sh -c`, so `cd` and shell options don't
       # persist across lines. We instead write the whole flow to a file and
@@ -101,6 +112,7 @@ jobs:
           cat > /tmp/e2e-android.sh <<'SCRIPT'
           #!/usr/bin/env bash
           set -eux
+          echo "EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL:-<unset>}"
           cd "$GITHUB_WORKSPACE/app/android"
           # Release build embeds the JS bundle via the RN Gradle plugin
           # (bundleReleaseJsAndAssets). Signed with the debug keystore by
