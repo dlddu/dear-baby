@@ -92,6 +92,30 @@ jobs:
         working-directory: app
         run: npx expo prebuild --platform android --clean
 
+      # reactivecircus/android-emulator-runner splits `script:` on newlines and
+      # runs each line as its own `sh -c`, so `cd` and shell options don't
+      # persist across lines. We instead write the whole flow to a file and
+      # invoke it with a single-line command.
+      - name: Prepare e2e script
+        run: |
+          cat > /tmp/e2e-android.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -eux
+          cd "$GITHUB_WORKSPACE/app/android"
+          # Release build embeds the JS bundle via the RN Gradle plugin
+          # (bundleReleaseJsAndAssets). Signed with the debug keystore by
+          # default, which is fine for CI E2E runs.
+          ./gradlew assembleRelease --no-daemon
+          cd ..
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
+          echo "Installing $APK"
+          adb install -r "$APK"
+          adb shell monkey -p com.dlddu.dearbaby -c android.intent.category.LAUNCHER 1
+          sleep 3
+          maestro test .maestro/health.yaml
+          SCRIPT
+          chmod +x /tmp/e2e-android.sh
+
       - name: Run Android emulator and tests
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -105,20 +129,7 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: |
-            set -eux
-            cd app/android
-            # Release build embeds the JS bundle via the RN Gradle plugin
-            # (bundleReleaseJsAndAssets). Signed with the debug keystore by
-            # default, which is fine for CI E2E runs.
-            ./gradlew assembleRelease --no-daemon
-            cd ..
-            APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
-            echo "Installing $APK"
-            adb install -r "$APK"
-            adb shell monkey -p com.dlddu.dearbaby -c android.intent.category.LAUNCHER 1
-            sleep 3
-            maestro test .maestro/health.yaml
+          script: bash /tmp/e2e-android.sh
 
       - name: Upload Maestro debug artifacts
         if: always()
