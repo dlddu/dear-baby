@@ -57,12 +57,52 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
 
+          PROFILE_NAME=$(security cms -D -i $PROFILE_PATH | plutil -extract Name raw -)
+          PROFILE_UUID=$(security cms -D -i $PROFILE_PATH | plutil -extract UUID raw -)
+          echo "PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
+          echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
+
+      - name: Create ExportOptions.plist
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.dearbaby.dearBaby</key>
+              <string>${PROFILE_NAME}</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Override Xcode signing settings for CI
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat >> ios/Flutter/Release.xcconfig << EOF
+          CODE_SIGN_STYLE=Manual
+          CODE_SIGN_IDENTITY=Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER=${PROFILE_NAME}
+          DEVELOPMENT_TEAM=${APPLE_TEAM_ID}
+          EOF
+
       - name: Build IPA
         run: |
           BUILD_NUMBER=${{ github.run_number }}
           VERSION=${{ github.event.inputs.version }}
 
-          BUILD_ARGS="--release --export-options-plist=ios/ExportOptions.plist --build-number=$BUILD_NUMBER"
+          BUILD_ARGS="--release --export-options-plist=$RUNNER_TEMP/ExportOptions.plist --build-number=$BUILD_NUMBER"
           if [ -n "$VERSION" ]; then
             BUILD_ARGS="$BUILD_ARGS --build-name=$VERSION"
           fi
@@ -95,4 +135,5 @@ jobs:
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
           rm -f $RUNNER_TEMP/certificate.p12
           rm -f $RUNNER_TEMP/profile.mobileprovision
+          rm -f $RUNNER_TEMP/ExportOptions.plist
           rm -rf ~/private_keys
