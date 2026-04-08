@@ -140,7 +140,7 @@ jobs:
           DEVICE_ID=$(xcrun simctl list devices available -j | \
             python3 -c "import sys,json; devices=json.load(sys.stdin)['devices']; print(next(d['udid'] for runtime,devs in devices.items() if 'iPhone' in runtime or 'iOS' in runtime for d in devs if d['isAvailable'] and 'iPhone' in d['name']))")
           echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
-          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
 
       - name: Run integration tests
         timeout-minutes: 15
