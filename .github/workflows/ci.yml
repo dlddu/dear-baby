@@ -1,4 +1,4 @@
-name: E2E Tests (Android)
+name: CI
 
 on:
   push:
@@ -6,19 +6,125 @@ on:
     paths:
       - "backend/**"
       - "app/**"
-      - ".github/workflows/e2e-android.yml"
+      - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "backend/**"
       - "app/**"
-      - ".github/workflows/e2e-android.yml"
+      - ".github/workflows/ci.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  e2e-ios:
+    name: E2E Tests (iOS)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_API_URL: http://localhost:8080
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build backend
+        working-directory: backend
+        run: go build -o server .
+
+      - name: Start backend
+        working-directory: backend
+        run: |
+          nohup ./server > server.log 2>&1 &
+          echo $! > server.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health > /dev/null; then
+              echo "Backend is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Backend failed to start"
+          cat server.log
+          exit 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install JS dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Maestro
+        run: maestro --version
+
+      - name: Boot iOS Simulator
+        uses: futureware-tech/simulator-action@v4
+        with:
+          model: "iPhone 16"
+
+      - name: Expo prebuild (iOS)
+        working-directory: app
+        run: npx expo prebuild --platform ios --clean
+
+      # Release build embeds the JS bundle into the .app via
+      # react-native-xcode.sh at build time, so no Metro is needed at runtime.
+      # EXPO_PUBLIC_API_URL (job env) is inlined during the embed step.
+      - name: Build and install app on simulator
+        working-directory: app
+        run: npx expo run:ios --configuration Release --no-bundler
+
+      - name: Wait for app install
+        run: |
+          for i in $(seq 1 30); do
+            if xcrun simctl listapps booted | grep -q "com.dlddu.dearbaby"; then
+              echo "App is installed"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "App did not install in time"
+          exit 1
+
+      - name: Run Maestro flow
+        working-directory: app
+        run: maestro test .maestro/health.yaml
+
+      - name: Upload Maestro debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-ios-output
+          path: |
+            ~/.maestro/tests/
+            app/.maestro/
+          if-no-files-found: ignore
+
+      - name: Stop backend
+        if: always()
+        working-directory: backend
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" || true
+          fi
+
   e2e-android:
+    name: E2E Tests (Android)
     # x86_64 Linux runner with KVM enabled for hardware-accelerated emulation.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -185,3 +291,74 @@ jobs:
           if [ -f server.pid ]; then
             kill "$(cat server.pid)" || true
           fi
+
+  deploy-testflight:
+    name: Deploy iOS to TestFlight
+    # Only deploy to TestFlight after BOTH E2E suites pass, and only on PRs.
+    # On push to main we still run the E2E jobs (as the branch's status
+    # check) but skip the TestFlight upload.
+    needs: [e2e-ios, e2e-android]
+    if: github.event_name == 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: app
+    env:
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+      IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+      IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      GIT_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: app
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app
+
+      - name: Generate one-shot keychain password
+        run: echo "MATCH_KEYCHAIN_PASSWORD=$(uuidgen)" >> "$GITHUB_ENV"
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Expo prebuild (iOS)
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods
+        working-directory: app/ios
+        run: pod install --repo-update
+
+      - name: Fastlane beta
+        run: bundle exec fastlane beta
+
+      - name: Upload build artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            app/fastlane/report.xml
+            app/build/
+            ~/Library/Logs/gym/
+          if-no-files-found: ignore
