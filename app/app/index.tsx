@@ -16,16 +16,21 @@ import {
 // Dismisses the in-app browser when the OAuth redirect returns.
 WebBrowser.maybeCompleteAuthSession();
 
-// Landing screen shown when the user is not authenticated. This screen is
-// load-bearing for the Maestro E2E flow at app/.maestro/health.yaml — it
-// must keep the exact testIDs `root`, `check-health-button`, and
-// `health-status`, and the health fetch must hit
-// `${EXPO_PUBLIC_API_URL}/health` returning `{"status":"ok"}`.
-export default function Landing() {
-  const [status, setStatus] = useState('');
-  const [error, setError] = useState('');
-  const { setSession } = useAuth();
+const hasGoogleConfig = Boolean(
+  GOOGLE_IOS_CLIENT_ID || GOOGLE_ANDROID_CLIENT_ID || GOOGLE_WEB_CLIENT_ID,
+);
 
+// GoogleSignInButton is split into its own component so that
+// Google.useAuthRequest — which throws when invoked with no client IDs —
+// is only ever called when at least one client ID is configured. CI does
+// not set the EXPO_PUBLIC_GOOGLE_*_CLIENT_ID vars, so in CI this component
+// is not mounted at all and the landing screen still renders for Maestro.
+function GoogleSignInButton({
+  onError,
+}: {
+  onError: (message: string) => void;
+}) {
+  const { setSession } = useAuth();
   const [, response, promptAsync] = Google.useAuthRequest({
     iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
@@ -41,10 +46,33 @@ export default function Landing() {
         const session = await exchangeGoogleIdToken(idToken);
         await setSession(session);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        onError(e instanceof Error ? e.message : String(e));
       }
     })();
-  }, [response, setSession]);
+  }, [response, setSession, onError]);
+
+  return (
+    <Button
+      title="Sign in with Google"
+      onPress={() => {
+        onError('');
+        promptAsync().catch((e) => {
+          onError(e instanceof Error ? e.message : String(e));
+        });
+      }}
+      testID="google-signin-button"
+    />
+  );
+}
+
+// Landing screen shown when the user is not authenticated. This screen is
+// load-bearing for the Maestro E2E flow at app/.maestro/health.yaml — it
+// must keep the exact testIDs `root`, `check-health-button`, and
+// `health-status`, and the health fetch must hit
+// `${EXPO_PUBLIC_API_URL}/health` returning `{"status":"ok"}`.
+export default function Landing() {
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
 
   const checkHealth = async () => {
     setStatus('');
@@ -71,16 +99,7 @@ export default function Landing() {
           status: {status}
         </Text>
       )}
-      <Button
-        title="Sign in with Google"
-        onPress={() => {
-          setError('');
-          promptAsync().catch((e) => {
-            setError(e instanceof Error ? e.message : String(e));
-          });
-        }}
-        testID="google-signin-button"
-      />
+      {hasGoogleConfig && <GoogleSignInButton onError={setError} />}
       {error !== '' && (
         <Text style={styles.error} testID="health-error">
           error: {error}
