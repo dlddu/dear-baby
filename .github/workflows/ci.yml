@@ -78,10 +78,6 @@ jobs:
         with:
           model: "iPhone 16"
 
-      - name: Expo prebuild (iOS)
-        working-directory: app
-        run: npx expo prebuild --platform ios --clean
-
       # Release build embeds the JS bundle into the .app via
       # react-native-xcode.sh at build time, so no Metro is needed at runtime.
       # EXPO_PUBLIC_API_URL (job env) is inlined during the embed step.
@@ -341,9 +337,6 @@ jobs:
 
       - name: Install JS dependencies
         run: npm ci
-
-      - name: Expo prebuild (iOS)
-        run: npx expo prebuild --platform ios --clean
 
       - name: Install CocoaPods
         working-directory: app/ios
