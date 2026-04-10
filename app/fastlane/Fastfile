@@ -54,7 +54,7 @@ platform :ios do
       log: false,
     ).strip
 
-    build_number = (ENV["GITHUB_RUN_NUMBER"] || "1").to_i + 10_000
+    build_number = (ENV["GITHUB_RUN_NUMBER"] || "1").to_i
 
     build_app(
       workspace: workspace,
