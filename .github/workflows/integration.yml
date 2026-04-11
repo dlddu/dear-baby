@@ -1,0 +1,72 @@
+name: integration
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'k8s/**'
+      - '.github/workflows/integration.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'k8s/**'
+      - '.github/workflows/integration.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (local)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: false
+          load: true
+          tags: ghcr.io/dlddu/dear-baby:ci
+          cache-from: type=gha
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: dear-baby-integration
+
+      - name: Load image into kind
+        run: kind load docker-image ghcr.io/dlddu/dear-baby:ci --name dear-baby-integration
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -f k8s/
+          kubectl patch deployment/dear-baby --type=strategic -p '{"spec":{"template":{"spec":{"containers":[{"name":"backend","image":"ghcr.io/dlddu/dear-baby:ci","imagePullPolicy":"IfNotPresent"}]}}}}'
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/dear-baby --timeout=180s
+
+      - name: Integration test /health via Service
+        run: |
+          set -euo pipefail
+          kubectl port-forward svc/dear-baby 18080:8080 >/tmp/pf.log 2>&1 &
+          PF_PID=$!
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/health >/tmp/resp.json 2>/dev/null; then
+              echo "response: $(cat /tmp/resp.json)"
+              grep -q '"status":"ok"' /tmp/resp.json
+              echo "integration test passed"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "integration test failed; diagnostics:"
+          kubectl get pods,svc,endpoints -o wide
+          kubectl describe deployment/dear-baby
+          kubectl logs deployment/dear-baby --tail=200 || true
+          exit 1
