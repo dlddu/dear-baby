@@ -42,8 +42,16 @@ jobs:
 
       - name: Apply manifests
         run: |
+          # Rewrite the deployment to use the locally-loaded :ci image with
+          # imagePullPolicy Never before the first apply. Patching after apply
+          # would create an intermediate ReplicaSet that tries (and fails) to
+          # pull the production :latest tag from GHCR, which gets stuck in
+          # ImagePullBackOff and blocks the rollout.
+          sed -i \
+            -e 's|ghcr.io/dlddu/dear-baby:latest|ghcr.io/dlddu/dear-baby:ci|' \
+            -e 's|imagePullPolicy: Always|imagePullPolicy: Never|' \
+            k8s/deployment.yaml
           kubectl apply -f k8s/
-          kubectl patch deployment/dear-baby --type=strategic -p '{"spec":{"template":{"spec":{"containers":[{"name":"backend","image":"ghcr.io/dlddu/dear-baby:ci","imagePullPolicy":"IfNotPresent"}]}}}}'
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/dear-baby --timeout=180s
