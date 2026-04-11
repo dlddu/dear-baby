@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { Button, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { exchangeGoogleIdToken } from '../src/api/auth';
 import { useAuth } from '../src/auth/AuthContext';
@@ -16,9 +16,14 @@ import {
 // Dismisses the in-app browser when the OAuth redirect returns.
 WebBrowser.maybeCompleteAuthSession();
 
-const hasGoogleConfig = Boolean(
-  GOOGLE_IOS_CLIENT_ID || GOOGLE_ANDROID_CLIENT_ID || GOOGLE_WEB_CLIENT_ID,
-);
+// Only mount the Google sign-in button when a client ID is configured for
+// the current platform. Without this guard, Google.useAuthRequest throws on
+// Android when only iOS/web IDs are set, which blocks the landing screen
+// from rendering and breaks the Maestro health flow.
+const hasGoogleConfig =
+  (Platform.OS === 'ios' && Boolean(GOOGLE_IOS_CLIENT_ID)) ||
+  (Platform.OS === 'android' && Boolean(GOOGLE_ANDROID_CLIENT_ID)) ||
+  (Platform.OS === 'web' && Boolean(GOOGLE_WEB_CLIENT_ID));
 
 // GoogleSignInButton is split into its own component so that
 // Google.useAuthRequest — which throws when invoked with no client IDs —
