@@ -39,7 +39,6 @@ jobs:
   build-image:
     name: Build & Push Backend Image
     needs: [e2e-ios, e2e-android]
-    if: github.event_name == 'push'
     uses: ./.github/workflows/backend-image.yml
     permissions:
       contents: read
