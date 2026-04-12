@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
 // CORS allows any origin with the methods and headers used by the app.
@@ -25,19 +27,42 @@ func CORS() func(http.Handler) http.Handler {
 }
 
 // Logger emits one slog record per request with method, path, status, and
-// duration.
+// duration. Health-check requests (GET /health) are silently skipped to
+// reduce log noise from load-balancer probes. Responses with 4xx status
+// are logged at WARN level and 5xx at ERROR level.
 func Logger(l *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && r.URL.Path == "/health" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			start := time.Now()
 			sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(sw, r)
-			l.Info("http",
+
+			attrs := []any{
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", sw.status,
 				"dur_ms", time.Since(start).Milliseconds(),
-			)
+			}
+			if reqID := chimw.GetReqID(r.Context()); reqID != "" {
+				attrs = append(attrs, "request_id", reqID)
+			}
+			if sw.errMsg != "" {
+				attrs = append(attrs, "error", sw.errMsg)
+			}
+
+			switch {
+			case sw.status >= 500:
+				l.Error("http", attrs...)
+			case sw.status >= 400:
+				l.Warn("http", attrs...)
+			default:
+				l.Info("http", attrs...)
+			}
 		})
 	}
 }
@@ -62,6 +87,16 @@ func Recoverer(l *slog.Logger) func(http.Handler) http.Handler {
 type statusWriter struct {
 	http.ResponseWriter
 	status int
+	errMsg string
+}
+
+// SetErrorMsg records a human-readable error message on the response writer
+// so that the Logger middleware can include it in the log entry. It is a
+// no-op if w is not the middleware's internal writer.
+func SetErrorMsg(w http.ResponseWriter, msg string) {
+	if sw, ok := w.(*statusWriter); ok {
+		sw.errMsg = msg
+	}
 }
 
 func (s *statusWriter) WriteHeader(code int) {
