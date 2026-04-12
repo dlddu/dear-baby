@@ -29,6 +29,9 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       app: ${{ steps.filter.outputs.app }}
       k8s: ${{ steps.filter.outputs.k8s }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      integration: ${{ steps.filter.outputs.integration }}
+      ci: ${{ steps.filter.outputs.ci }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -37,15 +40,30 @@ jobs:
           filters: |
             backend:
               - 'backend/**'
+              - '.github/workflows/backend-image.yml'
+              - '.github/actions/setup-backend/**'
             app:
               - 'app/**'
+              - '.github/workflows/deploy-testflight.yml'
+              - '.github/actions/setup-js/**'
+              - '.github/actions/setup-maestro/**'
+              - '.github/actions/upload-maestro-artifacts/**'
             k8s:
               - 'k8s/**'
+            e2e:
+              - '.github/workflows/e2e-ios.yml'
+              - '.github/workflows/e2e-android.yml'
+            integration:
+              - '.github/workflows/integration.yml'
+            ci:
+              - '.github/workflows/ci.yml'
 
   integration:
     name: Integration Tests
     needs: [changes]
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.k8s == 'true'
+    if: >-
+      needs.changes.outputs.backend == 'true' || needs.changes.outputs.k8s == 'true' ||
+      needs.changes.outputs.integration == 'true' || needs.changes.outputs.ci == 'true'
     uses: ./.github/workflows/integration.yml
     permissions:
       contents: read
@@ -55,7 +73,8 @@ jobs:
     needs: [integration, changes]
     if: >-
       !failure() && !cancelled() &&
-      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true')
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
+      needs.changes.outputs.e2e == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/e2e-ios.yml
 
   e2e-android:
@@ -63,7 +82,8 @@ jobs:
     needs: [integration, changes]
     if: >-
       !failure() && !cancelled() &&
-      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true')
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
+      needs.changes.outputs.e2e == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/e2e-android.yml
 
   build-image:
@@ -71,7 +91,7 @@ jobs:
     needs: [e2e-ios, e2e-android, changes]
     if: >-
       !failure() && !cancelled() &&
-      needs.changes.outputs.backend == 'true'
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/backend-image.yml
     permissions:
       contents: read
@@ -83,6 +103,7 @@ jobs:
     needs: [e2e-ios, e2e-android, changes]
     if: >-
       !failure() && !cancelled() &&
-      github.event_name == 'pull_request' && needs.changes.outputs.app == 'true'
+      github.event_name == 'pull_request' &&
+      (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/deploy-testflight.yml
     secrets: inherit
