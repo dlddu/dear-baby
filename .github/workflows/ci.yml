@@ -28,6 +28,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       app: ${{ steps.filter.outputs.app }}
+      k8s: ${{ steps.filter.outputs.k8s }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -38,27 +39,39 @@ jobs:
               - 'backend/**'
             app:
               - 'app/**'
+            k8s:
+              - 'k8s/**'
 
   integration:
     name: Integration Tests
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.k8s == 'true'
     uses: ./.github/workflows/integration.yml
     permissions:
       contents: read
 
   e2e-ios:
     name: E2E Tests (iOS)
-    needs: [integration]
+    needs: [integration, changes]
+    if: >-
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true')
     uses: ./.github/workflows/e2e-ios.yml
 
   e2e-android:
     name: E2E Tests (Android)
-    needs: [integration]
+    needs: [integration, changes]
+    if: >-
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true')
     uses: ./.github/workflows/e2e-android.yml
 
   build-image:
     name: Build & Push Backend Image
     needs: [e2e-ios, e2e-android, changes]
-    if: needs.changes.outputs.backend == 'true'
+    if: >-
+      !failure() && !cancelled() &&
+      needs.changes.outputs.backend == 'true'
     uses: ./.github/workflows/backend-image.yml
     permissions:
       contents: read
@@ -68,6 +81,8 @@ jobs:
   deploy-testflight:
     name: Deploy iOS to TestFlight
     needs: [e2e-ios, e2e-android, changes]
-    if: github.event_name == 'pull_request' && needs.changes.outputs.app == 'true'
+    if: >-
+      !failure() && !cancelled() &&
+      github.event_name == 'pull_request' && needs.changes.outputs.app == 'true'
     uses: ./.github/workflows/deploy-testflight.yml
     secrets: inherit
