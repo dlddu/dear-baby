@@ -51,6 +51,26 @@ jobs:
       - name: Wait for rollout
         run: kubectl rollout status deployment/dear-baby --timeout=180s
 
+      - name: Diagnostics on rollout failure
+        if: failure()
+        run: |
+          echo "::group::kubectl get all -o wide"
+          kubectl get all -o wide || true
+          echo "::endgroup::"
+          echo "::group::kubectl describe deployment/dear-baby"
+          kubectl describe deployment/dear-baby || true
+          echo "::endgroup::"
+          echo "::group::kubectl describe pods"
+          kubectl describe pods -l app=dear-baby || true
+          echo "::endgroup::"
+          echo "::group::kubectl logs"
+          kubectl logs deployment/dear-baby --tail=200 --all-containers=true || true
+          kubectl logs deployment/dear-baby --tail=200 --all-containers=true --previous || true
+          echo "::endgroup::"
+          echo "::group::kubectl get events"
+          kubectl get events --sort-by=.lastTimestamp || true
+          echo "::endgroup::"
+
       - name: Integration test /health via Service
         run: |
           set -euo pipefail

@@ -12,19 +12,6 @@ spec:
       labels:
         app: dear-baby
     spec:
-      # The distroless nonroot base runs the backend as uid/gid 65532, and the
-      # backend opens a SQLite file on startup (before ListenAndServe), so it
-      # needs a writable path. fsGroup makes the emptyDir below writable by
-      # the nonroot group. runAsUser/runAsGroup are numeric because the
-      # distroless image sets `USER nonroot:nonroot` as a string, and
-      # runAsNonRoot: true cannot verify a non-numeric user and rejects the
-      # container with CreateContainerConfigError. TODO: replace emptyDir with
-      # a PVC once persistence matters — this is intentionally ephemeral.
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 65532
-        runAsGroup: 65532
-        fsGroup: 65532
       containers:
         - name: backend
           image: ghcr.io/dlddu/dear-baby:latest
@@ -35,11 +22,6 @@ spec:
           env:
             - name: PORT
               value: "8080"
-            - name: DATABASE_URL
-              value: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"
-          volumeMounts:
-            - name: data
-              mountPath: /data
           livenessProbe:
             httpGet:
               path: /health
@@ -52,6 +34,3 @@ spec:
               port: http
             initialDelaySeconds: 2
             periodSeconds: 10
-      volumes:
-        - name: data
-          emptyDir: {}
