@@ -70,7 +70,7 @@ jobs:
 
   e2e-ios:
     name: E2E Tests (iOS)
-    needs: [integration, changes]
+    needs: [changes]
     if: >-
       !failure() && !cancelled() &&
       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
@@ -79,7 +79,7 @@ jobs:
 
   e2e-android:
     name: E2E Tests (Android)
-    needs: [integration, changes]
+    needs: [changes]
     if: >-
       !failure() && !cancelled() &&
       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
@@ -88,7 +88,7 @@ jobs:
 
   build-image:
     name: Build & Push Backend Image
-    needs: [e2e-ios, e2e-android, changes]
+    needs: [integration, e2e-ios, e2e-android, changes]
     if: >-
       !failure() && !cancelled() &&
       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true')
@@ -100,7 +100,7 @@ jobs:
 
   deploy-testflight:
     name: Deploy iOS to TestFlight
-    needs: [e2e-ios, e2e-android, changes]
+    needs: [integration, e2e-ios, e2e-android, changes]
     if: >-
       !failure() && !cancelled() &&
       github.event_name == 'pull_request' &&
