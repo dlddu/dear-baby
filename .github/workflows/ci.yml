@@ -20,6 +20,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            app:
+              - 'app/**'
+
   integration:
     name: Integration Tests
     uses: ./.github/workflows/integration.yml
@@ -38,7 +57,8 @@ jobs:
 
   build-image:
     name: Build & Push Backend Image
-    needs: [e2e-ios, e2e-android]
+    needs: [e2e-ios, e2e-android, changes]
+    if: needs.changes.outputs.backend == 'true'
     uses: ./.github/workflows/backend-image.yml
     permissions:
       contents: read
@@ -47,7 +67,7 @@ jobs:
 
   deploy-testflight:
     name: Deploy iOS to TestFlight
-    needs: [e2e-ios, e2e-android]
-    if: github.event_name == 'pull_request'
+    needs: [e2e-ios, e2e-android, changes]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.app == 'true'
     uses: ./.github/workflows/deploy-testflight.yml
     secrets: inherit
