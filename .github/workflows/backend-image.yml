@@ -1,15 +1,5 @@
 name: backend-image
 on:
-  pull_request:
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-image.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-image.yml'
-  workflow_dispatch:
   workflow_call:
 permissions:
   contents: read
