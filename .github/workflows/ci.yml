@@ -34,6 +34,16 @@ jobs:
     needs: [integration]
     uses: ./.github/workflows/e2e-android.yml
 
+  build-image:
+    name: Build & Push Backend Image
+    needs: [e2e-ios, e2e-android]
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/backend-image.yml
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
+
   deploy-testflight:
     name: Deploy iOS to TestFlight
     needs: [e2e-ios, e2e-android]
