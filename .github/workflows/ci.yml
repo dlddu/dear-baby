@@ -18,8 +18,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  integration:
+    name: Integration Tests
+    uses: ./.github/workflows/integration.yml
+    permissions:
+      contents: read
+
   e2e-ios:
     name: E2E Tests (iOS)
+    needs: [integration]
     runs-on: macos-latest
     timeout-minutes: 45
     env:
@@ -29,49 +36,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
+      - name: Setup backend
+        uses: ./.github/actions/setup-backend
 
-      - name: Build backend
-        working-directory: backend
-        run: go build -o server .
+      - name: Setup JS
+        uses: ./.github/actions/setup-js
 
-      - name: Start backend
-        working-directory: backend
-        run: |
-          nohup ./server > server.log 2>&1 &
-          echo $! > server.pid
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8080/health > /dev/null; then
-              echo "Backend is up"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Backend failed to start"
-          cat server.log
-          exit 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: app/package-lock.json
-
-      - name: Install JS dependencies
-        working-directory: app
-        run: npm ci
-
-      - name: Install Maestro
-        run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-
-      - name: Verify Maestro
-        run: maestro --version
+      - name: Setup Maestro
+        uses: ./.github/actions/setup-maestro
 
       - name: Boot iOS Simulator
         uses: futureware-tech/simulator-action@v4
@@ -103,13 +75,9 @@ jobs:
 
       - name: Upload Maestro debug artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/upload-maestro-artifacts
         with:
           name: maestro-ios-output
-          path: |
-            ~/.maestro/tests/
-            app/.maestro/
-          if-no-files-found: ignore
 
       - name: Stop backend
         if: always()
@@ -121,6 +89,7 @@ jobs:
 
   e2e-android:
     name: E2E Tests (Android)
+    needs: [integration]
     # x86_64 Linux runner with KVM enabled for hardware-accelerated emulation.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -131,30 +100,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Build backend
-        working-directory: backend
-        run: go build -o server .
-
-      - name: Start backend
-        working-directory: backend
-        run: |
-          nohup ./server > server.log 2>&1 &
-          echo $! > server.pid
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8080/health > /dev/null; then
-              echo "Backend is up"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Backend failed to start"
-          cat server.log
-          exit 1
+      - name: Setup backend
+        uses: ./.github/actions/setup-backend
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -162,24 +109,11 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: app/package-lock.json
+      - name: Setup JS
+        uses: ./.github/actions/setup-js
 
-      - name: Install JS dependencies
-        working-directory: app
-        run: npm ci
-
-      - name: Install Maestro
-        run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-
-      - name: Verify Maestro
-        run: maestro --version
+      - name: Setup Maestro
+        uses: ./.github/actions/setup-maestro
 
       # Allow non-root access to /dev/kvm so the emulator can use hardware
       # acceleration (required for reasonable emulator boot/test times).
@@ -272,13 +206,9 @@ jobs:
 
       - name: Upload Maestro debug artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/upload-maestro-artifacts
         with:
           name: maestro-android-output
-          path: |
-            ~/.maestro/tests/
-            app/.maestro/
-          if-no-files-found: ignore
 
       - name: Stop backend
         if: always()
@@ -315,12 +245,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: app/package-lock.json
+      - name: Setup JS
+        uses: ./.github/actions/setup-js
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -334,9 +260,6 @@ jobs:
 
       - name: Generate one-shot keychain password
         run: echo "MATCH_KEYCHAIN_PASSWORD=$(uuidgen)" >> "$GITHUB_ENV"
-
-      - name: Install JS dependencies
-        run: npm ci
 
       - name: Install CocoaPods
         working-directory: app/ios

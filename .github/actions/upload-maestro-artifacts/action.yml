@@ -1,0 +1,19 @@
+name: Upload Maestro Artifacts
+description: Upload Maestro debug output as workflow artifacts
+
+inputs:
+  name:
+    description: Artifact name (e.g. maestro-ios-output)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Upload Maestro debug artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: |
+          ~/.maestro/tests/
+          app/.maestro/
+        if-no-files-found: ignore

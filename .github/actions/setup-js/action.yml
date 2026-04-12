@@ -1,0 +1,23 @@
+name: Setup JS
+description: Setup Node.js and install JS dependencies
+
+inputs:
+  node-version:
+    description: Node.js version to install
+    required: false
+    default: "20"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "npm"
+        cache-dependency-path: app/package-lock.json
+
+    - name: Install JS dependencies
+      working-directory: app
+      shell: bash
+      run: npm ci
