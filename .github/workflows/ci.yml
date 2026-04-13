@@ -6,352 +6,104 @@ on:
     paths:
       - "backend/**"
       - "app/**"
-      - ".github/workflows/ci.yml"
+      - "k8s/**"
+      - ".github/workflows/**"
   pull_request:
     paths:
       - "backend/**"
       - "app/**"
-      - ".github/workflows/ci.yml"
+      - "k8s/**"
+      - ".github/workflows/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      app: ${{ steps.filter.outputs.app }}
+      k8s: ${{ steps.filter.outputs.k8s }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      integration: ${{ steps.filter.outputs.integration }}
+      ci: ${{ steps.filter.outputs.ci }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/backend-image.yml'
+              - '.github/actions/setup-backend/**'
+            app:
+              - 'app/**'
+              - '.github/workflows/deploy-testflight.yml'
+              - '.github/actions/setup-js/**'
+              - '.github/actions/setup-maestro/**'
+              - '.github/actions/upload-maestro-artifacts/**'
+            k8s:
+              - 'k8s/**'
+            e2e:
+              - '.github/workflows/e2e-ios.yml'
+              - '.github/workflows/e2e-android.yml'
+            integration:
+              - '.github/workflows/integration.yml'
+            ci:
+              - '.github/workflows/ci.yml'
+
+  integration:
+    name: Integration Tests
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.backend == 'true' || needs.changes.outputs.k8s == 'true' ||
+      needs.changes.outputs.integration == 'true' || needs.changes.outputs.ci == 'true'
+    uses: ./.github/workflows/integration.yml
+    permissions:
+      contents: read
+
   e2e-ios:
     name: E2E Tests (iOS)
-    runs-on: macos-latest
-    timeout-minutes: 45
-    env:
-      EXPO_PUBLIC_API_URL: http://localhost:8080
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Build backend
-        working-directory: backend
-        run: go build -o server .
-
-      - name: Start backend
-        working-directory: backend
-        run: |
-          nohup ./server > server.log 2>&1 &
-          echo $! > server.pid
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8080/health > /dev/null; then
-              echo "Backend is up"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Backend failed to start"
-          cat server.log
-          exit 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: app/package-lock.json
-
-      - name: Install JS dependencies
-        working-directory: app
-        run: npm ci
-
-      - name: Install Maestro
-        run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-
-      - name: Verify Maestro
-        run: maestro --version
-
-      - name: Boot iOS Simulator
-        uses: futureware-tech/simulator-action@v4
-        with:
-          model: "iPhone 16"
-
-      # Release build embeds the JS bundle into the .app via
-      # react-native-xcode.sh at build time, so no Metro is needed at runtime.
-      # EXPO_PUBLIC_API_URL (job env) is inlined during the embed step.
-      - name: Build and install app on simulator
-        working-directory: app
-        run: npx expo run:ios --configuration Release --no-bundler
-
-      - name: Wait for app install
-        run: |
-          for i in $(seq 1 30); do
-            if xcrun simctl listapps booted | grep -q "com.dlddu.dearbaby"; then
-              echo "App is installed"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "App did not install in time"
-          exit 1
-
-      - name: Run Maestro flow
-        working-directory: app
-        run: maestro test .maestro/health.yaml
-
-      - name: Upload Maestro debug artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: maestro-ios-output
-          path: |
-            ~/.maestro/tests/
-            app/.maestro/
-          if-no-files-found: ignore
-
-      - name: Stop backend
-        if: always()
-        working-directory: backend
-        run: |
-          if [ -f server.pid ]; then
-            kill "$(cat server.pid)" || true
-          fi
+    needs: [changes]
+    if: >-
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
+      needs.changes.outputs.e2e == 'true' || needs.changes.outputs.ci == 'true')
+    uses: ./.github/workflows/e2e-ios.yml
 
   e2e-android:
     name: E2E Tests (Android)
-    # x86_64 Linux runner with KVM enabled for hardware-accelerated emulation.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
+    needs: [changes]
+    if: >-
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
+      needs.changes.outputs.e2e == 'true' || needs.changes.outputs.ci == 'true')
+    uses: ./.github/workflows/e2e-android.yml
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Build backend
-        working-directory: backend
-        run: go build -o server .
-
-      - name: Start backend
-        working-directory: backend
-        run: |
-          nohup ./server > server.log 2>&1 &
-          echo $! > server.pid
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8080/health > /dev/null; then
-              echo "Backend is up"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Backend failed to start"
-          cat server.log
-          exit 1
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: app/package-lock.json
-
-      - name: Install JS dependencies
-        working-directory: app
-        run: npm ci
-
-      - name: Install Maestro
-        run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-
-      - name: Verify Maestro
-        run: maestro --version
-
-      # Allow non-root access to /dev/kvm so the emulator can use hardware
-      # acceleration (required for reasonable emulator boot/test times).
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Expo prebuild (Android)
-        working-directory: app
-        run: npx expo prebuild --platform android --clean
-
-      # Android 9+ blocks cleartext HTTP in release builds by default. The
-      # Expo prebuild template only enables it for the debug variant (via
-      # `debug/AndroidManifest.xml`). For this E2E test we hit the host
-      # backend over plain http://10.0.2.2:8080 from a Release APK, so we
-      # patch the main manifest to allow cleartext. CI-only hack.
-      - name: Allow cleartext HTTP in Android manifest
-        run: |
-          MANIFEST=app/android/app/src/main/AndroidManifest.xml
-          sed -i 's|<application |<application android:usesCleartextTraffic="true" |' "$MANIFEST"
-          grep -q 'usesCleartextTraffic="true"' "$MANIFEST" || { echo "manifest patch failed"; cat "$MANIFEST"; exit 1; }
-
-      # Build the APK BEFORE starting the emulator. The assemble task does
-      # not need a device, and running it inside the emulator-runner script
-      # would leave the emulator idle for ~25 minutes, which reliably
-      # triggers a "Pixel Launcher isn't responding" ANR dialog that
-      # covers the app under test.
-      - name: Build Android release APK
-        working-directory: app/android
-        env:
-          EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
-        run: |
-          echo "EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL"
-          ./gradlew assembleRelease --no-daemon
-
-      # reactivecircus/android-emulator-runner splits `script:` on newlines and
-      # runs each line as its own `sh -c`, so `cd` and shell options don't
-      # persist across lines. We instead write the whole flow to a file and
-      # invoke it with a single-line command.
-      - name: Prepare e2e script
-        run: |
-          cat > /tmp/e2e-android.sh <<'SCRIPT'
-          #!/usr/bin/env bash
-          set -eux
-
-          # Give the system launcher time to fully settle on a cold boot and
-          # dismiss any stray "isn't responding" dialogs before we start.
-          adb shell input keyevent KEYCODE_WAKEUP || true
-          adb shell input keyevent KEYCODE_HOME || true
-          sleep 10
-          for _ in 1 2 3; do
-            if adb shell dumpsys window windows 2>/dev/null | grep -q "isn't responding"; then
-              adb shell input keyevent KEYCODE_BACK || true
-              sleep 2
-            else
-              break
-            fi
-          done
-
-          cd "$GITHUB_WORKSPACE/app"
-          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
-          echo "Installing $APK"
-          adb install -r "$APK"
-          adb shell monkey -p com.dlddu.dearbaby -c android.intent.category.LAUNCHER 1
-          sleep 3
-          maestro test .maestro/health.yaml
-          SCRIPT
-          chmod +x /tmp/e2e-android.sh
-
-      - name: Run Android emulator and tests
-        uses: reactivecircus/android-emulator-runner@v2
-        env:
-          EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
-        with:
-          # API 30 + default profile is much more stable than API 34 + pixel_6
-          # on a cold-booted emulator — the heavier Pixel Launcher on 34
-          # reliably ANRs during the HOME transition that Maestro triggers
-          # when it does `launchApp` with `clearState: true`.
-          api-level: 30
-          target: default
-          arch: x86_64
-          ram-size: 4096M
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: bash /tmp/e2e-android.sh
-
-      - name: Upload Maestro debug artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: maestro-android-output
-          path: |
-            ~/.maestro/tests/
-            app/.maestro/
-          if-no-files-found: ignore
-
-      - name: Stop backend
-        if: always()
-        working-directory: backend
-        run: |
-          if [ -f server.pid ]; then
-            kill "$(cat server.pid)" || true
-          fi
+  build-image:
+    name: Build & Push Backend Image
+    needs: [integration, e2e-ios, e2e-android, changes]
+    if: >-
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true')
+    uses: ./.github/workflows/backend-image.yml
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
 
   deploy-testflight:
     name: Deploy iOS to TestFlight
-    # Only deploy to TestFlight after BOTH E2E suites pass, and only on PRs.
-    # On push to main we still run the E2E jobs (as the branch's status
-    # check) but skip the TestFlight upload.
-    needs: [e2e-ios, e2e-android]
-    if: github.event_name == 'pull_request'
-    runs-on: macos-26
-    timeout-minutes: 60
-    defaults:
-      run:
-        working-directory: app
-    env:
-      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
-      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
-      IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
-      IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
-      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      GIT_SHA: ${{ github.event.pull_request.head.sha }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: app/package-lock.json
-
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-          bundler-cache: true
-          working-directory: app
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.3.app
-
-      - name: Generate one-shot keychain password
-        run: echo "MATCH_KEYCHAIN_PASSWORD=$(uuidgen)" >> "$GITHUB_ENV"
-
-      - name: Install JS dependencies
-        run: npm ci
-
-      - name: Install CocoaPods
-        working-directory: app/ios
-        run: pod install --repo-update
-
-      - name: Fastlane beta
-        run: bundle exec fastlane beta
-
-      - name: Upload build artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build-logs
-          path: |
-            app/fastlane/report.xml
-            app/build/
-            ~/Library/Logs/gym/
-          if-no-files-found: ignore
+    needs: [integration, e2e-ios, e2e-android, changes]
+    if: >-
+      !failure() && !cancelled() &&
+      github.event_name == 'pull_request' &&
+      (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
+    uses: ./.github/workflows/deploy-testflight.yml
+    secrets: inherit

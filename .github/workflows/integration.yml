@@ -1,17 +1,6 @@
 name: integration
 on:
-  pull_request:
-    paths:
-      - 'backend/**'
-      - 'k8s/**'
-      - '.github/workflows/integration.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-      - 'k8s/**'
-      - '.github/workflows/integration.yml'
-  workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 jobs:

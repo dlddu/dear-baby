@@ -1,0 +1,38 @@
+name: Setup Backend
+description: Setup Go, build the backend binary, and start it with a health check
+
+inputs:
+  go-version:
+    description: Go version to install
+    required: false
+    default: "1.22"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+
+    - name: Build backend
+      working-directory: backend
+      shell: bash
+      run: go build -o server .
+
+    - name: Start backend
+      working-directory: backend
+      shell: bash
+      run: |
+        nohup ./server > server.log 2>&1 &
+        echo $! > server.pid
+        for i in $(seq 1 30); do
+          if curl -fsS http://localhost:8080/health > /dev/null; then
+            echo "Backend is up"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Backend failed to start"
+        cat server.log
+        exit 1
