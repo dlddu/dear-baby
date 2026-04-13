@@ -33,6 +33,22 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="recording"
+            options={{ animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="converting"
+            options={{ animation: 'fade' }}
+          />
+          <Stack.Screen
+            name="edit"
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="text-input"
+            options={{ animation: 'slide_from_bottom' }}
+          />
         </Stack>
       </AuthGate>
     </AuthProvider>

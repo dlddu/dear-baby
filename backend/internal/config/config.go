@@ -18,6 +18,7 @@ type Config struct {
 	JWTAccessTTL    time.Duration
 	JWTRefreshTTL   time.Duration
 	GoogleAudiences []string
+	OpenAIAPIKey    string
 }
 
 // Load reads the environment and returns a populated Config. It never fails
@@ -39,6 +40,8 @@ func Load() (*Config, error) {
 
 	cfg.JWTAccessTTL = parseDuration("JWT_ACCESS_TTL", 15*time.Minute)
 	cfg.JWTRefreshTTL = parseDuration("JWT_REFRESH_TTL", 30*24*time.Hour)
+
+	cfg.OpenAIAPIKey = os.Getenv("OPENAI_API_KEY")
 
 	if auds := os.Getenv("GOOGLE_ALLOWED_AUDIENCES"); auds != "" {
 		for _, a := range strings.Split(auds, ",") {

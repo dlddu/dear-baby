@@ -10,6 +10,7 @@ import (
 
 	"github.com/dlddu/dear-baby/backend/internal/auth"
 	"github.com/dlddu/dear-baby/backend/internal/config"
+	"github.com/dlddu/dear-baby/backend/internal/diary"
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
@@ -53,9 +54,26 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger) http.Handler
 	r.Post("/auth/refresh", authHandlers.Refresh)
 	r.Post("/auth/logout", authHandlers.Logout)
 
+	diaryStore := &diary.Store{DB: db}
+	diaryHandlers := &diary.Handlers{
+		Store:           diaryStore,
+		UserIDFromCtxFn: auth.UserIDFromRequest,
+	}
+	transcribeHandler := &diary.TranscribeHandler{
+		OpenAIAPIKey:    cfg.OpenAIAPIKey,
+		UserIDFromCtxFn: auth.UserIDFromRequest,
+	}
+
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuth(issuer))
 		pr.Get("/me", usersHandlers.Me)
+
+		pr.Post("/diary", diaryHandlers.Create)
+		pr.Get("/diary", diaryHandlers.List)
+		pr.Get("/diary/{id}", diaryHandlers.Get)
+		pr.Put("/diary/{id}", diaryHandlers.Update)
+		pr.Delete("/diary/{id}", diaryHandlers.Delete)
+		pr.Post("/diary/transcribe", transcribeHandler.Transcribe)
 	})
 
 	return r

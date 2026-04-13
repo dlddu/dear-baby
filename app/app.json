@@ -32,7 +32,13 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "마이크를 사용하여 음성 일기를 녹음합니다."
+        }
+      ]
     ]
   }
 }
