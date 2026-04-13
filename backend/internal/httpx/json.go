@@ -17,5 +17,6 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 
 // WriteError serializes a {"error": msg} body with the given status code.
 func WriteError(w http.ResponseWriter, status int, msg string) {
+	SetErrorMsg(w, msg)
 	WriteJSON(w, status, map[string]string{"error": msg})
 }

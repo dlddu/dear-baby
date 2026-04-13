@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dear-baby
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dear-baby
+  template:
+    metadata:
+      labels:
+        app: dear-baby
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/dlddu/dear-baby:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: DATABASE_URL
+              value: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"
+          envFrom:
+            - secretRef:
+                name: dear-baby-secrets
+                optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: dear-baby-data

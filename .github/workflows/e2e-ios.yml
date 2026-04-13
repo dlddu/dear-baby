@@ -1,0 +1,67 @@
+name: E2E Tests (iOS)
+
+on:
+  workflow_call:
+
+jobs:
+  e2e-ios:
+    name: E2E Tests (iOS)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_API_URL: http://localhost:8080
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup backend
+        uses: ./.github/actions/setup-backend
+
+      - name: Setup JS
+        uses: ./.github/actions/setup-js
+
+      - name: Setup Maestro
+        uses: ./.github/actions/setup-maestro
+
+      - name: Boot iOS Simulator
+        uses: futureware-tech/simulator-action@v4
+        with:
+          model: "iPhone 16"
+
+      # Release build embeds the JS bundle into the .app via
+      # react-native-xcode.sh at build time, so no Metro is needed at runtime.
+      # EXPO_PUBLIC_API_URL (job env) is inlined during the embed step.
+      - name: Build and install app on simulator
+        working-directory: app
+        run: npx expo run:ios --configuration Release --no-bundler
+
+      - name: Wait for app install
+        run: |
+          for i in $(seq 1 30); do
+            if xcrun simctl listapps booted | grep -q "com.dlddu.dearbaby"; then
+              echo "App is installed"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "App did not install in time"
+          exit 1
+
+      - name: Run Maestro flow
+        working-directory: app
+        run: maestro test .maestro/health.yaml
+
+      - name: Upload Maestro debug artifacts
+        if: always()
+        uses: ./.github/actions/upload-maestro-artifacts
+        with:
+          name: maestro-ios-output
+
+      - name: Stop backend
+        if: always()
+        working-directory: backend
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" || true
+          fi
