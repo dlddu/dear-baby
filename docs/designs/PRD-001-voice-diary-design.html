@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DearBaby - PRD-001 음성 일기 기록</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-cream: #FDF8F3;
+    --bg-warm: #F7EDE4;
+    --bg-card: #FFFFFF;
+    --accent-peach: #E8A87C;
+    --accent-coral: #D4856B;
+    --accent-rose: #C67B6F;
+    --accent-soft-pink: #F5D5C8;
+    --accent-mint: #B8D8D0;
+    --text-primary: #3D2E2E;
+    --text-secondary: #8B7575;
+    --text-light: #B5A0A0;
+    --shadow-soft: 0 2px 16px rgba(61,46,46,0.06);
+    --shadow-medium: 0 4px 24px rgba(61,46,46,0.10);
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 10px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: #E8DDD4;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .phone-frame {
+    width: 390px;
+    height: 844px;
+    background: var(--bg-cream);
+    border-radius: 44px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 2px rgba(0,0,0,0.05);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Status Bar */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 28px 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .status-bar-icons { display:flex; gap:4px; align-items:center; }
+  .status-bar-icons svg { width:16px; height:16px; }
+
+  /* Header */
+  .app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 24px 12px;
+  }
+  .app-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+  }
+  .header-icons { display:flex; gap:12px; }
+  .header-icon {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--bg-warm);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .header-icon:hover { transform: scale(1.08); }
+  .header-icon svg { width:18px; height:18px; color: var(--text-secondary); }
+
+  /* Screens */
+  .screen {
+    flex: 1;
+    overflow-y: auto;
+    display: none;
+    flex-direction: column;
+    scrollbar-width: none;
+  }
+  .screen::-webkit-scrollbar { display:none; }
+  .screen.active { display: flex; }
+
+  /* Home Screen */
+  .greeting-card {
+    margin: 0 20px;
+    padding: 22px 24px;
+    background: linear-gradient(135deg, #FFF8F2 0%, #FCEEE4 100%);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    position: relative;
+    overflow: hidden;
+  }
+  .greeting-card::after {
+    content: '🌷';
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 22px;
+    animation: sway 3s ease-in-out infinite;
+  }
+  @keyframes sway {
+    0%,100% { transform: rotate(-5deg); }
+    50% { transform: rotate(5deg); }
+  }
+  .greeting-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.5;
+    margin-bottom: 4px;
+  }
+  .greeting-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+
+  /* Record Buttons - AC-001-01, AC-001-04 */
+  .record-buttons {
+    display: flex;
+    gap: 10px;
+  }
+  .btn-voice, .btn-text {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.25s;
+  }
+  .btn-voice {
+    background: var(--accent-peach);
+    color: #fff;
+  }
+  .btn-voice:hover { background: var(--accent-coral); transform: translateY(-1px); }
+  .btn-text {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1.5px solid #E8DDD4;
+  }
+  .btn-text:hover { border-color: var(--accent-peach); }
+  .btn-voice svg, .btn-text svg { width:16px; height:16px; }
+
+  /* Records List - AC-001-05 */
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px 12px;
+  }
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .section-more {
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+  .week-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    background: var(--accent-soft-pink);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent-rose);
+    margin-left: 8px;
+  }
+
+  .records-scroll {
+    display: flex;
+    gap: 12px;
+    padding: 0 24px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .records-scroll::-webkit-scrollbar { display:none; }
+
+  .record-card {
+    min-width: 140px;
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.25s, box-shadow 0.25s;
+    flex-shrink: 0;
+  }
+  .record-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-medium); }
+  .record-thumb {
+    width: 100%;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+  }
+  .record-thumb.t1 { background: linear-gradient(135deg, #FCEEE4, #F5D5C8); }
+  .record-thumb.t2 { background: linear-gradient(135deg, #E8F0E4, #D4E4D0); }
+  .record-thumb.t3 { background: linear-gradient(135deg, #E4EAF0, #D0DAE8); }
+  .record-info { padding: 10px 12px; }
+  .record-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .record-date { font-size: 11px; color: var(--text-light); }
+
+  /* Recording Screen - AC-001-01 */
+  .recording-screen {
+    background: linear-gradient(180deg, #FDF8F3 0%, #FCEEE4 100%);
+    padding: 0 24px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .recording-status {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent-coral);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .rec-dot {
+    width: 8px; height: 8px;
+    background: #E55;
+    border-radius: 50%;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.4; transform:scale(0.8); }
+  }
+  .recording-time {
+    font-family: 'Playfair Display', serif;
+    font-size: 48px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 32px;
+    letter-spacing: 2px;
+  }
+
+  /* Waveform Animation */
+  .waveform {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 80px;
+    margin-bottom: 40px;
+  }
+  .wave-bar {
+    width: 4px;
+    background: var(--accent-peach);
+    border-radius: 4px;
+    animation: wave 1.2s ease-in-out infinite;
+  }
+  @keyframes wave {
+    0%,100% { height: 12px; opacity:0.4; }
+    50% { height: var(--h); opacity:1; }
+  }
+
+  .record-btn-main {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    margin-bottom: 16px;
+  }
+  .record-btn-main.recording {
+    background: #FEE;
+    box-shadow: 0 0 0 12px rgba(229,85,85,0.08);
+  }
+  .record-btn-main.recording .stop-icon {
+    width: 28px; height: 28px;
+    background: #E55;
+    border-radius: 6px;
+  }
+  .record-btn-main.idle {
+    background: var(--accent-peach);
+    box-shadow: 0 0 0 12px rgba(232,168,124,0.12);
+  }
+  .record-btn-main.idle:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 16px rgba(232,168,124,0.18);
+  }
+
+  .recording-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  .recording-back {
+    position: absolute;
+    top: 56px;
+    left: 24px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+  }
+  .recording-back svg { width:22px; height:22px; color: var(--text-secondary); }
+
+  /* Converting Screen - AC-001-02 */
+  .converting-screen {
+    background: linear-gradient(180deg, #FDF8F3 0%, #FCEEE4 100%);
+    padding: 0 24px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .converting-anim {
+    width: 100px; height: 100px;
+    margin-bottom: 24px;
+    position: relative;
+  }
+  .converting-ring {
+    width: 100%; height: 100%;
+    border: 3px solid var(--bg-warm);
+    border-top-color: var(--accent-peach);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .converting-icon {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    font-size: 32px;
+  }
+  .converting-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .converting-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Edit Screen - AC-001-03 */
+  .edit-screen {
+    background: var(--bg-cream);
+    padding: 0 24px;
+  }
+  .edit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0;
+  }
+  .edit-back { background:none; border:none; cursor:pointer; padding:4px; }
+  .edit-back svg { width:22px; height:22px; color:var(--text-secondary); }
+  .edit-title { font-size:16px; font-weight:600; color:var(--text-primary); }
+  .edit-save {
+    padding: 8px 18px;
+    background: var(--accent-peach);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .edit-save:hover { background: var(--accent-coral); }
+
+  .edit-meta {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .edit-meta-tag {
+    padding: 4px 12px;
+    background: var(--accent-soft-pink);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--accent-rose);
+    font-weight: 500;
+  }
+
+  .edit-area {
+    width: 100%;
+    min-height: 240px;
+    padding: 20px;
+    border: 1.5px solid #E8DDD4;
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--text-primary);
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .edit-area:focus { border-color: var(--accent-peach); }
+
+  .edit-voice-tag {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--bg-warm);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .edit-voice-tag svg { width:18px; height:18px; color:var(--accent-peach); flex-shrink:0; }
+
+  /* Tab Bar */
+  .tab-bar {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 10px 0 28px;
+    background: var(--bg-card);
+    border-top: 1px solid #F0E8E0;
+    flex-shrink: 0;
+  }
+  .tab-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 4px 12px;
+    transition: color 0.2s;
+  }
+  .tab-item svg { width:22px; height:22px; }
+  .tab-item span { font-size:10px; font-weight:500; }
+  .tab-item.active svg { color: var(--accent-peach); }
+  .tab-item.active span { color: var(--accent-peach); }
+  .tab-item:not(.active) svg { color: var(--text-light); }
+  .tab-item:not(.active) span { color: var(--text-light); }
+
+  .fab {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: var(--accent-peach);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(232,168,124,0.35);
+    margin-top: -20px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(232,168,124,0.45); }
+  .fab svg { width:24px; height:24px; color:#fff; }
+
+  /* Records List Screen - AC-001-05 */
+  .records-list-screen { background: var(--bg-cream); padding: 0; }
+  .records-list-header {
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .records-list-title { font-size:18px; font-weight:600; color:var(--text-primary); }
+
+  .week-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 0 24px 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .week-tabs::-webkit-scrollbar { display:none; }
+  .week-tab {
+    padding: 7px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .week-tab.active {
+    background: var(--accent-peach);
+    color: #fff;
+  }
+  .week-tab:not(.active) {
+    background: var(--bg-warm);
+    color: var(--text-secondary);
+  }
+
+  .record-list-item {
+    display: flex;
+    gap: 14px;
+    padding: 16px 24px;
+    cursor: pointer;
+    transition: background 0.2s;
+    align-items: flex-start;
+  }
+  .record-list-item:hover { background: rgba(232,168,124,0.05); }
+  .record-list-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .record-list-icon.voice { background: linear-gradient(135deg, #FCEEE4, #F5D5C8); }
+  .record-list-icon.text { background: linear-gradient(135deg, #E4EAF0, #D0DAE8); }
+  .record-list-body { flex:1; min-width:0; }
+  .record-list-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+  }
+  .record-list-preview {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .record-list-time {
+    font-size: 11px;
+    color: var(--text-light);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .divider { height:1px; background:#F0E8E0; margin:0 24px; }
+
+  /* Fade in animation */
+  .fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity:0; transform:translateY(8px); }
+    to { opacity:1; transform:translateY(0); }
+  }
+
+  /* PRD label */
+  .prd-label {
+    position: absolute;
+    top: 54px;
+    right: 24px;
+    padding: 3px 10px;
+    background: rgba(232,168,124,0.15);
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-coral);
+    letter-spacing: 0.5px;
+    z-index: 10;
+  }
+
+  /* Text Input Screen - AC-001-04 */
+  .text-input-screen {
+    background: var(--bg-cream);
+    padding: 0 24px;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone-frame" id="app">
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span>9:41</span>
+    <div class="status-bar-icons">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="1" y="6" width="4" height="12" rx="1"/><rect x="7" y="4" width="4" height="14" rx="1"/><rect x="13" y="2" width="4" height="16" rx="1"/><rect x="19" y="0" width="4" height="18" rx="1"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="7" width="18" height="10" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="4" y="9" width="12" height="6" rx="1" fill="currentColor" opacity="0.7"/><rect x="21" y="10" width="2" height="4" rx="0.5"/></svg>
+    </div>
+  </div>
+
+  <!-- App Header -->
+  <div class="app-header">
+    <span class="app-logo">DearBaby</span>
+    <div class="header-icons">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOME SCREEN -->
+  <div class="screen active" id="screen-home">
+    <div class="greeting-card fade-in">
+      <div class="greeting-title">오늘 하루는 어땠나요, 엄마?</div>
+      <div class="greeting-sub">아기에게 전하고 싶은 말을 들려주세요</div>
+      <div class="record-buttons">
+        <button class="btn-voice" onclick="showScreen('recording')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          음성으로 기록
+        </button>
+        <button class="btn-text" onclick="showScreen('text-input')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          텍스트로 작성
+        </button>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-title">이번 주 기록</span>
+        <span class="week-badge">임신 17주 3일</span>
+      </div>
+      <button class="section-more" onclick="showScreen('records');setTab('records');">더보기 ›</button>
+    </div>
+    <div class="records-scroll fade-in">
+      <div class="record-card" onclick="showScreen('edit')">
+        <div class="record-thumb t1">🩺</div>
+        <div class="record-info">
+          <div class="record-title">초음파 검진 날</div>
+          <div class="record-date">3월 22일</div>
+        </div>
+      </div>
+      <div class="record-card" onclick="showScreen('edit')">
+        <div class="record-thumb t2">🌿</div>
+        <div class="record-info">
+          <div class="record-title">아빠와 함께 산책</div>
+          <div class="record-date">3월 21일</div>
+        </div>
+      </div>
+      <div class="record-card" onclick="showScreen('edit')">
+        <div class="record-thumb t3">💛</div>
+        <div class="record-info">
+          <div class="record-title">D+119</div>
+          <div class="record-date">3월 20일</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:24px"></div>
+  </div>
+
+  <!-- RECORDING SCREEN - AC-001-01 -->
+  <div class="screen recording-screen" id="screen-recording">
+    <span class="prd-label">AC-001-01</span>
+    <button class="recording-back" onclick="showScreen('home');setTab('home');"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+
+    <div id="rec-idle" style="display:flex;flex-direction:column;align-items:center;">
+      <div style="font-size:18px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">음성으로 기록하기</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:40px;">아래 버튼을 눌러 녹음을 시작하세요</div>
+      <button class="record-btn-main idle" onclick="startRecording()">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <div class="recording-hint">탭하여 녹음 시작</div>
+    </div>
+
+    <div id="rec-active" style="display:none;flex-direction:column;align-items:center;">
+      <div class="recording-status"><span class="rec-dot"></span>녹음 중</div>
+      <div class="recording-time" id="rec-time">00:00</div>
+      <div class="waveform" id="waveform"></div>
+      <button class="record-btn-main recording" onclick="stopRecording()">
+        <div class="stop-icon"></div>
+      </button>
+      <div class="recording-hint">탭하여 녹음 종료</div>
+    </div>
+  </div>
+
+  <!-- CONVERTING SCREEN - AC-001-02 -->
+  <div class="screen converting-screen" id="screen-converting">
+    <span class="prd-label">AC-001-02</span>
+    <div class="converting-anim">
+      <div class="converting-ring"></div>
+      <div class="converting-icon">✨</div>
+    </div>
+    <div class="converting-title">음성을 텍스트로 변환 중</div>
+    <div class="converting-sub">AI가 엄마의 목소리를<br>정성스럽게 기록하고 있어요</div>
+  </div>
+
+  <!-- EDIT SCREEN - AC-001-03 -->
+  <div class="screen edit-screen" id="screen-edit">
+    <span class="prd-label">AC-001-03</span>
+    <div class="edit-header">
+      <button class="edit-back" onclick="showScreen('home');setTab('home');"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <span class="edit-title">기록 편집</span>
+      <button class="edit-save" onclick="saveRecord()">저장</button>
+    </div>
+    <div class="edit-meta">
+      <span class="edit-meta-tag">📅 2025.03.22</span>
+      <span class="edit-meta-tag">🎙️ 음성 기록</span>
+    </div>
+    <textarea class="edit-area" id="edit-text">오늘 초음파 검진을 받았어. 의사 선생님이 모니터를 보여주시는데, 아기가 손을 흔드는 것 같았어. 너무 신기하고 감동이었어.
+
+아빠도 같이 갔는데, 아빠가 모니터 보면서 눈물을 글썽이더라. 우리 아기가 건강하게 자라고 있다는 말에 정말 안심이 됐어.
+
+다음에는 성별도 알 수 있을 거래. 아들이든 딸이든 건강하기만 하면 돼. 사랑해, 우리 아기야.</textarea>
+    <div class="edit-voice-tag">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      음성 원본 재생 · 1분 23초
+    </div>
+  </div>
+
+  <!-- TEXT INPUT SCREEN - AC-001-04 -->
+  <div class="screen text-input-screen" id="screen-text-input">
+    <span class="prd-label">AC-001-04</span>
+    <div class="edit-header">
+      <button class="edit-back" onclick="showScreen('home');setTab('home');"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <span class="edit-title">텍스트로 작성</span>
+      <button class="edit-save" onclick="saveRecord()">저장</button>
+    </div>
+    <div class="edit-meta">
+      <span class="edit-meta-tag">📅 2025.03.23</span>
+      <span class="edit-meta-tag">✏️ 텍스트 기록</span>
+    </div>
+    <textarea class="edit-area" placeholder="아기에게 전하고 싶은 이야기를 자유롭게 적어보세요..."></textarea>
+  </div>
+
+  <!-- RECORDS LIST SCREEN - AC-001-05 -->
+  <div class="screen records-list-screen" id="screen-records">
+    <span class="prd-label">AC-001-05</span>
+    <div class="records-list-header">
+      <button class="edit-back" onclick="showScreen('home');setTab('home');"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <span class="records-list-title">기록 목록</span>
+    </div>
+    <div class="week-tabs">
+      <button class="week-tab active">17주</button>
+      <button class="week-tab">16주</button>
+      <button class="week-tab">15주</button>
+      <button class="week-tab">14주</button>
+      <button class="week-tab">13주</button>
+    </div>
+
+    <div class="record-list-item" onclick="showScreen('edit')">
+      <div class="record-list-icon voice">🎙️</div>
+      <div class="record-list-body">
+        <div class="record-list-name">초음파 검진 날</div>
+        <div class="record-list-preview">오늘 초음파 검진을 받았어. 의사 선생님이 모니터를 보여주시는데, 아기가 손을 흔드는 것 같았어...</div>
+      </div>
+      <div class="record-list-time">3/22</div>
+    </div>
+    <div class="divider"></div>
+    <div class="record-list-item" onclick="showScreen('edit')">
+      <div class="record-list-icon voice">🎙️</div>
+      <div class="record-list-body">
+        <div class="record-list-name">아빠와 함께 산책</div>
+        <div class="record-list-preview">오늘 아빠랑 공원 산책을 했어. 벚꽃이 조금씩 피기 시작했는데, 내년 봄에는 너도 같이 보자...</div>
+      </div>
+      <div class="record-list-time">3/21</div>
+    </div>
+    <div class="divider"></div>
+    <div class="record-list-item" onclick="showScreen('edit')">
+      <div class="record-list-icon text">✏️</div>
+      <div class="record-list-body">
+        <div class="record-list-name">D+119</div>
+        <div class="record-list-preview">벌써 119일째야. 요즘 태동이 점점 세지는 것 같아. 밤에 누우면 배 위에서 쿵쿵 차는 게 느껴져...</div>
+      </div>
+      <div class="record-list-time">3/20</div>
+    </div>
+    <div class="divider"></div>
+    <div class="record-list-item" onclick="showScreen('edit')">
+      <div class="record-list-icon voice">🎙️</div>
+      <div class="record-list-body">
+        <div class="record-list-name">태명을 지어봤어</div>
+        <div class="record-list-preview">아빠랑 한참 고민하다가 태명을 '콩이'로 정했어. 초음파 사진에서 콩알만 하던 네가 생각나서...</div>
+      </div>
+      <div class="record-list-time">3/18</div>
+    </div>
+    <div class="divider"></div>
+    <div class="record-list-item" onclick="showScreen('edit')">
+      <div class="record-list-icon voice">🎙️</div>
+      <div class="record-list-body">
+        <div class="record-list-name">첫 태동을 느낀 날</div>
+        <div class="record-list-preview">오늘 처음으로 태동을 느꼈어! 처음에는 배가 꼬르륵 하는 건가 했는데, 분명 너의 움직임이었어...</div>
+      </div>
+      <div class="record-list-time">3/16</div>
+    </div>
+  </div>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-item active" id="tab-home" onclick="showScreen('home');setTab('home');">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>홈</span>
+    </button>
+    <button class="tab-item" id="tab-records" onclick="showScreen('records');setTab('records');">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span>기록</span>
+    </button>
+    <button class="fab" onclick="showScreen('recording');setTab('none');">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <button class="tab-item" id="tab-questions" onclick="setTab('questions');">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>질문</span>
+    </button>
+    <button class="tab-item" id="tab-my" onclick="setTab('my');">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>마이</span>
+    </button>
+  </div>
+</div>
+
+<script>
+  // Screen management
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const screen = document.getElementById('screen-' + name);
+    if (screen) {
+      screen.classList.add('active');
+      screen.classList.add('fade-in');
+    }
+    // Reset recording state when leaving
+    if (name !== 'recording') resetRecording();
+  }
+
+  function setTab(name) {
+    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    const tab = document.getElementById('tab-' + name);
+    if (tab) tab.classList.add('active');
+  }
+
+  // Recording simulation - AC-001-01
+  let recInterval = null;
+  let recSeconds = 0;
+
+  function startRecording() {
+    document.getElementById('rec-idle').style.display = 'none';
+    document.getElementById('rec-active').style.display = 'flex';
+    recSeconds = 0;
+    updateTime();
+    recInterval = setInterval(() => {
+      recSeconds++;
+      updateTime();
+    }, 1000);
+    generateWaveform();
+  }
+
+  function stopRecording() {
+    clearInterval(recInterval);
+    // Show converting screen (AC-001-02)
+    showScreen('converting');
+    setTimeout(() => {
+      showScreen('edit');
+    }, 2500);
+  }
+
+  function resetRecording() {
+    clearInterval(recInterval);
+    recSeconds = 0;
+    const idle = document.getElementById('rec-idle');
+    const active = document.getElementById('rec-active');
+    if (idle) idle.style.display = 'flex';
+    if (active) active.style.display = 'none';
+  }
+
+  function updateTime() {
+    const m = Math.floor(recSeconds / 60).toString().padStart(2, '0');
+    const s = (recSeconds % 60).toString().padStart(2, '0');
+    document.getElementById('rec-time').textContent = m + ':' + s;
+  }
+
+  function generateWaveform() {
+    const wf = document.getElementById('waveform');
+    wf.innerHTML = '';
+    for (let i = 0; i < 32; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'wave-bar';
+      const h = 16 + Math.random() * 48;
+      bar.style.setProperty('--h', h + 'px');
+      bar.style.animationDelay = (Math.random() * 1.2) + 's';
+      wf.appendChild(bar);
+    }
+  }
+
+  function saveRecord() {
+    showScreen('home');
+    setTab('home');
+  }
+</script>
+</body>
+</html>
