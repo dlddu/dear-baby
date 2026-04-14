@@ -2,8 +2,10 @@ import { StatusBar } from 'expo-status-bar';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { Button, Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { Button } from '../src/components/Button';
+import { Text } from '../src/components/Text';
 import { exchangeGoogleIdToken } from '../src/api/auth';
 import { useAuth } from '../src/auth/AuthContext';
 import {
@@ -12,6 +14,8 @@ import {
   GOOGLE_IOS_CLIENT_ID,
   GOOGLE_WEB_CLIENT_ID,
 } from '../src/config/env';
+import { colors } from '../src/theme/colors';
+import { spacing } from '../src/theme/spacing';
 
 // Dismisses the in-app browser when the OAuth redirect returns.
 WebBrowser.maybeCompleteAuthSession();
@@ -57,16 +61,20 @@ function GoogleSignInButton({
   }, [response, setSession, onError]);
 
   return (
-    <Button
-      title="Sign in with Google"
+    <Pressable
+      testID="google-signin-button"
       onPress={() => {
         onError('');
         promptAsync().catch((e) => {
           onError(e instanceof Error ? e.message : String(e));
         });
       }}
-      testID="google-signin-button"
-    />
+      style={({ pressed }) => [styles.googleButton, pressed && styles.pressed]}
+    >
+      <Text variant="body" color="primary" style={styles.googleLabel}>
+        Sign in with Google
+      </Text>
+    </Pressable>
   );
 }
 
@@ -93,24 +101,30 @@ export default function Landing() {
 
   return (
     <View style={styles.container} testID="root">
-      <Text style={styles.title}>dear-baby</Text>
+      <Text variant="display" color="primary" style={styles.title}>
+        dear-baby
+      </Text>
+      <Text variant="emotion" color="secondary" style={styles.tagline}>
+        아기를 기다리는 소중한 시간, 함께 기록해볼까요?
+      </Text>
       <Button
         title="Check health"
+        variant="primary"
         onPress={checkHealth}
         testID="check-health-button"
       />
       {status !== '' && (
-        <Text style={styles.status} testID="health-status">
+        <Text variant="body" color="primary" testID="health-status" style={styles.status}>
           status: {status}
         </Text>
       )}
       {hasGoogleConfig && <GoogleSignInButton onError={setError} />}
       {error !== '' && (
-        <Text style={styles.error} testID="health-error">
+        <Text variant="caption" testID="health-error" style={styles.error}>
           error: {error}
         </Text>
       )}
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
     </View>
   );
 }
@@ -118,12 +132,26 @@ export default function Landing() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.bg.cream,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    paddingHorizontal: spacing[6],
+    gap: spacing[4],
   },
-  title: { fontSize: 24, fontWeight: '600' },
-  status: { fontSize: 18, color: '#0a0' },
-  error: { fontSize: 14, color: '#a00' },
+  title: { textAlign: 'center' },
+  tagline: { textAlign: 'center', marginBottom: spacing[4] },
+  status: { color: colors.accent.sage, fontWeight: '600' },
+  error: { color: '#A05040' },
+  googleButton: {
+    borderWidth: 1,
+    borderColor: colors.bg.beige,
+    backgroundColor: colors.surface.ivory,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: spacing[5],
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  googleLabel: { fontWeight: '600' },
+  pressed: { opacity: 0.9 },
 });

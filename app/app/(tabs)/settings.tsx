@@ -1,20 +1,40 @@
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { Button } from '../../src/components/Button';
+import { Text } from '../../src/components/Text';
 import { useAuth } from '../../src/auth/AuthContext';
+import { colors } from '../../src/theme/colors';
+import { spacing } from '../../src/theme/spacing';
 
 export default function SettingsTab() {
   const { user, signOut } = useAuth();
   return (
     <View style={styles.container} testID="settings-tab">
-      <Text style={styles.title}>설정</Text>
-      {user && <Text style={styles.email}>{user.email}</Text>}
-      <Button title="Sign out" onPress={signOut} testID="sign-out-button" />
+      <Text variant="h2" color="primary">
+        설정
+      </Text>
+      {user && (
+        <Text variant="body" color="secondary">
+          {user.email}
+        </Text>
+      )}
+      <Button
+        title="Sign out"
+        variant="secondary"
+        onPress={signOut}
+        testID="sign-out-button"
+        fullWidth
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
-  title: { fontSize: 24, fontWeight: '600' },
-  email: { fontSize: 14, color: '#555' },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg.cream,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[6],
+    gap: spacing[4],
+  },
 });

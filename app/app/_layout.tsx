@@ -1,7 +1,16 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
-import React, { useEffect } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
+import React, { useCallback, useEffect } from 'react';
+import { View } from 'react-native';
 
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
+import { colors } from '../src/theme/colors';
+import { useAppFonts } from '../src/theme/fonts';
+
+// Keep the splash screen visible while we bootstrap fonts.
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // ignore if already hidden (fast refresh / re-mount)
+});
 
 // AuthGate redirects the user between the public landing screen and the
 // authenticated tab group based on auth status. While status is 'loading'
@@ -27,14 +36,37 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
+  // Load the custom design-system fonts (Playfair Display / Noto Sans KR /
+  // Gowun Batang) before unmounting the splash screen. The font assets are
+  // bundled locally via `@expo-google-fonts/*`, so loading resolves on the
+  // first frame and does not require network access.
+  const [fontsLoaded, fontError] = useAppFonts();
+
+  const onLayoutRootView = useCallback(async () => {
+    if (fontsLoaded || fontError) {
+      await SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, fontError]);
+
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
   return (
-    <AuthProvider>
-      <AuthGate>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-      </AuthGate>
-    </AuthProvider>
+    <View style={{ flex: 1, backgroundColor: colors.bg.cream }} onLayout={onLayoutRootView}>
+      <AuthProvider>
+        <AuthGate>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.bg.cream },
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(tabs)" />
+          </Stack>
+        </AuthGate>
+      </AuthProvider>
+    </View>
   );
 }
