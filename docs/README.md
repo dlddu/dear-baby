@@ -48,3 +48,12 @@
 - [TEST-003: AI 편집 & 서사 구성 테스트](tests/TEST-003-ai-editing.md)
 - [TEST-004: 실물 책 제작 테스트](tests/TEST-004-book-production.md)
 - [TEST-005: 기록 미디어 통합 테스트](tests/TEST-005-media-records.md)
+
+### 디자인 시스템
+- [디자인 시스템 개요](design-system/README.md)
+- [Colors — 컬러 팔레트](design-system/colors.md)
+- [Typography — 타이포그래피](design-system/typography.md)
+- [Components — 컴포넌트](design-system/components.md)
+- [Patterns — UI/UX 패턴](design-system/patterns.md)
+- [Onboarding — 점진적 공개 온보딩](design-system/onboarding.md)
+- [Tokens — 디자인 토큰](design-system/tokens.md)
