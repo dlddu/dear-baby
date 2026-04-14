@@ -1,16 +1,28 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+
+import { Text } from '../../src/components/Text';
+import { colors } from '../../src/theme/colors';
+import { spacing } from '../../src/theme/spacing';
 
 export default function RecordsTab() {
   return (
     <View style={styles.container} testID="records-tab">
-      <Text style={styles.title}>기록</Text>
-      <Text style={styles.hint}>곧 추가됩니다</Text>
+      <Text variant="h2" color="primary">
+        기록
+      </Text>
+      <Text variant="caption" color="muted">
+        곧 추가됩니다
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  title: { fontSize: 24, fontWeight: '600' },
-  hint: { fontSize: 14, color: '#666' },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg.cream,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[6],
+    gap: spacing[2],
+  },
 });
