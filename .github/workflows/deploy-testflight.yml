@@ -43,6 +43,9 @@ jobs:
       - name: Generate one-shot keychain password
         run: echo "MATCH_KEYCHAIN_PASSWORD=$(uuidgen)" >> "$GITHUB_ENV"
 
+      - name: Expo prebuild (iOS)
+        run: npx expo prebuild --platform ios --clean
+
       - name: Install CocoaPods
         working-directory: app/ios
         run: pod install --repo-update
