@@ -56,6 +56,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger) http.Handler
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuth(issuer))
 		pr.Get("/me", usersHandlers.Me)
+		pr.Patch("/me", usersHandlers.PatchMe)
 	})
 
 	return r

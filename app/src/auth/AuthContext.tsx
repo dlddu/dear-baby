@@ -9,6 +9,12 @@ import React, {
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
 import type { Session, User } from '../api/types';
+import { patchMe } from '../api/users';
+import {
+  clearOnboardingCache,
+  getCachedOnboardedAt,
+  setCachedOnboarding,
+} from './onboardingCache';
 import {
   clearTokens,
   getAccessToken,
@@ -16,26 +22,39 @@ import {
   setTokens,
 } from './tokens';
 
-export type AuthStatus = 'loading' | 'unauthenticated' | 'authenticated';
+export type AuthStatus =
+  | 'loading'
+  | 'unauthenticated'
+  | 'onboarding'
+  | 'authenticated';
 
 type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   setSession: (session: Session) => Promise<void>;
+  completeOnboarding: (dueDate: string | null) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+// statusForUser decides whether a signed-in user should be directed to the
+// onboarding funnel or straight to the app. `onboarded_at` is the backend's
+// completion marker — we check that rather than `due_date` because the
+// escape-hatch path intentionally leaves due_date null.
+function statusForUser(u: User): AuthStatus {
+  return u.onboarded_at ? 'authenticated' : 'onboarding';
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<User | null>(null);
 
   // Boot: if there is a stored access token, try /me. This is the only place
-  // where status flips to 'authenticated' automatically. While we are waiting
-  // on /me (or if no token exists) status stays 'loading' → 'unauthenticated'
-  // and the router keeps the user on the landing screen, which preserves the
-  // Maestro health-check flow on cold start.
+  // where status flips to 'authenticated'/'onboarding' automatically. While
+  // we are waiting on /me (or if no token exists) status stays 'loading' →
+  // 'unauthenticated' and the router keeps the user on the landing screen,
+  // which preserves the Maestro health-check flow on cold start.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -48,9 +67,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const u = await apiMe();
         if (cancelled) return;
         setUser(u);
-        setStatus('authenticated');
+        setStatus(statusForUser(u));
+        await setCachedOnboarding(u.onboarded_at, u.due_date);
       } catch {
         if (cancelled) return;
+        // /me failed. If we have a cached onboarding marker, the user has
+        // definitely completed onboarding before — treat as authenticated
+        // so they aren't pushed back into the funnel on a transient error.
+        // Otherwise clear tokens and send them to the landing screen.
+        const cachedOnboardedAt = await getCachedOnboardedAt();
+        if (cachedOnboardedAt) {
+          setStatus('authenticated');
+          return;
+        }
         await clearTokens();
         setStatus('unauthenticated');
       }
@@ -63,7 +92,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setSession = useCallback(async (session: Session) => {
     await setTokens(session.accessToken, session.refreshToken);
     setUser(session.user);
-    setStatus('authenticated');
+    setStatus(statusForUser(session.user));
+    await setCachedOnboarding(
+      session.user.onboarded_at,
+      session.user.due_date,
+    );
+  }, []);
+
+  const completeOnboarding = useCallback(async (dueDate: string | null) => {
+    const updated = await patchMe({ due_date: dueDate });
+    setUser(updated);
+    setStatus(statusForUser(updated));
+    await setCachedOnboarding(updated.onboarded_at, updated.due_date);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -72,13 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await apiLogout(refresh);
     }
     await clearTokens();
+    await clearOnboardingCache();
     setUser(null);
     setStatus('unauthenticated');
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, setSession, signOut }),
-    [status, user, setSession, signOut],
+    () => ({ status, user, setSession, completeOnboarding, signOut }),
+    [status, user, setSession, completeOnboarding, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

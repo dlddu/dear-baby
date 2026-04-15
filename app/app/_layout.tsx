@@ -24,10 +24,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (status === 'loading') return;
-    const inTabs = segments[0] === '(tabs)';
+    const root = segments[0];
+    const inTabs = root === '(tabs)';
+    const inOnboarding = root === '(onboarding)';
     if (status === 'authenticated' && !inTabs) {
       router.replace('/(tabs)');
-    } else if (status === 'unauthenticated' && inTabs) {
+    } else if (status === 'onboarding' && !inOnboarding) {
+      router.replace('/(onboarding)/welcome');
+    } else if (status === 'unauthenticated' && (inTabs || inOnboarding)) {
       router.replace('/');
     }
   }, [status, segments, router]);
@@ -63,6 +67,7 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="index" />
+            <Stack.Screen name="(onboarding)" />
             <Stack.Screen name="(tabs)" />
           </Stack>
         </AuthGate>
