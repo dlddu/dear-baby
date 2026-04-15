@@ -64,6 +64,18 @@ export default function RootLayout() {
           >
             <Stack.Screen name="index" />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="record/voice"
+              options={{ headerShown: true, title: '음성으로 기록' }}
+            />
+            <Stack.Screen
+              name="record/text"
+              options={{ headerShown: true, title: '텍스트로 작성' }}
+            />
+            <Stack.Screen
+              name="record/[id]"
+              options={{ headerShown: true, title: '기록' }}
+            />
           </Stack>
         </AuthGate>
       </AuthProvider>

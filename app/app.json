@@ -33,7 +33,13 @@
       "expo-router",
       "expo-secure-store",
       "expo-web-browser",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "엄마의 목소리를 기록으로 옮기기 위해 마이크 권한이 필요해요."
+        }
+      ]
     ]
   }
 }

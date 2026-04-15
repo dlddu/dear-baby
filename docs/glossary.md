@@ -39,8 +39,8 @@ updated: 2026-04-15
 |---|---|---|---|---|---|
 | 사용자 | `User` | `user` | `users` / `user_id` | 계정 소유자. OAuth로 인증된 임산부 사용자 | `backend/internal/users/model.go`, `app/src/api/types.ts:1` |
 | 세션 | `Session` | `session` | — (JWT) | 인증 상태. `accessToken` + `refreshToken` + `user` 로 구성 | `app/src/api/types.ts:10` |
-| 기록 *(제안)* | `Record` | `record`, `records` | `records` / `record_id` | 사용자가 작성한 일기 단위. 음성 또는 텍스트로 작성되며 미디어 첨부 가능 | PRD-001, PRD-005 |
-| 음성 일기 *(제안)* | `Record` (subtype: `type: 'voice'`) | `voiceRecord` | `records.type = 'voice'` | 음성 녹음에서 시작된 기록. 별도 타입이 아닌 `Record` 의 하위 분류 | PRD-001, V-004 |
+| 기록 | `Record` | `record`, `records` | 로컬 `db_records_v1` (AsyncStorage) / `id` | 사용자가 작성한 일기 단위. 음성 또는 텍스트로 작성되며 미디어 첨부 가능. 현재는 로컬 저장소에만 존재하며 백엔드 동기화는 후속 PRD에서 도입 | `app/src/records/types.ts`, PRD-001, PRD-005 |
+| 음성 일기 | `Record` (subtype: `type: 'voice'`) | `voiceRecord` | `records.type = 'voice'` | 음성 녹음에서 시작된 기록. 별도 타입이 아닌 `Record` 의 하위 분류 | `app/src/records/types.ts`, PRD-001, V-004 |
 | 오늘의 질문 *(제안)* | `DailyQuestion` | `dailyQuestion`, `todaysQuestion` | `daily_questions` / `question_id` | 임신 주차 기반으로 매일 제공되는 프롬프트 | PRD-002, V-005 |
 | 서사 *(제안)* | `Narrative` | `narrative` | `narratives` / `narrative_id` | AI가 여러 기록을 엮어 생성한 편지 형식의 이야기 | PRD-003, V-003 |
 | 실물 책 *(제안)* | `Book` | `book` | `books` / `book_id` | 서사와 미디어로 제작된 물리적 책 제품 | PRD-004, V-006 |
@@ -104,6 +104,9 @@ UI에 노출되는 한국어 라벨과 라우트 파일 매핑.
 | 홈 | `app/app/(tabs)/index.tsx` | `'홈'` |
 | 기록 | `app/app/(tabs)/records.tsx` | `'기록'` |
 | 마이 | `app/app/(tabs)/settings.tsx` | `'마이'` |
+| 음성으로 기록 | `app/app/record/voice.tsx` | `'음성으로 기록'` |
+| 텍스트로 작성 | `app/app/record/text.tsx` | `'텍스트로 작성'` |
+| 기록 상세 | `app/app/record/[id].tsx` | `'기록'` |
 
 > "마이" 탭의 파일명은 `settings.tsx` 이지만 UI 라벨은 `'마이'` 다. `app/app/(tabs)/_layout.tsx` 의 `Tabs.Screen name="settings" options={{ title: '마이' }}` 참조.
 
