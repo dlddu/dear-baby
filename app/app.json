@@ -15,7 +15,10 @@
     },
     "ios": {
       "bundleIdentifier": "com.dlddu.dearbaby",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.dlddu.dearbaby",
