@@ -29,6 +29,7 @@
 | PRD 문서 | `PRD-NNN` | `PRD-001` |
 | 인수 조건 | `AC-PRD번호-NN` | `AC-001-01` |
 | 테스트 | `TEST-NNN` | `TEST-001` |
+| 용어집 | `GLOSSARY-NNN` | `GLOSSARY-001` |
 
 ## 문서 목록
 
@@ -48,6 +49,9 @@
 - [TEST-003: AI 편집 & 서사 구성 테스트](tests/TEST-003-ai-editing.md)
 - [TEST-004: 실물 책 제작 테스트](tests/TEST-004-book-production.md)
 - [TEST-005: 기록 미디어 통합 테스트](tests/TEST-005-media-records.md)
+
+### 용어집
+- [용어집 — 코드/문서 용어 사전](glossary.md) (GLOSSARY-001)
 
 ### 디자인 시스템
 - [디자인 시스템 개요](design-system/README.md)
