@@ -1,0 +1,111 @@
+appId: com.dlddu.dearbaby
+name: Onboarding Stage 1 — 예정일 입력(해피 패스)
+tags:
+  - onboarding
+# Onboarding Stage 1: 감성 웰컴 + 예정일 입력 (happy path).
+# docs/design-system/onboarding.md:17-65
+# docs/tests/TEST-006-onboarding-stage1.md
+#
+# 전제 조건 (precondition):
+#   이 플로우는 이미 인증이 완료됐지만 `onboarded_at == null` 인 사용자 상태를
+#   요구합니다. `AuthGate` 는 이 상태에서 `/(onboarding)/welcome` 으로 자동
+#   라우팅합니다. 현재 CI 환경에는 Google OAuth client ID 가 세팅되어 있지
+#   않아 이 플로우는 CI 에 기본 포함되지 않습니다. 로컬 dev build 에서 실제
+#   Google 로그인으로 진입하거나, 테스트용으로 토큰을 seed 한 뒤 실행하세요.
+#
+#   예) 로컬에서:
+#     (1) `com.dlddu.dearbaby` 를 실행하고 Google 로그인으로 최초 진입한다
+#     (2) onboarding 화면에서 플로우 없이 앱을 그대로 두고
+#     (3) `maestro test app/.maestro/onboarding-stage1.yaml` 를 실행한다
+#
+# 검증 대상 (AC):
+#   - 온보딩 진입 시 감성 카피와 예정일 입력 필드가 보인다
+#   - 예정일 미선택 시 [시작하기] 버튼은 비활성 상태다
+#   - 날짜를 선택하면 한국어 포맷("YYYY년 M월 D일")으로 필드에 표시된다
+#   - [시작하기] 탭 → PATCH /me 후 `/(tabs)` 홈 화면으로 자동 이동한다
+---
+# 기존 세션이 있다면 그대로 둬야 onboarding 상태로 진입할 수 있으므로
+# clearState 는 사용하지 않는다. 앱을 시작한 뒤 AuthGate 가 onboarding 경로로
+# 라우팅할 때까지 최대 10초 대기한다.
+- launchApp:
+    clearState: false
+
+# Pixel Launcher ANR 다이얼로그가 뜨면 "Wait" 를 눌러 닫는다 (health.yaml 과 동일).
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+# 온보딩 웰컴 화면 루트가 렌더링됐는지 확인한다.
+- extendedWaitUntil:
+    visible:
+      id: "onboarding-welcome"
+    timeout: 15000
+
+# 감성 카피와 예정일 입력 필드가 화면에 존재해야 한다.
+- assertVisible: "DearBaby"
+- assertVisible:
+    text: "반가워요, 엄마 .*"
+- assertVisible: "아기를 만날 예정일을 알려주세요"
+- assertVisible:
+    id: "onboarding-due-date-field"
+- assertVisible:
+    id: "onboarding-start-button"
+- assertVisible:
+    id: "onboarding-skip-button"
+
+# 초기에는 "날짜 선택하기" placeholder 가 표시되고, 시작하기 버튼은 비활성.
+- assertVisible: "날짜 선택하기"
+
+# 날짜 필드를 탭해 picker 를 연다.
+- tapOn:
+    id: "onboarding-due-date-field"
+
+# Picker 가 렌더링될 때까지 기다린다. (iOS: inline spinner, Android: modal dialog)
+- extendedWaitUntil:
+    visible:
+      id: "onboarding-date-picker"
+    timeout: 5000
+
+# Picker 확정.
+#   iOS: 커스텀 "완료" 버튼(testID: onboarding-date-picker-done)을 탭한다.
+#   Android: 시스템 DatePickerDialog 의 "OK" 버튼을 탭한다. testID 가 없으므로
+#            텍스트로 찾는다. 디바이스 언어가 한국어라면 "확인", 영어라면 "OK".
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-date-picker-done"
+    commands:
+      - tapOn:
+          id: "onboarding-date-picker-done"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible: "확인"
+    commands:
+      - tapOn: "확인"
+
+# Picker 가 사라지고, 날짜 필드에 한국어 포맷의 날짜가 표시되어야 한다.
+# 정확한 날짜는 디바이스 시계에 따라 달라지므로 "YYYY년 M월 D일" 패턴을 쓴다.
+- assertVisible:
+    text: "\\d{4}년 \\d{1,2}월 \\d{1,2}일"
+
+# 시작하기 버튼을 탭해 온보딩을 완료한다. PATCH /me 성공 시 AuthGate 가
+# 자동으로 /(tabs) 로 라우팅한다.
+- tapOn:
+    id: "onboarding-start-button"
+
+# 홈 탭 루트가 나타날 때까지 기다린다.
+- extendedWaitUntil:
+    visible:
+      id: "home-tab"
+    timeout: 15000
+
+# 온보딩 화면이 완전히 unmount 됐는지 확인한다.
+- assertNotVisible:
+    id: "onboarding-welcome"

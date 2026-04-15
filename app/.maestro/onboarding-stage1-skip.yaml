@@ -1,0 +1,47 @@
+appId: com.dlddu.dearbaby
+name: Onboarding Stage 1 — 예정일 미정 스킵 경로
+tags:
+  - onboarding
+# Onboarding Stage 1: 예정일 미정 사용자를 위한 탈출구.
+# docs/design-system/onboarding.md:57-59 ("아직 정해지지 않았어요" 옵션)
+# docs/tests/TEST-006-onboarding-stage1.md
+#
+# 전제 조건은 onboarding-stage1.yaml 과 동일하다 (authenticated but onboarded_at == null).
+#
+# 검증 대상 (AC):
+#   - 예정일을 선택하지 않아도 "아직 정해지지 않았어요" 탈출구로 온보딩을 완료할 수 있다
+#   - 스킵 시 PATCH /me 에 `due_date: null` 이 전송되고, `onboarded_at` 이 세팅되어
+#     상태가 `authenticated` 로 바뀌면서 /(tabs) 홈으로 자동 이동한다
+---
+- launchApp:
+    clearState: false
+
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- extendedWaitUntil:
+    visible:
+      id: "onboarding-welcome"
+    timeout: 15000
+
+# 예정일 필드는 탭하지 않고, placeholder 상태 그대로 둔다.
+- assertVisible: "날짜 선택하기"
+
+# 시작하기 버튼은 날짜가 없으므로 비활성 (탭해도 동작하지 않아야 한다).
+# Maestro 에는 disabled 속성 직접 확인이 없으므로, skip 경로만 검증한다.
+
+# 탈출구를 탭한다.
+- tapOn:
+    id: "onboarding-skip-button"
+
+# 스킵도 완료 처리되어 홈 탭으로 이동해야 한다.
+- extendedWaitUntil:
+    visible:
+      id: "home-tab"
+    timeout: 15000
+
+- assertNotVisible:
+    id: "onboarding-welcome"
