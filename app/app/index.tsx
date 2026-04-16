@@ -93,10 +93,10 @@ function TestLoginButtons({
 }) {
   const { setSession } = useAuth();
 
-  const run = async (onboarded: boolean) => {
+  const run = async (email: string, onboarded: boolean) => {
     onError('');
     try {
-      const session = await testLogin({ onboarded });
+      const session = await testLogin({ email, onboarded });
       await setSession(session);
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
@@ -107,7 +107,7 @@ function TestLoginButtons({
     <>
       <Pressable
         testID="test-login-button"
-        onPress={() => run(false)}
+        onPress={() => run('e2e-onboarding@dear-baby.test', false)}
         style={({ pressed }) => [styles.testButton, pressed && styles.pressed]}
       >
         <Text variant="body" color="primary" style={styles.googleLabel}>
@@ -116,7 +116,7 @@ function TestLoginButtons({
       </Pressable>
       <Pressable
         testID="test-login-onboarded-button"
-        onPress={() => run(true)}
+        onPress={() => run('e2e-onboarded@dear-baby.test', true)}
         style={({ pressed }) => [styles.testButton, pressed && styles.pressed]}
       >
         <Text variant="body" color="primary" style={styles.googleLabel}>

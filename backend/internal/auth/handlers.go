@@ -15,11 +15,6 @@ import (
 // namespace stays untouched by the E2E harness.
 const testProvider = "test"
 
-// defaultTestEmail is used when the test-login request omits an email.
-const (
-	defaultTestEmail = "e2e-test@dear-baby.test"
-	defaultTestName  = "E2E Test"
-)
 
 // Handlers exposes the auth HTTP endpoints.
 type Handlers struct {
@@ -109,13 +104,14 @@ func (h *Handlers) TestLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	email := req.Email
-	if email == "" {
-		email = defaultTestEmail
+	if req.Email == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "email required")
+		return
 	}
+	email := req.Email
 	name := req.Name
 	if name == "" {
-		name = defaultTestName
+		name = email
 	}
 
 	ctx := r.Context()

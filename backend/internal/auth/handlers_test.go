@@ -31,12 +31,28 @@ func newTestHandlers(t *testing.T) (*Handlers, func()) {
 	return h, func() { db.Close() }
 }
 
-func TestTestLogin_DefaultUser(t *testing.T) {
+func TestTestLogin_EmptyEmailReturns400(t *testing.T) {
 	h, cleanup := newTestHandlers(t)
 	defer cleanup()
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
 		strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.TestLogin(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d want 400, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTestLogin_WithEmail(t *testing.T) {
+	h, cleanup := newTestHandlers(t)
+	defer cleanup()
+
+	const email = "fixture@dear-baby.test"
+	req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
+		strings.NewReader(`{"email":"`+email+`"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	h.TestLogin(rec, req)
@@ -51,14 +67,13 @@ func TestTestLogin_DefaultUser(t *testing.T) {
 	if resp.AccessToken == "" || resp.RefreshToken == "" {
 		t.Error("tokens should be non-empty")
 	}
-	if resp.User == nil || resp.User.Email != defaultTestEmail {
-		t.Errorf("default email: got %+v", resp.User)
+	if resp.User == nil || resp.User.Email != email {
+		t.Errorf("email: got %+v", resp.User)
 	}
 	if resp.User.OnboardedAt != nil {
 		t.Error("default user should not be onboarded")
 	}
 
-	// Access token should be parseable and of type access.
 	claims, err := h.Service.Issuer.Parse(resp.AccessToken)
 	if err != nil {
 		t.Fatalf("parse access: %v", err)
