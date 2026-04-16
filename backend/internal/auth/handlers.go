@@ -124,9 +124,21 @@ func (h *Handlers) TestLogin(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusInternalServerError, "upsert failed")
 		return
 	}
+	// Align the user's onboarding state with the request so the same
+	// email can be reused across E2E flows that test both paths.
 	if req.Onboarded && u.OnboardedAt == nil {
 		if err := h.Service.Users.UpdateOnboarding(ctx, u.ID, nil); err != nil {
 			httpx.WriteError(w, http.StatusInternalServerError, "onboarding failed")
+			return
+		}
+		u, err = h.Service.Users.GetByID(ctx, u.ID)
+		if err != nil {
+			httpx.WriteError(w, http.StatusInternalServerError, "reload failed")
+			return
+		}
+	} else if !req.Onboarded && u.OnboardedAt != nil {
+		if err := h.Service.Users.ResetOnboarding(ctx, u.ID); err != nil {
+			httpx.WriteError(w, http.StatusInternalServerError, "reset onboarding failed")
 			return
 		}
 		u, err = h.Service.Users.GetByID(ctx, u.ID)

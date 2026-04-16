@@ -126,3 +126,39 @@ func TestTestLogin_IdempotentForSameEmail(t *testing.T) {
 			first.User.ID, second.User.ID)
 	}
 }
+
+func TestTestLogin_ResetOnboarding(t *testing.T) {
+	h, cleanup := newTestHandlers(t)
+	defer cleanup()
+
+	call := func(body string) sessionResponse {
+		req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
+			strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		h.TestLogin(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+		}
+		var r sessionResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return r
+	}
+
+	// First call: onboarded=true sets onboarded_at.
+	r1 := call(`{"email":"reset@test.com","onboarded":true}`)
+	if r1.User.OnboardedAt == nil {
+		t.Fatal("expected onboarded_at to be set")
+	}
+
+	// Second call: onboarded=false (default) should reset onboarded_at.
+	r2 := call(`{"email":"reset@test.com","onboarded":false}`)
+	if r2.User.OnboardedAt != nil {
+		t.Error("expected onboarded_at to be nil after reset")
+	}
+	if r1.User.ID != r2.User.ID {
+		t.Errorf("user id should be stable: %q vs %q", r1.User.ID, r2.User.ID)
+	}
+}
