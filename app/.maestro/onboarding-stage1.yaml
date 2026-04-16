@@ -66,14 +66,17 @@ appId: com.dlddu.dearbaby
     commands:
       - tapOn: "OK"
 
-# iOS: inline spinner — swipe to trigger onChange, then tap done.
+# iOS: inline spinner renders near the bottom of the screen. A
+# center-of-screen swipe misses it, so we target the picker area with
+# explicit coordinates to scroll a wheel and trigger onChange.
 - runFlow:
     when:
       visible:
         id: "onboarding-date-picker-done"
     commands:
       - swipe:
-          direction: UP
+          start: "50%, 85%"
+          end: "50%, 70%"
           duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
