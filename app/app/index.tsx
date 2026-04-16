@@ -48,7 +48,8 @@ function GoogleSignInButton({
 
   useEffect(() => {
     if (response?.type !== 'success') return;
-    const idToken = response.params?.id_token;
+    const idToken =
+      response.authentication?.idToken ?? response.params?.id_token;
     if (!idToken) return;
     (async () => {
       try {
