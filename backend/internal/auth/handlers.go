@@ -15,11 +15,6 @@ import (
 // namespace stays untouched by the E2E harness.
 const testProvider = "test"
 
-// defaultTestEmail is used when the test-login request omits an email.
-const (
-	defaultTestEmail = "e2e-test@dear-baby.test"
-	defaultTestName  = "E2E Test"
-)
 
 // Handlers exposes the auth HTTP endpoints.
 type Handlers struct {
@@ -109,13 +104,14 @@ func (h *Handlers) TestLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	email := req.Email
-	if email == "" {
-		email = defaultTestEmail
+	if req.Email == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "email required")
+		return
 	}
+	email := req.Email
 	name := req.Name
 	if name == "" {
-		name = defaultTestName
+		name = email
 	}
 
 	ctx := r.Context()
@@ -124,9 +120,21 @@ func (h *Handlers) TestLogin(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusInternalServerError, "upsert failed")
 		return
 	}
+	// Align the user's onboarding state with the request so the same
+	// email can be reused across E2E flows that test both paths.
 	if req.Onboarded && u.OnboardedAt == nil {
 		if err := h.Service.Users.UpdateOnboarding(ctx, u.ID, nil); err != nil {
 			httpx.WriteError(w, http.StatusInternalServerError, "onboarding failed")
+			return
+		}
+		u, err = h.Service.Users.GetByID(ctx, u.ID)
+		if err != nil {
+			httpx.WriteError(w, http.StatusInternalServerError, "reload failed")
+			return
+		}
+	} else if !req.Onboarded && u.OnboardedAt != nil {
+		if err := h.Service.Users.ResetOnboarding(ctx, u.ID); err != nil {
+			httpx.WriteError(w, http.StatusInternalServerError, "reset onboarding failed")
 			return
 		}
 		u, err = h.Service.Users.GetByID(ctx, u.ID)

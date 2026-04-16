@@ -151,6 +151,28 @@ func (s *Store) UpdateOnboarding(ctx context.Context, id string, dueDate *string
 	return nil
 }
 
+// ResetOnboarding clears the user's onboarding state by setting both
+// onboarded_at and due_date to NULL. Used by the test-login handler so that
+// successive E2E runs can re-enter the onboarding funnel with the same user.
+func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
+	res, err := s.DB.ExecContext(ctx, `
+		UPDATE users
+		SET due_date = NULL, onboarded_at = NULL, updated_at = datetime('now')
+		WHERE id = ?
+	`, id)
+	if err != nil {
+		return fmt.Errorf("reset onboarding: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func getByIDTx(ctx context.Context, tx *sql.Tx, id string) (*User, error) {
 	return getByID(ctx, tx, id)
 }

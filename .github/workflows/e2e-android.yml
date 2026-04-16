@@ -106,6 +106,7 @@ jobs:
           sleep 3
           maestro test .maestro/health.yaml
           maestro test .maestro/login.yaml
+          maestro test .maestro/onboarding-stage1.yaml
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 

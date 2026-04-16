@@ -31,12 +31,28 @@ func newTestHandlers(t *testing.T) (*Handlers, func()) {
 	return h, func() { db.Close() }
 }
 
-func TestTestLogin_DefaultUser(t *testing.T) {
+func TestTestLogin_EmptyEmailReturns400(t *testing.T) {
 	h, cleanup := newTestHandlers(t)
 	defer cleanup()
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
 		strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.TestLogin(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d want 400, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTestLogin_WithEmail(t *testing.T) {
+	h, cleanup := newTestHandlers(t)
+	defer cleanup()
+
+	const email = "fixture@dear-baby.test"
+	req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
+		strings.NewReader(`{"email":"`+email+`"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	h.TestLogin(rec, req)
@@ -51,14 +67,13 @@ func TestTestLogin_DefaultUser(t *testing.T) {
 	if resp.AccessToken == "" || resp.RefreshToken == "" {
 		t.Error("tokens should be non-empty")
 	}
-	if resp.User == nil || resp.User.Email != defaultTestEmail {
-		t.Errorf("default email: got %+v", resp.User)
+	if resp.User == nil || resp.User.Email != email {
+		t.Errorf("email: got %+v", resp.User)
 	}
 	if resp.User.OnboardedAt != nil {
 		t.Error("default user should not be onboarded")
 	}
 
-	// Access token should be parseable and of type access.
 	claims, err := h.Service.Issuer.Parse(resp.AccessToken)
 	if err != nil {
 		t.Fatalf("parse access: %v", err)
@@ -124,5 +139,41 @@ func TestTestLogin_IdempotentForSameEmail(t *testing.T) {
 	if first.User.ID != second.User.ID {
 		t.Errorf("user id should be stable across test-login calls: %q vs %q",
 			first.User.ID, second.User.ID)
+	}
+}
+
+func TestTestLogin_ResetOnboarding(t *testing.T) {
+	h, cleanup := newTestHandlers(t)
+	defer cleanup()
+
+	call := func(body string) sessionResponse {
+		req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
+			strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		h.TestLogin(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+		}
+		var r sessionResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return r
+	}
+
+	// First call: onboarded=true sets onboarded_at.
+	r1 := call(`{"email":"reset@test.com","onboarded":true}`)
+	if r1.User.OnboardedAt == nil {
+		t.Fatal("expected onboarded_at to be set")
+	}
+
+	// Second call: onboarded=false (default) should reset onboarded_at.
+	r2 := call(`{"email":"reset@test.com","onboarded":false}`)
+	if r2.User.OnboardedAt != nil {
+		t.Error("expected onboarded_at to be nil after reset")
+	}
+	if r1.User.ID != r2.User.ID {
+		t.Errorf("user id should be stable: %q vs %q", r1.User.ID, r2.User.ID)
 	}
 }
