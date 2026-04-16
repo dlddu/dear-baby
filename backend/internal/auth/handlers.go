@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/dlddu/dear-baby/backend/internal/config"
@@ -39,6 +40,7 @@ func (h *Handlers) Google(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.Service.SignInWithGoogle(r.Context(), req.IDToken)
 	if err != nil {
+		slog.Warn("google sign-in failed", "error", err)
 		httpx.WriteError(w, http.StatusUnauthorized, "invalid google token")
 		return
 	}
