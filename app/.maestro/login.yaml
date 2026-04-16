@@ -22,6 +22,11 @@ appId: com.dlddu.dearbaby
     id: "onboarding-welcome"
 
 # Path 2: unauthenticated → straight into (tabs) with onboarded=true.
+# iOS Keychain (used by expo-secure-store) survives `clearState: true`,
+# so tokens from Path 1 would cause AuthProvider to skip the landing
+# screen entirely. `clearKeychain` wipes all Keychain entries for the
+# app so the next launch starts truly unauthenticated.
+- clearKeychain
 - launchApp:
     clearState: true
 - runFlow:
