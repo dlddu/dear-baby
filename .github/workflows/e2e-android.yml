@@ -11,6 +11,10 @@ jobs:
     timeout-minutes: 45
     env:
       EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
+      EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
+      # Mirrors the app-side flag so the backend mounts /auth/test-login for
+      # the Maestro login flow. CI/dev only — never enable in production.
+      TEST_AUTH_ENABLED: "true"
 
     steps:
       - name: Checkout
@@ -64,8 +68,10 @@ jobs:
         working-directory: app/android
         env:
           EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
+          EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
         run: |
           echo "EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL"
+          echo "EXPO_PUBLIC_TEST_AUTH_ENABLED=$EXPO_PUBLIC_TEST_AUTH_ENABLED"
           ./gradlew assembleRelease --no-daemon
 
       # reactivecircus/android-emulator-runner splits `script:` on newlines and
@@ -99,6 +105,8 @@ jobs:
           adb shell monkey -p com.dlddu.dearbaby -c android.intent.category.LAUNCHER 1
           sleep 3
           maestro test .maestro/health.yaml
+          maestro test .maestro/login.yaml
+          maestro test .maestro/onboarding-stage1.yaml
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 
