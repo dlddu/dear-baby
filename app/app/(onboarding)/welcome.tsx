@@ -45,7 +45,7 @@ export default function OnboardingWelcome() {
   const [date, setDate] = useState<Date | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [hasError, setHasError] = useState(false);
 
   const handlePickerChange = (
     event: DateTimePickerEvent,
@@ -66,13 +66,14 @@ export default function OnboardingWelcome() {
 
   const submit = async (dueDate: string | null) => {
     if (submitting) return;
-    setError('');
+    setHasError(false);
     setSubmitting(true);
     try {
       await completeOnboarding(dueDate);
       // AuthGate reroutes to /(tabs) automatically once status flips.
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      console.warn('[onboarding] completeOnboarding failed', e);
+      setHasError(true);
       setSubmitting(false);
     }
   };
@@ -151,14 +152,14 @@ export default function OnboardingWelcome() {
               아직 정해지지 않았어요
             </Text>
           </Pressable>
-          {error !== '' && (
+          {hasError && (
             <Text
               variant="caption"
               color="coral"
               style={styles.error}
               testID="onboarding-error"
             >
-              잠시 후 다시 시도해주세요. ({error})
+              지금은 저장이 잘 안 되네요. 잠시 후 다시 시도해 주세요.
             </Text>
           )}
         </View>
@@ -182,7 +183,7 @@ export default function OnboardingWelcome() {
             accessibilityRole="button"
             testID="onboarding-date-picker-done"
           >
-            <Text variant="body" color="coral" style={styles.pickerDoneText}>
+            <Text variant="h3" color="coral">
               완료
             </Text>
           </Pressable>
@@ -216,7 +217,7 @@ const styles = StyleSheet.create({
     borderColor: colors.bg.beige,
     backgroundColor: colors.bg.cream,
     borderRadius: radius.sm,
-    paddingVertical: 14,
+    paddingVertical: spacing[4],
     paddingHorizontal: spacing[4],
   },
   dateFieldPressed: { opacity: 0.85 },
@@ -231,5 +232,4 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
     paddingHorizontal: spacing[6],
   },
-  pickerDoneText: { fontWeight: '600' },
 });
