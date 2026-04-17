@@ -32,6 +32,34 @@ export async function me(): Promise<User> {
   return (await res.json()) as User;
 }
 
+// testLogin posts to the E2E-only /auth/test-login endpoint, which the
+// backend mounts only when TEST_AUTH_ENABLED=true. It bypasses Google OAuth
+// and returns a real session — use it from the Maestro flow only.
+export async function testLogin(opts?: {
+  email?: string;
+  name?: string;
+  onboarded?: boolean;
+}): Promise<Session> {
+  const res = await fetch(`${API_URL}/auth/test-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: opts?.email ?? '',
+      name: opts?.name ?? '',
+      onboarded: opts?.onboarded ?? false,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`test login failed: ${res.status}`);
+  }
+  const json = (await res.json()) as SessionResponse;
+  return {
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    user: json.user,
+  };
+}
+
 // logout asks the backend to revoke the given refresh token. Errors are
 // swallowed — clearing local tokens is the source of truth for sign-out.
 export async function logout(refreshToken: string): Promise<void> {

@@ -6,13 +6,14 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '../src/components/Button';
 import { Text } from '../src/components/Text';
-import { exchangeGoogleIdToken } from '../src/api/auth';
+import { exchangeGoogleIdToken, testLogin } from '../src/api/auth';
 import { useAuth } from '../src/auth/AuthContext';
 import {
   API_URL,
   GOOGLE_ANDROID_CLIENT_ID,
   GOOGLE_IOS_CLIENT_ID,
   GOOGLE_WEB_CLIENT_ID,
+  TEST_AUTH_ENABLED,
 } from '../src/config/env';
 import { colors } from '../src/theme/colors';
 import { spacing } from '../src/theme/spacing';
@@ -79,6 +80,54 @@ function GoogleSignInButton({
   );
 }
 
+// TestLoginButtons are only mounted when EXPO_PUBLIC_TEST_AUTH_ENABLED=true.
+// They drive the Maestro E2E login flow (app/.maestro/login.yaml) by hitting
+// the backend's /auth/test-login endpoint and feeding the resulting session
+// into AuthContext, which lets AuthGate redirect into onboarding or tabs
+// just as the real Google sign-in path would. Keep both testIDs stable —
+// `test-login-button` enters the onboarding funnel, and
+// `test-login-onboarded-button` skips straight into (tabs).
+function TestLoginButtons({
+  onError,
+}: {
+  onError: (message: string) => void;
+}) {
+  const { setSession } = useAuth();
+
+  const run = async (email: string, onboarded: boolean) => {
+    onError('');
+    try {
+      const session = await testLogin({ email, onboarded });
+      await setSession(session);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <>
+      <Pressable
+        testID="test-login-button"
+        onPress={() => run('e2e-onboarding@dear-baby.test', false)}
+        style={({ pressed }) => [styles.testButton, pressed && styles.pressed]}
+      >
+        <Text variant="body" color="primary" style={styles.googleLabel}>
+          Test login (onboarding)
+        </Text>
+      </Pressable>
+      <Pressable
+        testID="test-login-onboarded-button"
+        onPress={() => run('e2e-onboarded@dear-baby.test', true)}
+        style={({ pressed }) => [styles.testButton, pressed && styles.pressed]}
+      >
+        <Text variant="body" color="primary" style={styles.googleLabel}>
+          Test login (onboarded)
+        </Text>
+      </Pressable>
+    </>
+  );
+}
+
 // Landing screen shown when the user is not authenticated. This screen is
 // load-bearing for the Maestro E2E flow at app/.maestro/health.yaml — it
 // must keep the exact testIDs `root`, `check-health-button`, and
@@ -120,6 +169,7 @@ export default function Landing() {
         </Text>
       )}
       {hasGoogleConfig && <GoogleSignInButton onError={setError} />}
+      {TEST_AUTH_ENABLED && <TestLoginButtons onError={setError} />}
       {error !== '' && (
         <Text variant="caption" testID="health-error" style={styles.error}>
           error: {error}
@@ -155,4 +205,15 @@ const styles = StyleSheet.create({
   },
   googleLabel: { fontWeight: '600' },
   pressed: { opacity: 0.9 },
+  testButton: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.accent.sage,
+    backgroundColor: colors.surface.ivory,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: spacing[5],
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
 });

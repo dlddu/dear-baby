@@ -94,11 +94,12 @@ type rowScanner interface {
 
 func getByID(ctx context.Context, q rowScanner, id string) (*User, error) {
 	u := &User{}
-	var name, picture sql.NullString
+	var name, picture, dueDate, onboardedAt sql.NullString
 	var createdAt, updatedAt string
 	err := q.QueryRowContext(ctx, `
-		SELECT id, email, name, picture_url, created_at, updated_at FROM users WHERE id = ?
-	`, id).Scan(&u.ID, &u.Email, &name, &picture, &createdAt, &updatedAt)
+		SELECT id, email, name, picture_url, due_date, onboarded_at, created_at, updated_at
+		FROM users WHERE id = ?
+	`, id).Scan(&u.ID, &u.Email, &name, &picture, &dueDate, &onboardedAt, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -107,9 +108,69 @@ func getByID(ctx context.Context, q rowScanner, id string) (*User, error) {
 	}
 	u.Name = name.String
 	u.PictureURL = picture.String
+	if dueDate.Valid {
+		s := dueDate.String
+		u.DueDate = &s
+	}
+	if onboardedAt.Valid {
+		// onboarded_at is written by datetime('now'); parse with sqliteTimeLayout.
+		if t, err := time.Parse(sqliteTimeLayout, onboardedAt.String); err == nil {
+			u.OnboardedAt = &t
+		}
+	}
 	u.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
 	u.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
 	return u, nil
+}
+
+// UpdateOnboarding persists the user's due date (nullable) and marks the
+// account as onboarded by stamping onboarded_at with the current time.
+// Returns ErrNotFound if no row matched.
+func (s *Store) UpdateOnboarding(ctx context.Context, id string, dueDate *string) error {
+	var dueArg any
+	if dueDate != nil {
+		dueArg = *dueDate
+	} else {
+		dueArg = nil
+	}
+	res, err := s.DB.ExecContext(ctx, `
+		UPDATE users
+		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
+		WHERE id = ?
+	`, dueArg, id)
+	if err != nil {
+		return fmt.Errorf("update onboarding: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ResetOnboarding clears the user's onboarding state by setting both
+// onboarded_at and due_date to NULL. Used by the test-login handler so that
+// successive E2E runs can re-enter the onboarding funnel with the same user.
+func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
+	res, err := s.DB.ExecContext(ctx, `
+		UPDATE users
+		SET due_date = NULL, onboarded_at = NULL, updated_at = datetime('now')
+		WHERE id = ?
+	`, id)
+	if err != nil {
+		return fmt.Errorf("reset onboarding: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func getByIDTx(ctx context.Context, tx *sql.Tx, id string) (*User, error) {

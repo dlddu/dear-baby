@@ -18,6 +18,12 @@ type Config struct {
 	JWTAccessTTL    time.Duration
 	JWTRefreshTTL   time.Duration
 	GoogleAudiences []string
+	// TestAuthEnabled, when true, causes the router to mount the
+	// POST /auth/test-login endpoint used by the Maestro E2E flow. It must
+	// NEVER be enabled in production — the endpoint issues a valid JWT
+	// session for any requested email without OAuth verification. Set via
+	// the TEST_AUTH_ENABLED env var ("1" or "true").
+	TestAuthEnabled bool
 }
 
 // Load reads the environment and returns a populated Config. It never fails
@@ -46,6 +52,11 @@ func Load() (*Config, error) {
 				cfg.GoogleAudiences = append(cfg.GoogleAudiences, s)
 			}
 		}
+	}
+
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("TEST_AUTH_ENABLED"))) {
+	case "1", "true", "yes", "on":
+		cfg.TestAuthEnabled = true
 	}
 
 	return cfg, nil

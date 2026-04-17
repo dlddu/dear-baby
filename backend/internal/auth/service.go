@@ -75,6 +75,14 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	return nil
 }
 
+// IssueSessionForUser mints a fresh access/refresh pair for an existing user
+// without going through any OAuth verification. It is intended only for the
+// test-login endpoint used by the E2E harness; production sign-in flows must
+// route through SignInWithGoogle/RefreshSession.
+func (s *Service) IssueSessionForUser(ctx context.Context, u *users.User) (*SessionResult, error) {
+	return s.issueSession(ctx, u)
+}
+
 func (s *Service) issueSession(ctx context.Context, u *users.User) (*SessionResult, error) {
 	access, err := s.Issuer.IssueAccess(u.ID)
 	if err != nil {

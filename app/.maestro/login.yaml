@@ -1,0 +1,42 @@
+appId: com.dlddu.dearbaby
+---
+# Covers the E2E login path that bypasses real Google OAuth via the
+# backend's /auth/test-login endpoint. Requires the app bundle to be built
+# with EXPO_PUBLIC_TEST_AUTH_ENABLED=true AND the backend to run with
+# TEST_AUTH_ENABLED=true — otherwise the buttons this flow taps are not
+# mounted and the endpoint returns 404.
+
+# Path 1: unauthenticated → onboarding funnel.
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+- assertVisible:
+    id: "test-login-button"
+- tapOn:
+    id: "test-login-button"
+- assertVisible:
+    id: "onboarding-welcome"
+
+# Path 2: unauthenticated → straight into (tabs) with onboarded=true.
+# iOS Keychain (used by expo-secure-store) survives `clearState: true`,
+# so tokens from Path 1 would cause AuthProvider to skip the landing
+# screen entirely. `clearKeychain` wipes all Keychain entries for the
+# app so the next launch starts truly unauthenticated.
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+- assertVisible:
+    id: "test-login-onboarded-button"
+- tapOn:
+    id: "test-login-onboarded-button"
+- assertVisible:
+    id: "home-tab"

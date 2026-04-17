@@ -10,6 +10,10 @@ jobs:
     timeout-minutes: 45
     env:
       EXPO_PUBLIC_API_URL: http://localhost:8080
+      EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
+      # Mirrors the app-side flag so the backend mounts /auth/test-login for
+      # the Maestro login flow. CI/dev only — never enable in production.
+      TEST_AUTH_ENABLED: "true"
 
     steps:
       - name: Checkout
@@ -52,9 +56,12 @@ jobs:
           echo "App did not install in time"
           exit 1
 
-      - name: Run Maestro flow
+      - name: Run Maestro flows
         working-directory: app
-        run: maestro test .maestro/health.yaml
+        run: |
+          maestro test .maestro/health.yaml
+          maestro test .maestro/login.yaml
+          maestro test .maestro/onboarding-stage1.yaml
 
       - name: Upload Maestro debug artifacts
         if: always()

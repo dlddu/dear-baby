@@ -53,9 +53,19 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger) http.Handler
 	r.Post("/auth/refresh", authHandlers.Refresh)
 	r.Post("/auth/logout", authHandlers.Logout)
 
+	if cfg.TestAuthEnabled {
+		// This endpoint bypasses Google OAuth and issues a session for any
+		// requested email. It exists solely for the Maestro E2E flow and must
+		// never be reachable in production. The warning log is a tripwire —
+		// if it shows up in production logs, rotate the deploy.
+		logger.Warn("mounting POST /auth/test-login — CI/dev only, do not enable in production")
+		r.Post("/auth/test-login", authHandlers.TestLogin)
+	}
+
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuth(issuer))
 		pr.Get("/me", usersHandlers.Me)
+		pr.Patch("/me", usersHandlers.PatchMe)
 	})
 
 	return r
