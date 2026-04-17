@@ -1,13 +1,11 @@
-#!/busybox/sh
+#!/bin/sh
 # Resets the onboarding state (onboarded_at, due_date) for a user by email.
-# Intended to run inside the backend container, which is distroless with
-# busybox at /busybox/sh and the server binary at /dear-baby-backend.
+# Intended to run from an ephemeral debug container attached to the backend
+# pod. Installs util-linux if needed, then enters the backend container's
+# namespaces via nsenter and runs the /reset-onboarding binary there.
 #
-# Usage (inside the pod):
-#   /scripts/reset-onboarding.sh user@example.com
-#
-# From the host:
-#   kubectl exec -it deploy/dear-baby -- /busybox/sh /scripts/reset-onboarding.sh user@example.com
+# Usage (from the ephemeral debug container, as root):
+#   sh /proc/1/root/scripts/reset-onboarding.sh user@example.com
 set -eu
 
 if [ "$#" -ne 1 ] || [ -z "$1" ]; then
@@ -15,7 +13,19 @@ if [ "$#" -ne 1 ] || [ -z "$1" ]; then
     exit 2
 fi
 
-SCRIPT_DIR="$(dirname "$0")"
-: "${DATABASE_URL:=file:${SCRIPT_DIR}/../data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)}"
+if ! command -v nsenter >/dev/null 2>&1; then
+    if command -v apk >/dev/null 2>&1; then
+        apk add --no-cache util-linux >/dev/null
+    elif command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq && apt-get install -y -qq util-linux
+    else
+        echo "nsenter not found and no supported package manager (apk/apt-get)" >&2
+        exit 1
+    fi
+fi
+
+DATABASE_URL=$(tr '\0' '\n' </proc/1/environ | sed -n 's/^DATABASE_URL=//p')
+: "${DATABASE_URL:=file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)}"
 export DATABASE_URL
-exec "${SCRIPT_DIR}/../reset-onboarding" "$1"
+
+exec nsenter -t 1 -a -- /reset-onboarding "$1"
