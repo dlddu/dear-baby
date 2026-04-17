@@ -16,6 +16,7 @@ import {
   TEST_AUTH_ENABLED,
 } from '../src/config/env';
 import { colors } from '../src/theme/colors';
+import { radius } from '../src/theme/radius';
 import { spacing } from '../src/theme/spacing';
 
 // Dismisses the in-app browser when the OAuth redirect returns.
@@ -171,7 +172,7 @@ export default function Landing() {
       {hasGoogleConfig && <GoogleSignInButton onError={setError} />}
       {TEST_AUTH_ENABLED && <TestLoginButtons onError={setError} />}
       {error !== '' && (
-        <Text variant="caption" testID="health-error" style={styles.error}>
+        <Text variant="caption" color="coral" testID="health-error">
           error: {error}
         </Text>
       )}
@@ -192,13 +193,12 @@ const styles = StyleSheet.create({
   title: { textAlign: 'center' },
   tagline: { textAlign: 'center', marginBottom: spacing[4] },
   status: { color: colors.accent.sage, fontWeight: '600' },
-  error: { color: '#A05040' },
   googleButton: {
     borderWidth: 1,
     borderColor: colors.bg.beige,
     backgroundColor: colors.surface.ivory,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: radius.sm,
+    paddingVertical: spacing[4],
     paddingHorizontal: spacing[5],
     alignSelf: 'stretch',
     alignItems: 'center',
@@ -210,8 +210,8 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: colors.accent.sage,
     backgroundColor: colors.surface.ivory,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: radius.sm,
+    paddingVertical: spacing[3],
     paddingHorizontal: spacing[5],
     alignSelf: 'stretch',
     alignItems: 'center',
