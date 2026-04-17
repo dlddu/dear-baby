@@ -15,4 +15,7 @@ if [ "$#" -ne 1 ] || [ -z "$1" ]; then
     exit 2
 fi
 
-exec "$(dirname "$0")/../reset-onboarding" "$1"
+SCRIPT_DIR="$(dirname "$0")"
+: "${DATABASE_URL:=file:${SCRIPT_DIR}/../data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)}"
+export DATABASE_URL
+exec "${SCRIPT_DIR}/../reset-onboarding" "$1"
