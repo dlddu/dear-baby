@@ -12,6 +12,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 FROM gcr.io/distroless/static-debian12:debug-nonroot
 WORKDIR /
 COPY --from=build /out/dear-baby-backend /dear-baby-backend
+COPY --chmod=0755 backend/scripts/ /scripts/
 EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/dear-baby-backend"]

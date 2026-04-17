@@ -106,6 +106,45 @@ func TestUpdateOnboarding_NotFound(t *testing.T) {
 	}
 }
 
+func TestResetOnboardingByEmail(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUser(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	due := "2025-09-15"
+	if err := store.UpdateOnboarding(ctx, "u1", &due); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	if err := store.ResetOnboardingByEmail(ctx, "a@b.com"); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+
+	u, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if u.DueDate != nil {
+		t.Errorf("due_date: got %v want nil", *u.DueDate)
+	}
+	if u.OnboardedAt != nil {
+		t.Errorf("onboarded_at: got %v want nil", *u.OnboardedAt)
+	}
+}
+
+func TestResetOnboardingByEmail_NotFound(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	store := &Store{DB: db}
+	err := store.ResetOnboardingByEmail(context.Background(), "missing@example.com")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err: got %v want ErrNotFound", err)
+	}
+}
+
 func TestGetByID_UnonboardedUserHasNilFields(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
