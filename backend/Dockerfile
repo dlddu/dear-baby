@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w" -o /out/reset-onboarding ./cmd/reset-onboarding
 
-FROM gcr.io/distroless/static-debian12:debug-nonroot
+FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=build /out/dear-baby-backend /dear-baby-backend
 COPY --from=build /out/reset-onboarding /reset-onboarding
