@@ -13,7 +13,7 @@ if [ "$#" -ne 1 ] || [ -z "$1" ]; then
     exit 2
 fi
 
-if ! command -v nsenter >/dev/null 2>&1; then
+if ! nsenter --version >/dev/null 2>&1; then
     if command -v apk >/dev/null 2>&1; then
         apk add --no-cache util-linux >/dev/null
     elif command -v apt-get >/dev/null 2>&1; then
