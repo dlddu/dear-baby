@@ -25,8 +25,11 @@ function startOfLocalDay(d: Date): Date {
 
 // calcPregnancy returns the current pregnancy progress, or null when the
 // user has not chosen a due date ("아직 정해지지 않았어요") or when the
-// computed week falls outside a plausible range (before conception, or far
-// past due). Callers render nothing in that case.
+// computed week falls outside a plausible range (wildly past due, or an
+// obviously wrong future date). Within the Stage 1 date picker's allowed
+// window (today … today+45wk) the badge should always render, so negative
+// daysPregnant values — possible when the user picks a due date beyond 40
+// weeks out — are clamped to 0 rather than hidden.
 export function calcPregnancy(
   dueDate: string | null,
   now: Date = new Date(),
@@ -42,10 +45,13 @@ export function calcPregnancy(
     (due.getTime() - today.getTime()) / MS_PER_DAY,
   );
   const daysPregnant = GESTATION_DAYS - daysUntilDue;
-  if (daysPregnant < 0 || daysPregnant > GESTATION_DAYS + 35) {
-    return null;
-  }
-  const weeks = Math.floor(daysPregnant / 7);
-  const days = daysPregnant % 7;
+  // Reject only clearly invalid inputs: due date more than ~5 weeks in the
+  // past (user has almost certainly moved on) or beyond the Stage 1 picker's
+  // 45-week cap.
+  if (daysPregnant > GESTATION_DAYS + 35) return null;
+  if (daysPregnant < -(7 * 5)) return null;
+  const clamped = Math.max(0, daysPregnant);
+  const weeks = Math.floor(clamped / 7);
+  const days = clamped % 7;
   return { weeks, days, label: `임신 ${weeks}주 ${days}일` };
 }
