@@ -173,6 +173,27 @@ func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
 	return nil
 }
 
+// ResetOnboardingByEmail clears the onboarding state for the user with the
+// given email. Returns ErrNotFound if no such user exists.
+func (s *Store) ResetOnboardingByEmail(ctx context.Context, email string) error {
+	res, err := s.DB.ExecContext(ctx, `
+		UPDATE users
+		SET due_date = NULL, onboarded_at = NULL, updated_at = datetime('now')
+		WHERE email = ?
+	`, email)
+	if err != nil {
+		return fmt.Errorf("reset onboarding by email: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func getByIDTx(ctx context.Context, tx *sql.Tx, id string) (*User, error) {
 	return getByID(ctx, tx, id)
 }

@@ -1,4 +1,4 @@
-server
+/server
 *.exe
 dear-baby.db
 dear-baby.db-*

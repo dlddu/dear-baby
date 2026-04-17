@@ -18,7 +18,7 @@ runs:
     - name: Build backend
       working-directory: backend
       shell: bash
-      run: go build -o server .
+      run: go build -o server ./cmd/server
 
     - name: Start backend
       working-directory: backend

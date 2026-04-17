@@ -6,7 +6,7 @@ Go 1.22 HTTP API backing the dear-baby Expo app.
 
 ```bash
 go mod tidy
-go run .
+go run ./cmd/server
 curl localhost:8080/health    # -> {"status":"ok"}
 ```
 
@@ -47,7 +47,9 @@ rm -f dear-baby.db dear-baby.db-*
 ## Layout
 
 ```
-main.go                          // thin shim → internal/app.Run
+cmd/
+  server/            // server entrypoint → internal/app.Run
+  reset-onboarding/  // ops CLI: clears onboarded_at/due_date by email
 internal/
   app/        // HTTP wiring (chi router, middleware, lifecycle)
   config/     // Load() from environment
@@ -56,13 +58,15 @@ internal/
   httpx/      // health handler, CORS/logger/recoverer middleware, JSON helpers
   auth/       // JWT issuer, Google verifier, refresh store, handlers, middleware
   users/      // User model, SQL store, /me handler
+scripts/
+  reset-onboarding.sh  // busybox-sh wrapper shipped in the container image
 ```
 
 ## Common tasks
 
 ```bash
-make run      # go run .
-make build    # go build -o server .
+make run      # go run ./cmd/server
+make build    # go build -o server ./cmd/server
 make test     # go test ./...
 make tidy     # go mod tidy
 ```
