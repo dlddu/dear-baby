@@ -4,6 +4,10 @@
 // Obstetric convention: pregnancy duration is 280 days (40 weeks) measured
 // from the last menstrual period. Given the due date, the current week/day
 // is `daysPregnant = 280 - daysUntilDue` expressed as (week, day).
+//
+// Boundary policy (incl. 45-week cap rationale and the Beulah Hunter edge
+// case) is documented in docs/design-system/onboarding.md § "부록: 임신
+// 주수 계산 정책".
 
 export type PregnancyProgress = {
   weeks: number;
