@@ -18,14 +18,15 @@ func newTestDB(t *testing.T) *sql.DB {
 	db.SetMaxOpenConns(1)
 	schema := `
 CREATE TABLE users (
-  id           TEXT PRIMARY KEY,
-  email        TEXT NOT NULL UNIQUE,
-  name         TEXT,
-  picture_url  TEXT,
-  due_date     TEXT,
-  onboarded_at TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  id                              TEXT PRIMARY KEY,
+  email                           TEXT NOT NULL UNIQUE,
+  name                            TEXT,
+  picture_url                     TEXT,
+  due_date                        TEXT,
+  onboarded_at                    TEXT,
+  stage2_coachmark_dismissed_at   TEXT,
+  created_at                      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at                      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE oauth_accounts (
   provider         TEXT NOT NULL,
@@ -160,5 +161,77 @@ func TestGetByID_UnonboardedUserHasNilFields(t *testing.T) {
 	}
 	if u.OnboardedAt != nil {
 		t.Errorf("onboarded_at: got %v want nil", *u.OnboardedAt)
+	}
+	if u.Stage2CoachmarkDismissedAt != nil {
+		t.Errorf("stage2_coachmark_dismissed_at: got %v want nil", *u.Stage2CoachmarkDismissedAt)
+	}
+}
+
+func TestDismissStage2Coachmark(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUser(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+
+	if err := store.DismissStage2Coachmark(ctx, "u1"); err != nil {
+		t.Fatalf("dismiss: %v", err)
+	}
+	first, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if first.Stage2CoachmarkDismissedAt == nil {
+		t.Fatal("stage2_coachmark_dismissed_at should be set after first dismiss")
+	}
+	stamped := *first.Stage2CoachmarkDismissedAt
+
+	// Second call must be a no-op: the original timestamp is preserved.
+	if err := store.DismissStage2Coachmark(ctx, "u1"); err != nil {
+		t.Fatalf("second dismiss: %v", err)
+	}
+	second, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if second.Stage2CoachmarkDismissedAt == nil ||
+		!second.Stage2CoachmarkDismissedAt.Equal(stamped) {
+		t.Errorf("timestamp changed on second dismiss: got %v want %v",
+			second.Stage2CoachmarkDismissedAt, stamped)
+	}
+}
+
+func TestDismissStage2Coachmark_NotFound(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	store := &Store{DB: db}
+	err := store.DismissStage2Coachmark(context.Background(), "missing")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err: got %v want ErrNotFound", err)
+	}
+}
+
+func TestResetOnboarding_ClearsStage2Coachmark(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUser(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	if err := store.DismissStage2Coachmark(ctx, "u1"); err != nil {
+		t.Fatalf("dismiss: %v", err)
+	}
+	if err := store.ResetOnboarding(ctx, "u1"); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	u, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if u.Stage2CoachmarkDismissedAt != nil {
+		t.Errorf("coachmark should be cleared on reset, got %v",
+			*u.Stage2CoachmarkDismissedAt)
 	}
 }

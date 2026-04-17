@@ -94,12 +94,12 @@ type rowScanner interface {
 
 func getByID(ctx context.Context, q rowScanner, id string) (*User, error) {
 	u := &User{}
-	var name, picture, dueDate, onboardedAt sql.NullString
+	var name, picture, dueDate, onboardedAt, stage2DismissedAt sql.NullString
 	var createdAt, updatedAt string
 	err := q.QueryRowContext(ctx, `
-		SELECT id, email, name, picture_url, due_date, onboarded_at, created_at, updated_at
+		SELECT id, email, name, picture_url, due_date, onboarded_at, stage2_coachmark_dismissed_at, created_at, updated_at
 		FROM users WHERE id = ?
-	`, id).Scan(&u.ID, &u.Email, &name, &picture, &dueDate, &onboardedAt, &createdAt, &updatedAt)
+	`, id).Scan(&u.ID, &u.Email, &name, &picture, &dueDate, &onboardedAt, &stage2DismissedAt, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -116,6 +116,11 @@ func getByID(ctx context.Context, q rowScanner, id string) (*User, error) {
 		// onboarded_at is written by datetime('now'); parse with sqliteTimeLayout.
 		if t, err := time.Parse(sqliteTimeLayout, onboardedAt.String); err == nil {
 			u.OnboardedAt = &t
+		}
+	}
+	if stage2DismissedAt.Valid {
+		if t, err := time.Parse(sqliteTimeLayout, stage2DismissedAt.String); err == nil {
+			u.Stage2CoachmarkDismissedAt = &t
 		}
 	}
 	u.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
@@ -151,13 +156,39 @@ func (s *Store) UpdateOnboarding(ctx context.Context, id string, dueDate *string
 	return nil
 }
 
+// DismissStage2Coachmark stamps stage2_coachmark_dismissed_at with the current
+// time. Idempotent: the WHERE clause ensures a second call is a no-op so the
+// original dismissal timestamp is preserved. Returns ErrNotFound if no user
+// exists with the given id (but NOT if the coachmark was already dismissed —
+// that is a successful no-op).
+func (s *Store) DismissStage2Coachmark(ctx context.Context, id string) error {
+	// Existence check first so "already dismissed" and "user missing" are
+	// distinguishable even though both produce 0 rows affected.
+	if _, err := getByID(ctx, s.DB, id); err != nil {
+		return err
+	}
+	if _, err := s.DB.ExecContext(ctx, `
+		UPDATE users
+		SET stage2_coachmark_dismissed_at = datetime('now'), updated_at = datetime('now')
+		WHERE id = ? AND stage2_coachmark_dismissed_at IS NULL
+	`, id); err != nil {
+		return fmt.Errorf("dismiss stage2 coachmark: %w", err)
+	}
+	return nil
+}
+
 // ResetOnboarding clears the user's onboarding state by setting both
 // onboarded_at and due_date to NULL. Used by the test-login handler so that
 // successive E2E runs can re-enter the onboarding funnel with the same user.
+// Stage 2 coachmark dismissal is also cleared so each run can verify the
+// coachmark flow end-to-end.
 func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
 	res, err := s.DB.ExecContext(ctx, `
 		UPDATE users
-		SET due_date = NULL, onboarded_at = NULL, updated_at = datetime('now')
+		SET due_date = NULL,
+		    onboarded_at = NULL,
+		    stage2_coachmark_dismissed_at = NULL,
+		    updated_at = datetime('now')
 		WHERE id = ?
 	`, id)
 	if err != nil {
@@ -178,7 +209,10 @@ func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
 func (s *Store) ResetOnboardingByEmail(ctx context.Context, email string) error {
 	res, err := s.DB.ExecContext(ctx, `
 		UPDATE users
-		SET due_date = NULL, onboarded_at = NULL, updated_at = datetime('now')
+		SET due_date = NULL,
+		    onboarded_at = NULL,
+		    stage2_coachmark_dismissed_at = NULL,
+		    updated_at = datetime('now')
 		WHERE email = ?
 	`, email)
 	if err != nil {

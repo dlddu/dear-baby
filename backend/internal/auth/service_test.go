@@ -20,14 +20,15 @@ func newTestDB(t *testing.T) *sql.DB {
 	db.SetMaxOpenConns(1)
 	schema := `
 CREATE TABLE users (
-  id           TEXT PRIMARY KEY,
-  email        TEXT NOT NULL UNIQUE,
-  name         TEXT,
-  picture_url  TEXT,
-  due_date     TEXT,
-  onboarded_at TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  id                              TEXT PRIMARY KEY,
+  email                           TEXT NOT NULL UNIQUE,
+  name                            TEXT,
+  picture_url                     TEXT,
+  due_date                        TEXT,
+  onboarded_at                    TEXT,
+  stage2_coachmark_dismissed_at   TEXT,
+  created_at                      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at                      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE oauth_accounts (
   provider         TEXT NOT NULL,

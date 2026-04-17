@@ -62,6 +62,7 @@ jobs:
           maestro test .maestro/health.yaml
           maestro test .maestro/login.yaml
           maestro test .maestro/onboarding-stage1.yaml
+          maestro test .maestro/onboarding-stage2.yaml
 
       - name: Upload Maestro debug artifacts
         if: always()

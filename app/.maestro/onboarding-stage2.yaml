@@ -1,0 +1,140 @@
+appId: com.dlddu.dearbaby
+---
+# Onboarding Stage 2 – E2E Tests
+# Verifies the home-screen voice-record coachmark + question card + dual CTAs
+# + blurred AI preview shown to users who just completed Stage 1. Requires
+# EXPO_PUBLIC_TEST_AUTH_ENABLED=true (app) and TEST_AUTH_ENABLED=true
+# (backend), same as Stage 1. Test-login with onboarded=false also resets the
+# server-side Stage 2 coachmark dismissal so each run starts from a blank
+# slate.
+
+# ─── Path 1: due date → home shows full Stage 2 + coachmark persists ───
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- assertVisible:
+    id: "test-login-button"
+- tapOn:
+    id: "test-login-button"
+- assertVisible:
+    id: "onboarding-welcome"
+
+- tapOn:
+    id: "onboarding-due-date-field"
+
+# Android: native date-picker dialog — confirm the default date.
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+
+# iOS: inline spinner — scroll wheel + Done, same pattern as stage1.
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-date-picker-done"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn:
+          id: "onboarding-date-picker-done"
+
+- tapOn:
+    id: "onboarding-start-button"
+- assertVisible:
+    id: "home-tab"
+
+# Stage 2 UI
+- assertVisible:
+    id: "stage2-question-card"
+- assertVisible: "첫 기록이 가장 소중해요 🌱"
+- assertVisible:
+    id: "stage2-week-badge"
+- assertVisible:
+    id: "stage2-coachmark"
+- assertVisible: "🎙 말하기만 해도 기록이 돼요!"
+- assertVisible:
+    id: "stage2-voice-cta"
+- assertVisible:
+    id: "stage2-text-cta"
+- assertVisible:
+    id: "stage2-ai-preview"
+
+# Dismiss the coachmark → it disappears immediately
+- tapOn:
+    id: "stage2-coachmark-dismiss"
+- assertNotVisible:
+    id: "stage2-coachmark"
+
+# Relaunch without wiping state: the dismissal must be persisted by the
+# backend, so the coachmark should NOT re-appear.
+- launchApp
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+- assertVisible:
+    id: "home-tab"
+- assertNotVisible:
+    id: "stage2-coachmark"
+
+# ─── Path 2: "undecided" → no week badge on home ────────────────────
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- assertVisible:
+    id: "test-login-button"
+- tapOn:
+    id: "test-login-button"
+- assertVisible:
+    id: "onboarding-welcome"
+
+- tapOn:
+    id: "onboarding-skip-button"
+- assertVisible:
+    id: "home-tab"
+
+- assertVisible:
+    id: "stage2-question-card"
+- assertVisible:
+    id: "stage2-voice-cta"
+- assertVisible:
+    id: "stage2-text-cta"
+- assertVisible:
+    id: "stage2-ai-preview"
+- assertNotVisible:
+    id: "stage2-week-badge"
+
+# ─── Path 3: CTA interactions surface the "coming soon" dialog ──────
+
+- tapOn:
+    id: "stage2-voice-cta"
+- assertVisible: "곧 추가됩니다"
+- tapOn: "OK"
+
+# Voice tap also engages with the coachmark target → coachmark closes.
+- assertNotVisible:
+    id: "stage2-coachmark"
+
+- tapOn:
+    id: "stage2-text-cta"
+- assertVisible: "곧 추가됩니다"
+- tapOn: "OK"

@@ -8,6 +8,10 @@ export type User = {
   // onboarding). `onboarded_at` is an ISO timestamp set by the backend.
   due_date: string | null;
   onboarded_at: string | null;
+  // Stage 2 voice-record coachmark dismissal timestamp. Null until the user
+  // closes the coachmark on the home screen; once stamped, the coachmark
+  // never shows again.
+  stage2_coachmark_dismissed_at: string | null;
   created_at: string;
   updated_at: string;
 };

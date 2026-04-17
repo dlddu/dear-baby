@@ -134,7 +134,11 @@ func (h *Handlers) TestLogin(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusInternalServerError, "reload failed")
 			return
 		}
-	} else if !req.Onboarded && u.OnboardedAt != nil {
+	} else if !req.Onboarded {
+		// Reset unconditionally so repeated E2E runs start from the same
+		// blank state (onboarded_at / due_date / stage2 coachmark all NULL),
+		// even when the previous run only dismissed the coachmark but did
+		// not complete Stage 1.
 		if err := h.Service.Users.ResetOnboarding(ctx, u.ID); err != nil {
 			httpx.WriteError(w, http.StatusInternalServerError, "reset onboarding failed")
 			return

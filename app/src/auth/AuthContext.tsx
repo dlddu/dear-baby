@@ -33,6 +33,7 @@ type AuthContextValue = {
   user: User | null;
   setSession: (session: Session) => Promise<void>;
   completeOnboarding: (dueDate: string | null) => Promise<void>;
+  dismissStage2Coachmark: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -68,7 +69,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         setUser(u);
         setStatus(statusForUser(u));
-        await setCachedOnboarding(u.onboarded_at, u.due_date);
+        await setCachedOnboarding(
+          u.onboarded_at,
+          u.due_date,
+          u.stage2_coachmark_dismissed_at,
+        );
       } catch {
         if (cancelled) return;
         // /me failed. If we have a cached onboarding marker, the user has
@@ -96,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await setCachedOnboarding(
       session.user.onboarded_at,
       session.user.due_date,
+      session.user.stage2_coachmark_dismissed_at,
     );
   }, []);
 
@@ -103,7 +109,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const updated = await patchMe({ due_date: dueDate });
     setUser(updated);
     setStatus(statusForUser(updated));
-    await setCachedOnboarding(updated.onboarded_at, updated.due_date);
+    await setCachedOnboarding(
+      updated.onboarded_at,
+      updated.due_date,
+      updated.stage2_coachmark_dismissed_at,
+    );
+  }, []);
+
+  // dismissStage2Coachmark is called when the user taps the close button on
+  // the home-screen voice-record coachmark. The backend stamps a timestamp
+  // that persists across devices; we also optimistically update local state
+  // so the coachmark vanishes immediately without waiting on the response.
+  const dismissStage2Coachmark = useCallback(async () => {
+    const updated = await patchMe({ dismiss_stage2_coachmark: true });
+    setUser(updated);
+    await setCachedOnboarding(
+      updated.onboarded_at,
+      updated.due_date,
+      updated.stage2_coachmark_dismissed_at,
+    );
   }, []);
 
   const signOut = useCallback(async () => {
@@ -118,8 +142,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, setSession, completeOnboarding, signOut }),
-    [status, user, setSession, completeOnboarding, signOut],
+    () => ({
+      status,
+      user,
+      setSession,
+      completeOnboarding,
+      dismissStage2Coachmark,
+      signOut,
+    }),
+    [
+      status,
+      user,
+      setSession,
+      completeOnboarding,
+      dismissStage2Coachmark,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

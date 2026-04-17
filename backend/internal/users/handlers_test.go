@@ -127,3 +127,41 @@ func TestPatchMe_UserNotFound(t *testing.T) {
 		t.Errorf("status: got %d want 404", rec.Code)
 	}
 }
+
+func TestPatchMe_DismissStage2Coachmark(t *testing.T) {
+	h, cleanup := newHandlersFor(t, "u1")
+	defer cleanup()
+
+	req := withUser(httptest.NewRequest(http.MethodPatch, "/me",
+		strings.NewReader(`{"dismiss_stage2_coachmark":true}`)), "u1")
+	rec := httptest.NewRecorder()
+	h.PatchMe(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got User
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Stage2CoachmarkDismissedAt == nil {
+		t.Error("stage2_coachmark_dismissed_at should be set")
+	}
+	// Dismissal is an independent action — onboarding fields are untouched.
+	if got.OnboardedAt != nil {
+		t.Error("onboarded_at should not be stamped by a coachmark dismissal")
+	}
+}
+
+func TestPatchMe_DismissWithDueDateIsRejected(t *testing.T) {
+	h, cleanup := newHandlersFor(t, "u1")
+	defer cleanup()
+
+	req := withUser(httptest.NewRequest(http.MethodPatch, "/me",
+		strings.NewReader(`{"due_date":"2025-09-15","dismiss_stage2_coachmark":true}`)), "u1")
+	rec := httptest.NewRecorder()
+	h.PatchMe(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
