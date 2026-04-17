@@ -15,4 +15,4 @@ if [ "$#" -ne 1 ] || [ -z "$1" ]; then
     exit 2
 fi
 
-exec /dear-baby-backend reset-onboarding "$1"
+exec /reset-onboarding "$1"
