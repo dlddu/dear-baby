@@ -6,8 +6,7 @@
 // is `daysPregnant = 280 - daysUntilDue` expressed as (week, day).
 //
 // Boundary policy (incl. 45-week cap rationale and the Beulah Hunter edge
-// case) is documented in docs/design-system/onboarding.md § "부록: 임신
-// 주수 계산 정책".
+// case) is documented in docs/engineering/pregnancy-week-calc.md.
 
 export type PregnancyProgress = {
   weeks: number;
