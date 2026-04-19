@@ -22,13 +22,16 @@ type Store struct {
 	DB *sql.DB
 }
 
-// CreateText inserts a text record for the given user and, if this is the
-// user's first record, stamps users.first_record_at with the current time.
-// Both writes happen in a single transaction. Returns the new record and
-// the (possibly updated) user so callers can avoid an extra /me round-trip.
+// CreateText inserts a text record for the given user and re-derives
+// users.first_record_at from the oldest existing record (including the one
+// just inserted). The result: first_record_at always reflects the user's
+// earliest record's created_at — even after an onboarding reset, where
+// first_record_at is nulled but prior records are preserved. The next new
+// record then re-stamps first_record_at to the oldest existing record's
+// time rather than 'now'.
 //
-// Idempotency: a second record preserves the original first_record_at —
-// COALESCE(first_record_at, datetime('now')) is a no-op once set.
+// Both writes happen in a single transaction. Returns the new record and
+// the updated user so callers can avoid an extra /me round-trip.
 func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, content string) (*Record, *users.User, error) {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -50,12 +53,16 @@ func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, 
 		return nil, nil, fmt.Errorf("insert record: %w", err)
 	}
 
+	// Re-derive first_record_at from the oldest record. Runs after the
+	// INSERT above so the new row is included in the MIN. Deletes don't
+	// normally happen, so this is monotonic in practice, but the subquery
+	// stays correct either way.
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE users
-		SET first_record_at = COALESCE(first_record_at, datetime('now')),
+		SET first_record_at = (SELECT MIN(created_at) FROM records WHERE user_id = ?),
 		    updated_at = datetime('now')
 		WHERE id = ?
-	`, userID); err != nil {
+	`, userID, userID); err != nil {
 		return nil, nil, fmt.Errorf("stamp first_record_at: %w", err)
 	}
 

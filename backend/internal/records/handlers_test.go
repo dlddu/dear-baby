@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	_ "modernc.org/sqlite"
 
@@ -108,6 +109,39 @@ func TestCreate_HappyPath_StampsFirstRecordAt(t *testing.T) {
 	}
 	if got.User == nil || got.User.FirstRecordAt == nil {
 		t.Fatal("user.first_record_at should be stamped")
+	}
+}
+
+func TestCreate_AfterReset_ReusesOldestExistingRecord(t *testing.T) {
+	// Scenario: user already has older records but first_record_at is NULL
+	// (e.g. after ResetOnboarding). A new record must set first_record_at
+	// to the oldest existing record's created_at, not datetime('now').
+	h, db := newHandlers(t, "u1")
+	defer db.Close()
+
+	old := "2023-01-02 03:04:05"
+	if _, err := db.Exec(`
+		INSERT INTO records (id, user_id, content, created_at)
+		VALUES ('r0', 'u1', 'old', ?)
+	`, old); err != nil {
+		t.Fatalf("seed old record: %v", err)
+	}
+
+	rec := post(t, h, "u1", `{"content":"new"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got createResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.User == nil || got.User.FirstRecordAt == nil {
+		t.Fatal("first_record_at should be set")
+	}
+	wantT, _ := time.Parse("2006-01-02 15:04:05", old)
+	if !got.User.FirstRecordAt.Equal(wantT) {
+		t.Errorf("first_record_at: got %v want %v (oldest record's created_at)",
+			got.User.FirstRecordAt, wantT)
 	}
 }
 
