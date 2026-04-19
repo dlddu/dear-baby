@@ -182,24 +182,15 @@ func (s *Store) DismissStage2Coachmark(ctx context.Context, id string) error {
 	return nil
 }
 
-// ResetOnboarding clears the user's onboarding state by setting both
-// onboarded_at and due_date to NULL. Used by the test-login handler so that
-// successive E2E runs can re-enter the onboarding funnel with the same user.
-// Stage 2 coachmark dismissal is also cleared so each run can verify the
-// coachmark flow end-to-end.
+// ResetOnboarding clears the user's onboarding state by setting onboarded_at,
+// due_date, the Stage 2 coachmark dismissal, and first_record_at to NULL.
+// Used by the test-login handler so successive E2E runs can re-enter the
+// onboarding funnel with the same user. Records themselves are preserved —
+// resetting is a UX-replay tool, not a data wipe. first_record_at cleared
+// means the home-screen AI preview re-blurs; the next record re-stamps via
+// COALESCE with the current time.
 func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
-	// first_record_at is cleared and the user's records are wiped so successive
-	// E2E runs re-enter the Stage 2 "blurred AI preview" state. Test-login is
-	// the only caller that triggers this, and prod never mounts that route.
-	tx, err := s.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin reset: %w", err)
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM records WHERE user_id = ?`, id); err != nil {
-		return fmt.Errorf("delete records: %w", err)
-	}
-	res, err := tx.ExecContext(ctx, `
+	res, err := s.DB.ExecContext(ctx, `
 		UPDATE users
 		SET due_date = NULL,
 		    onboarded_at = NULL,
@@ -218,26 +209,14 @@ func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
 	if n == 0 {
 		return ErrNotFound
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit reset: %w", err)
-	}
 	return nil
 }
 
 // ResetOnboardingByEmail clears the onboarding state for the user with the
-// given email. Returns ErrNotFound if no such user exists.
+// given email. Records are preserved — see ResetOnboarding. Returns
+// ErrNotFound if no such user exists.
 func (s *Store) ResetOnboardingByEmail(ctx context.Context, email string) error {
-	tx, err := s.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin reset: %w", err)
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `
-		DELETE FROM records WHERE user_id = (SELECT id FROM users WHERE email = ?)
-	`, email); err != nil {
-		return fmt.Errorf("delete records: %w", err)
-	}
-	res, err := tx.ExecContext(ctx, `
+	res, err := s.DB.ExecContext(ctx, `
 		UPDATE users
 		SET due_date = NULL,
 		    onboarded_at = NULL,
@@ -255,9 +234,6 @@ func (s *Store) ResetOnboardingByEmail(ctx context.Context, email string) error 
 	}
 	if n == 0 {
 		return ErrNotFound
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit reset: %w", err)
 	}
 	return nil
 }

@@ -243,7 +243,7 @@ func TestResetOnboarding_ClearsStage2Coachmark(t *testing.T) {
 	}
 }
 
-func TestResetOnboarding_ClearsFirstRecordAndRecords(t *testing.T) {
+func TestResetOnboarding_ClearsFirstRecordAtButPreservesRecords(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1", "a@b.com")
@@ -273,11 +273,13 @@ func TestResetOnboarding_ClearsFirstRecordAndRecords(t *testing.T) {
 	if u.FirstRecordAt != nil {
 		t.Errorf("first_record_at should be cleared, got %v", *u.FirstRecordAt)
 	}
+	// Records themselves must survive reset — the replay is a UX flow, not
+	// a data wipe.
 	var n int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM records WHERE user_id = ?`, "u1").Scan(&n); err != nil {
 		t.Fatalf("count records: %v", err)
 	}
-	if n != 0 {
-		t.Errorf("records should be wiped on reset, got %d remaining", n)
+	if n != 1 {
+		t.Errorf("records should be preserved on reset, got %d want 1", n)
 	}
 }
