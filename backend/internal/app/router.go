@@ -11,6 +11,7 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/auth"
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
+	"github.com/dlddu/dear-baby/backend/internal/records"
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
@@ -43,6 +44,12 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger) http.Handler
 		Store:           usersStore,
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
+	recordsStore := &records.Store{DB: db}
+	recordsHandlers := &records.Handlers{
+		Store:           recordsStore,
+		Users:           usersStore,
+		UserIDFromCtxFn: auth.UserIDFromRequest,
+	}
 
 	// Health endpoint — response shape must stay byte-equivalent to the
 	// pre-scaffold backend/main.go so the existing Maestro E2E flow and the
@@ -66,6 +73,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger) http.Handler
 		pr.Use(auth.RequireAuth(issuer))
 		pr.Get("/me", usersHandlers.Me)
 		pr.Patch("/me", usersHandlers.PatchMe)
+		pr.Post("/records", recordsHandlers.Create)
 	})
 
 	return r

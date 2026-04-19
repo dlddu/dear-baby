@@ -69,6 +69,10 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="(onboarding)" />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="record-text"
+              options={{ presentation: 'modal', headerShown: false }}
+            />
           </Stack>
         </AuthGate>
       </AuthProvider>

@@ -27,6 +27,7 @@ CREATE TABLE users (
   due_date                        TEXT,
   onboarded_at                    TEXT,
   stage2_coachmark_dismissed_at   TEXT,
+  first_record_at                 TEXT,
   created_at                      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at                      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -44,6 +45,12 @@ CREATE TABLE refresh_tokens (
   expires_at  TEXT NOT NULL,
   revoked_at  TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE records (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content    TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `
 	if _, err := db.Exec(schema); err != nil {

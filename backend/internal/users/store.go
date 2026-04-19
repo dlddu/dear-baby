@@ -94,12 +94,12 @@ type rowScanner interface {
 
 func getByID(ctx context.Context, q rowScanner, id string) (*User, error) {
 	u := &User{}
-	var name, picture, dueDate, onboardedAt, stage2DismissedAt sql.NullString
+	var name, picture, dueDate, onboardedAt, stage2DismissedAt, firstRecordAt sql.NullString
 	var createdAt, updatedAt string
 	err := q.QueryRowContext(ctx, `
-		SELECT id, email, name, picture_url, due_date, onboarded_at, stage2_coachmark_dismissed_at, created_at, updated_at
+		SELECT id, email, name, picture_url, due_date, onboarded_at, stage2_coachmark_dismissed_at, first_record_at, created_at, updated_at
 		FROM users WHERE id = ?
-	`, id).Scan(&u.ID, &u.Email, &name, &picture, &dueDate, &onboardedAt, &stage2DismissedAt, &createdAt, &updatedAt)
+	`, id).Scan(&u.ID, &u.Email, &name, &picture, &dueDate, &onboardedAt, &stage2DismissedAt, &firstRecordAt, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -121,6 +121,11 @@ func getByID(ctx context.Context, q rowScanner, id string) (*User, error) {
 	if stage2DismissedAt.Valid {
 		if t, err := time.Parse(sqliteTimeLayout, stage2DismissedAt.String); err == nil {
 			u.Stage2CoachmarkDismissedAt = &t
+		}
+	}
+	if firstRecordAt.Valid {
+		if t, err := time.Parse(sqliteTimeLayout, firstRecordAt.String); err == nil {
+			u.FirstRecordAt = &t
 		}
 	}
 	u.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
@@ -183,11 +188,23 @@ func (s *Store) DismissStage2Coachmark(ctx context.Context, id string) error {
 // Stage 2 coachmark dismissal is also cleared so each run can verify the
 // coachmark flow end-to-end.
 func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
-	res, err := s.DB.ExecContext(ctx, `
+	// first_record_at is cleared and the user's records are wiped so successive
+	// E2E runs re-enter the Stage 2 "blurred AI preview" state. Test-login is
+	// the only caller that triggers this, and prod never mounts that route.
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin reset: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM records WHERE user_id = ?`, id); err != nil {
+		return fmt.Errorf("delete records: %w", err)
+	}
+	res, err := tx.ExecContext(ctx, `
 		UPDATE users
 		SET due_date = NULL,
 		    onboarded_at = NULL,
 		    stage2_coachmark_dismissed_at = NULL,
+		    first_record_at = NULL,
 		    updated_at = datetime('now')
 		WHERE id = ?
 	`, id)
@@ -201,17 +218,31 @@ func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
 	if n == 0 {
 		return ErrNotFound
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit reset: %w", err)
+	}
 	return nil
 }
 
 // ResetOnboardingByEmail clears the onboarding state for the user with the
 // given email. Returns ErrNotFound if no such user exists.
 func (s *Store) ResetOnboardingByEmail(ctx context.Context, email string) error {
-	res, err := s.DB.ExecContext(ctx, `
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin reset: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM records WHERE user_id = (SELECT id FROM users WHERE email = ?)
+	`, email); err != nil {
+		return fmt.Errorf("delete records: %w", err)
+	}
+	res, err := tx.ExecContext(ctx, `
 		UPDATE users
 		SET due_date = NULL,
 		    onboarded_at = NULL,
 		    stage2_coachmark_dismissed_at = NULL,
+		    first_record_at = NULL,
 		    updated_at = datetime('now')
 		WHERE email = ?
 	`, email)
@@ -225,9 +256,19 @@ func (s *Store) ResetOnboardingByEmail(ctx context.Context, email string) error 
 	if n == 0 {
 		return ErrNotFound
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit reset: %w", err)
+	}
 	return nil
 }
 
 func getByIDTx(ctx context.Context, tx *sql.Tx, id string) (*User, error) {
 	return getByID(ctx, tx, id)
+}
+
+// GetByIDTx fetches a user inside an existing transaction. Exported so the
+// records package can look up the user and commit its own writes in the
+// same tx.
+func (s *Store) GetByIDTx(ctx context.Context, tx *sql.Tx, id string) (*User, error) {
+	return getByIDTx(ctx, tx, id)
 }

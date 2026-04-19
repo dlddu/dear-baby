@@ -25,6 +25,7 @@ CREATE TABLE users (
   due_date                        TEXT,
   onboarded_at                    TEXT,
   stage2_coachmark_dismissed_at   TEXT,
+  first_record_at                 TEXT,
   created_at                      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at                      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -34,6 +35,12 @@ CREATE TABLE oauth_accounts (
   user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (provider, provider_user_id)
+);
+CREATE TABLE records (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content    TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `
 	if _, err := db.Exec(schema); err != nil {
@@ -233,5 +240,44 @@ func TestResetOnboarding_ClearsStage2Coachmark(t *testing.T) {
 	if u.Stage2CoachmarkDismissedAt != nil {
 		t.Errorf("coachmark should be cleared on reset, got %v",
 			*u.Stage2CoachmarkDismissedAt)
+	}
+}
+
+func TestResetOnboarding_ClearsFirstRecordAndRecords(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUser(t, db, "u1", "a@b.com")
+
+	// Seed a record + first_record_at directly to avoid depending on the
+	// records package from this test.
+	if _, err := db.Exec(`
+		INSERT INTO records (id, user_id, content) VALUES ('r1', 'u1', 'hello');
+	`); err != nil {
+		t.Fatalf("seed record: %v", err)
+	}
+	if _, err := db.Exec(`
+		UPDATE users SET first_record_at = datetime('now') WHERE id = 'u1';
+	`); err != nil {
+		t.Fatalf("seed first_record_at: %v", err)
+	}
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	if err := store.ResetOnboarding(ctx, "u1"); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	u, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if u.FirstRecordAt != nil {
+		t.Errorf("first_record_at should be cleared, got %v", *u.FirstRecordAt)
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM records WHERE user_id = ?`, "u1").Scan(&n); err != nil {
+		t.Fatalf("count records: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("records should be wiped on reset, got %d remaining", n)
 	}
 }

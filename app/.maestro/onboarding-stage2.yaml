@@ -123,7 +123,7 @@ appId: com.dlddu.dearbaby
 - assertNotVisible:
     id: "stage2-week-badge"
 
-# ─── Path 3: CTA interactions surface the "coming soon" dialog ──────
+# ─── Path 3: voice is still "coming soon"; text flow saves + unblurs ───
 
 - tapOn:
     id: "stage2-voice-cta"
@@ -134,7 +134,17 @@ appId: com.dlddu.dearbaby
 - assertNotVisible:
     id: "stage2-coachmark"
 
+# Text CTA opens the record modal, save → backend stamps first_record_at →
+# AI preview unblurs on return.
 - tapOn:
     id: "stage2-text-cta"
-- assertVisible: "곧 추가됩니다"
-- tapOn: "OK"
+- assertVisible:
+    id: "record-text-screen"
+- tapOn:
+    id: "record-text-input"
+- inputText: "오늘 처음으로 너의 움직임을 느꼈어"
+- tapOn:
+    id: "record-text-save"
+- assertVisible:
+    id: "home-tab"
+- assertVisible: "AI가 당신의 기록을 이렇게 정리했어요"

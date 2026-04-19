@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
+import { createTextRecord as apiCreateTextRecord } from '../api/records';
 import type { Session, User } from '../api/types';
 import { patchMe } from '../api/users';
 import {
@@ -34,6 +35,7 @@ type AuthContextValue = {
   setSession: (session: Session) => Promise<void>;
   completeOnboarding: (dueDate: string | null) => Promise<void>;
   dismissStage2Coachmark: () => Promise<void>;
+  createTextRecord: (content: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -73,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           u.onboarded_at,
           u.due_date,
           u.stage2_coachmark_dismissed_at,
+          u.first_record_at,
         );
       } catch {
         if (cancelled) return;
@@ -102,6 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session.user.onboarded_at,
       session.user.due_date,
       session.user.stage2_coachmark_dismissed_at,
+      session.user.first_record_at,
     );
   }, []);
 
@@ -113,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updated.onboarded_at,
       updated.due_date,
       updated.stage2_coachmark_dismissed_at,
+      updated.first_record_at,
     );
   }, []);
 
@@ -127,6 +132,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updated.onboarded_at,
       updated.due_date,
       updated.stage2_coachmark_dismissed_at,
+      updated.first_record_at,
+    );
+  }, []);
+
+  // createTextRecord saves a text entry and refreshes local user state so
+  // the home-screen AI preview unblurs immediately (driven by
+  // user.first_record_at). The backend stamps first_record_at on the first
+  // call only, so subsequent records won't move the Stage 2 unblur trigger.
+  const createTextRecord = useCallback(async (content: string) => {
+    const { user: updated } = await apiCreateTextRecord(content);
+    setUser(updated);
+    await setCachedOnboarding(
+      updated.onboarded_at,
+      updated.due_date,
+      updated.stage2_coachmark_dismissed_at,
+      updated.first_record_at,
     );
   }, []);
 
@@ -148,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession,
       completeOnboarding,
       dismissStage2Coachmark,
+      createTextRecord,
       signOut,
     }),
     [
@@ -156,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession,
       completeOnboarding,
       dismissStage2Coachmark,
+      createTextRecord,
       signOut,
     ],
   );

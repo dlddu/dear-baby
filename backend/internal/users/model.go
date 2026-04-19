@@ -11,6 +11,7 @@ type User struct {
 	DueDate                    *string    `json:"due_date"`
 	OnboardedAt                *time.Time `json:"onboarded_at"`
 	Stage2CoachmarkDismissedAt *time.Time `json:"stage2_coachmark_dismissed_at"`
+	FirstRecordAt              *time.Time `json:"first_record_at"`
 	CreatedAt                  time.Time  `json:"created_at"`
 	UpdatedAt                  time.Time  `json:"updated_at"`
 }

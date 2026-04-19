@@ -12,8 +12,28 @@ export type User = {
   // closes the coachmark on the home screen; once stamped, the coachmark
   // never shows again.
   stage2_coachmark_dismissed_at: string | null;
+  // Timestamp of the user's first saved record. Drives the Stage 2 AI
+  // preview unblur: null → blurred teaser, set → unblurred state. Stamped
+  // once by the backend and preserved on subsequent records.
+  first_record_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+// Record mirrors the backend `records` row returned by POST /records.
+// Today only text records exist; voice is a separate PRD.
+export type Record = {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+};
+
+// CreateRecordResponse is the POST /records body: the new record plus the
+// updated user, so AuthContext can refresh in one round-trip.
+export type CreateRecordResponse = {
+  record: Record;
+  user: User;
 };
 
 export type Session = {

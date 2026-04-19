@@ -9,6 +9,7 @@ import * as SecureStore from 'expo-secure-store';
 const ONBOARDED_AT_KEY = 'db_onboarded_at';
 const DUE_DATE_KEY = 'db_due_date';
 const STAGE2_DISMISSED_AT_KEY = 'db_stage2_coachmark_dismissed_at';
+const FIRST_RECORD_AT_KEY = 'db_first_record_at';
 
 export async function getCachedOnboardedAt(): Promise<string | null> {
   return SecureStore.getItemAsync(ONBOARDED_AT_KEY);
@@ -22,10 +23,15 @@ export async function getCachedStage2CoachmarkDismissedAt(): Promise<string | nu
   return SecureStore.getItemAsync(STAGE2_DISMISSED_AT_KEY);
 }
 
+export async function getCachedFirstRecordAt(): Promise<string | null> {
+  return SecureStore.getItemAsync(FIRST_RECORD_AT_KEY);
+}
+
 export async function setCachedOnboarding(
   onboardedAt: string | null,
   dueDate: string | null,
   stage2CoachmarkDismissedAt: string | null,
+  firstRecordAt: string | null,
 ): Promise<void> {
   if (onboardedAt) {
     await SecureStore.setItemAsync(ONBOARDED_AT_KEY, onboardedAt);
@@ -45,10 +51,16 @@ export async function setCachedOnboarding(
   } else {
     await SecureStore.deleteItemAsync(STAGE2_DISMISSED_AT_KEY);
   }
+  if (firstRecordAt) {
+    await SecureStore.setItemAsync(FIRST_RECORD_AT_KEY, firstRecordAt);
+  } else {
+    await SecureStore.deleteItemAsync(FIRST_RECORD_AT_KEY);
+  }
 }
 
 export async function clearOnboardingCache(): Promise<void> {
   await SecureStore.deleteItemAsync(ONBOARDED_AT_KEY);
   await SecureStore.deleteItemAsync(DUE_DATE_KEY);
   await SecureStore.deleteItemAsync(STAGE2_DISMISSED_AT_KEY);
+  await SecureStore.deleteItemAsync(FIRST_RECORD_AT_KEY);
 }

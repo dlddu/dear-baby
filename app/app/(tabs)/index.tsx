@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -13,10 +14,11 @@ import { spacing } from '../../src/theme/spacing';
 import { calcPregnancy } from '../../src/utils/pregnancy';
 
 // HomeTab renders the Stage 2 of onboarding — voice-record coachmark + daily
-// question card + dual CTAs + blurred AI preview. See docs/design-system/
-// onboarding.md for the spec. Voice/text recording itself is out of scope
-// for this PR; the CTAs surface a "coming soon" alert so the layout can be
-// verified end-to-end before the record pipeline is built.
+// question card + dual CTAs + AI preview. See docs/design-system/
+// onboarding.md for the spec. The AI preview starts blurred and unblurs
+// after the user saves their first text record (drives `#가치선경험`).
+// Voice recording itself is still out of scope (PRD-001); that CTA surfaces
+// a "coming soon" alert until the audio pipeline lands.
 
 const COACHMARK_LABEL = '🎙 말하기만 해도 기록이 돼요!';
 const ENCOURAGEMENT = '첫 기록이 가장 소중해요 🌱';
@@ -24,6 +26,7 @@ const AI_PREVIEW_MOCK =
   '엄마가 너를 처음 느낀 그 순간, 세상이 조금 더 따뜻해졌어.';
 
 export default function HomeTab() {
+  const router = useRouter();
   const { user, dismissStage2Coachmark } = useAuth();
   // Local flag hides the coachmark immediately on tap; the backend call is
   // fire-and-forget so the UI never waits on the network. Persisted state
@@ -53,8 +56,10 @@ export default function HomeTab() {
   }, [showCoachmark, handleDismissCoachmark]);
 
   const handleTextPress = useCallback(() => {
-    Alert.alert('곧 추가됩니다', '텍스트 기록 기능은 준비 중이에요.');
-  }, []);
+    // Tapping the target element counts as engagement with the coachmark.
+    if (showCoachmark) handleDismissCoachmark();
+    router.push('/record-text');
+  }, [router, showCoachmark, handleDismissCoachmark]);
 
   return (
     <ScrollView
@@ -104,7 +109,7 @@ export default function HomeTab() {
 
       <AiPreviewCard
         mockText={AI_PREVIEW_MOCK}
-        blurred
+        blurred={!user?.first_record_at}
         testID="stage2-ai-preview"
       />
 
