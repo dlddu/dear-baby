@@ -135,14 +135,16 @@ appId: com.dlddu.dearbaby
     id: "stage2-coachmark"
 
 # Text CTA opens the record modal, save → backend stamps first_record_at →
-# AI preview unblurs on return.
+# AI preview unblurs on return. NOTE: Maestro's `inputText` does not support
+# Unicode on Android (mobile-dev-inc/maestro#146), so the body here is ASCII.
+# The assertion afterwards checks the app's own footnote text, not the input.
 - tapOn:
     id: "stage2-text-cta"
 - assertVisible:
     id: "record-text-screen"
 - tapOn:
     id: "record-text-input"
-- inputText: "오늘 처음으로 너의 움직임을 느꼈어"
+- inputText: "today i felt you move for the first time"
 - tapOn:
     id: "record-text-save"
 - assertVisible:
