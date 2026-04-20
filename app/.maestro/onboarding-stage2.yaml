@@ -145,6 +145,9 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "record-text-input"
 - inputText: "today i felt you move for the first time"
+# Android 에선 soft keyboard 가 저장 버튼을 덮어 tapOn 이 실패한다. 입력
+# 직후 키보드를 내려 버튼을 노출시킨다.
+- hideKeyboard
 - tapOn:
     id: "record-text-save"
 - assertVisible:
