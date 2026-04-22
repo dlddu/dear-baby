@@ -131,7 +131,7 @@ jobs:
           maestro test .maestro/health.yaml
           maestro test .maestro/login.yaml
           maestro test .maestro/onboarding-stage1.yaml
-          maestro test .maestro/home-onboarding.yaml
+          maestro test .maestro/onboarding-stage2.yaml
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 

@@ -17,7 +17,7 @@ import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { calcPregnancy } from '../../src/utils/pregnancy';
 
-// HomeTab renders the onboarding home — voice-record coachmark + daily
+// HomeTab renders Stage 2 of onboarding — voice-record coachmark + daily
 // question card + dual CTAs + AI preview card. See docs/design-system/
 // onboarding.md for the spec. Voice recording itself is still out of
 // scope (PRD-001); the voice CTA surfaces a "coming soon" alert until the
@@ -138,8 +138,8 @@ export default function HomeTab() {
         weekLabel={pregnancy?.label ?? null}
         question={question}
         encouragement={ENCOURAGEMENT}
-        testID="home-question-card"
-        badgeTestID="home-week-badge"
+        testID="stage2-question-card"
+        badgeTestID="stage2-week-badge"
       />
 
       {showCoachmark ? (
@@ -147,8 +147,8 @@ export default function HomeTab() {
           label={COACHMARK_LABEL}
           arrowAlign="left"
           onDismiss={handleDismissCoachmark}
-          testID="home-coachmark"
-          dismissTestID="home-coachmark-dismiss"
+          testID="stage2-coachmark"
+          dismissTestID="stage2-coachmark-dismiss"
         />
       ) : null}
 
@@ -160,7 +160,7 @@ export default function HomeTab() {
             variant="primary"
             fullWidth
             onPress={handleVoicePress}
-            testID="home-voice-cta"
+            testID="stage2-voice-cta"
           />
         </View>
         <View style={styles.ctaItem}>
@@ -170,7 +170,7 @@ export default function HomeTab() {
             variant="secondary"
             fullWidth
             onPress={handleTextPress}
-            testID="home-text-cta"
+            testID="stage2-text-cta"
           />
         </View>
       </View>
@@ -179,7 +179,7 @@ export default function HomeTab() {
         status={aiPreviewStatus}
         content={user?.ai_preview}
         onRetry={handleRetry}
-        testID="home-ai-preview"
+        testID="stage2-ai-preview"
       />
 
       {user ? (
