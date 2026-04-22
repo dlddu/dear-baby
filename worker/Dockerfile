@@ -10,10 +10,12 @@ COPY src ./src
 RUN npm run build
 
 FROM node:20-alpine AS runtime
+# Create /app and hand it to the `node` user before switching, so npm
+# can write node_modules as non-root. WORKDIR alone would mkdir /app
+# owned by root and the subsequent `npm install` would EACCES.
+RUN mkdir -p /app && chown node:node /app
 WORKDIR /app
 ENV NODE_ENV=production
-# Non-root user — the node image already ships with one but let's be
-# explicit so we don't rely on the default UID.
 USER node
 COPY --chown=node:node package.json package-lock.json* ./
 RUN npm install --omit=dev --no-audit --no-fund
