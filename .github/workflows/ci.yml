@@ -76,6 +76,7 @@ jobs:
       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
       needs.changes.outputs.e2e == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/e2e-ios.yml
+    secrets: inherit
 
   e2e-android:
     name: E2E Tests (Android)
@@ -85,6 +86,7 @@ jobs:
       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
       needs.changes.outputs.e2e == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/e2e-android.yml
+    secrets: inherit
 
   build-image:
     name: Build & Push Backend Image
