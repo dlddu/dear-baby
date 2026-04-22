@@ -1,37 +1,41 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 
-import { AiPreviewCard } from '../../src/components/AiPreviewCard';
+import {
+  AiPreviewCard,
+  type AiPreviewStatus,
+} from '../../src/components/AiPreviewCard';
 import { Button } from '../../src/components/Button';
 import { Coachmark } from '../../src/components/Coachmark';
 import { QuestionCard } from '../../src/components/QuestionCard';
 import { Text } from '../../src/components/Text';
 import { useAuth } from '../../src/auth/AuthContext';
+import { openAiPreviewStream, requestAiPreview } from '../../src/api/ai';
 import { pickDailyQuestion } from '../../src/data/dailyQuestions';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { calcPregnancy } from '../../src/utils/pregnancy';
 
-// HomeTab renders the Stage 2 of onboarding — voice-record coachmark + daily
-// question card + dual CTAs + AI preview. See docs/design-system/
-// onboarding.md for the spec. The AI preview starts blurred and unblurs
-// after the user saves their first text record (drives `#가치선경험`).
-// Voice recording itself is still out of scope (PRD-001); that CTA surfaces
-// a "coming soon" alert until the audio pipeline lands.
+// HomeTab renders Stage 2 of onboarding — coachmark + question card + dual
+// CTAs + AI preview. The home screen owns Stage 2's state transitions end
+// to end: first-record detection, AI preview kickoff, SSE subscription,
+// loading/ready/failed handoff. AuthContext stays record-agnostic.
 
 const COACHMARK_LABEL = '🎙 말하기만 해도 기록이 돼요!';
 const ENCOURAGEMENT = '첫 기록이 가장 소중해요 🌱';
-const AI_PREVIEW_MOCK =
-  '엄마가 너를 처음 느낀 그 순간, 세상이 조금 더 따뜻해졌어.';
 
 export default function HomeTab() {
   const router = useRouter();
-  const { user, dismissStage2Coachmark } = useAuth();
+  const { user, dismissVoiceCoachmark, applyAiPreview } = useAuth();
   // Local flag hides the coachmark immediately on tap; the backend call is
-  // fire-and-forget so the UI never waits on the network. Persisted state
-  // comes from `user.stage2_coachmark_dismissed_at` on next session load.
+  // fire-and-forget so the UI never waits on the network.
   const [coachmarkHidden, setCoachmarkHidden] = useState(false);
+  const [streamFailed, setStreamFailed] = useState(false);
+  const [streamOpen, setStreamOpen] = useState(false);
+  const prevFirstRecordAtRef = useRef<string | null>(
+    user?.first_record_at ?? null,
+  );
 
   const pregnancy = useMemo(
     () => calcPregnancy(user?.due_date ?? null),
@@ -39,27 +43,78 @@ export default function HomeTab() {
   );
   const question = useMemo(() => pickDailyQuestion(), []);
 
+  // Coachmark auto-hides after the first record. Once first_record_at is
+  // stamped the tooltip has served its purpose; keeping it would clutter
+  // the preview flow.
   const showCoachmark =
-    !coachmarkHidden && !user?.stage2_coachmark_dismissed_at;
+    !coachmarkHidden &&
+    !user?.voice_coachmark_dismissed_at &&
+    !user?.first_record_at;
 
   const handleDismissCoachmark = useCallback(() => {
     setCoachmarkHidden(true);
-    // Swallow errors: a transient failure just means the coachmark will
-    // appear again next cold boot, which is acceptable.
-    void dismissStage2Coachmark().catch(() => {});
-  }, [dismissStage2Coachmark]);
+    void dismissVoiceCoachmark().catch(() => {});
+  }, [dismissVoiceCoachmark]);
 
   const handleVoicePress = useCallback(() => {
-    // Tapping the target element counts as engagement with the coachmark.
     if (showCoachmark) handleDismissCoachmark();
     Alert.alert('곧 추가됩니다', '음성 기록 기능은 준비 중이에요.');
   }, [showCoachmark, handleDismissCoachmark]);
 
   const handleTextPress = useCallback(() => {
-    // Tapping the target element counts as engagement with the coachmark.
     if (showCoachmark) handleDismissCoachmark();
     router.push('/record-text');
   }, [router, showCoachmark, handleDismissCoachmark]);
+
+  // First-record transition: kick off the AI preview task the moment we see
+  // first_record_at flip from null → real value. Re-entering with a record
+  // already present is a no-op.
+  useEffect(() => {
+    const prev = prevFirstRecordAtRef.current;
+    const next = user?.first_record_at ?? null;
+    prevFirstRecordAtRef.current = next;
+    if (!prev && next && !user?.ai_preview) {
+      setStreamFailed(false);
+      void requestAiPreview().catch(() => setStreamFailed(true));
+    }
+  }, [user?.first_record_at, user?.ai_preview]);
+
+  // SSE: subscribe while the preview is pending, close on ready/unmount.
+  useEffect(() => {
+    if (!user?.first_record_at) return;
+    if (user.ai_preview) return;
+
+    setStreamOpen(true);
+    const close = openAiPreviewStream(
+      (e) => {
+        if (e.status === 'ok') {
+          applyAiPreview(e.preview);
+          setStreamFailed(false);
+        } else {
+          setStreamFailed(true);
+        }
+      },
+      () => {
+        setStreamFailed(true);
+      },
+    );
+    return () => {
+      setStreamOpen(false);
+      close();
+    };
+  }, [user?.first_record_at, user?.ai_preview, applyAiPreview]);
+
+  const aiPreviewStatus: AiPreviewStatus = useMemo(() => {
+    if (user?.ai_preview) return 'ready';
+    if (!user?.first_record_at) return 'teaser';
+    if (streamFailed && !streamOpen) return 'failed';
+    return 'loading';
+  }, [user?.ai_preview, user?.first_record_at, streamFailed, streamOpen]);
+
+  const handleRetry = useCallback(() => {
+    setStreamFailed(false);
+    void requestAiPreview().catch(() => setStreamFailed(true));
+  }, []);
 
   return (
     <ScrollView
@@ -71,16 +126,18 @@ export default function HomeTab() {
         weekLabel={pregnancy?.label ?? null}
         question={question}
         encouragement={ENCOURAGEMENT}
-        testID="stage2-question-card"
-        badgeTestID="stage2-week-badge"
+        testID="home-question-card"
+        badgeTestID="home-week-badge"
       />
 
       {showCoachmark ? (
         <Coachmark
           label={COACHMARK_LABEL}
           onDismiss={handleDismissCoachmark}
-          testID="stage2-coachmark"
-          dismissTestID="stage2-coachmark-dismiss"
+          arrowAlign="left"
+          style={styles.coachmarkAlign}
+          testID="home-coachmark"
+          dismissTestID="home-coachmark-dismiss"
         />
       ) : null}
 
@@ -92,7 +149,7 @@ export default function HomeTab() {
             variant="primary"
             fullWidth
             onPress={handleVoicePress}
-            testID="stage2-voice-cta"
+            testID="home-voice-cta"
           />
         </View>
         <View style={styles.ctaItem}>
@@ -102,15 +159,16 @@ export default function HomeTab() {
             variant="secondary"
             fullWidth
             onPress={handleTextPress}
-            testID="stage2-text-cta"
+            testID="home-text-cta"
           />
         </View>
       </View>
 
       <AiPreviewCard
-        mockText={AI_PREVIEW_MOCK}
-        blurred={!user?.first_record_at}
-        testID="stage2-ai-preview"
+        status={aiPreviewStatus}
+        content={user?.ai_preview ?? null}
+        onRetry={handleRetry}
+        testID="home-ai-preview"
       />
 
       {user ? (
@@ -138,5 +196,8 @@ const styles = StyleSheet.create({
     gap: spacing[3],
   },
   ctaItem: { flex: 1 },
+  coachmarkAlign: {
+    alignSelf: 'flex-start',
+  },
   identity: { textAlign: 'center', marginTop: spacing[2] },
 });

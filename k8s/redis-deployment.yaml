@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          # Persistence is disabled on purpose — the task queue is ephemeral
+          # and the worker's `sync()` path self-heals from DB state on boot.
+          # No PVC attached: a pod restart is allowed to drop in-flight jobs.
+          args:
+            - "redis-server"
+            - "--appendonly"
+            - "no"
+            - "--save"
+            - ""
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 10
+            periodSeconds: 15

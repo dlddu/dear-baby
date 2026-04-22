@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 )
 
 func newHandlersFor(t *testing.T, userID string) (*Handlers, func()) {
@@ -17,7 +19,8 @@ func newHandlersFor(t *testing.T, userID string) (*Handlers, func()) {
 		seedUser(t, db, userID, userID+"@b.com")
 	}
 	h := &Handlers{
-		Store: &Store{DB: db},
+		Store:      &Store{DB: db},
+		Onboarding: &onboarding.Store{DB: db},
 		UserIDFromCtxFn: func(r *http.Request) (string, bool) {
 			v, _ := r.Context().Value(ctxKeyUser{}).(string)
 			return v, v != ""
@@ -45,7 +48,7 @@ func TestPatchMe_SetDueDate(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var got User
+	var got MeResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -69,7 +72,7 @@ func TestPatchMe_NullDueDate(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var got User
+	var got MeResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -128,24 +131,24 @@ func TestPatchMe_UserNotFound(t *testing.T) {
 	}
 }
 
-func TestPatchMe_DismissStage2Coachmark(t *testing.T) {
+func TestPatchMe_DismissVoiceCoachmark(t *testing.T) {
 	h, cleanup := newHandlersFor(t, "u1")
 	defer cleanup()
 
 	req := withUser(httptest.NewRequest(http.MethodPatch, "/me",
-		strings.NewReader(`{"dismiss_stage2_coachmark":true}`)), "u1")
+		strings.NewReader(`{"dismiss_voice_coachmark":true}`)), "u1")
 	rec := httptest.NewRecorder()
 	h.PatchMe(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var got User
+	var got MeResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.Stage2CoachmarkDismissedAt == nil {
-		t.Error("stage2_coachmark_dismissed_at should be set")
+	if got.VoiceCoachmarkDismissedAt == nil {
+		t.Error("voice_coachmark_dismissed_at should be set")
 	}
 	// Dismissal is an independent action — onboarding fields are untouched.
 	if got.OnboardedAt != nil {
@@ -158,7 +161,7 @@ func TestPatchMe_DismissWithDueDateIsRejected(t *testing.T) {
 	defer cleanup()
 
 	req := withUser(httptest.NewRequest(http.MethodPatch, "/me",
-		strings.NewReader(`{"due_date":"2025-09-15","dismiss_stage2_coachmark":true}`)), "u1")
+		strings.NewReader(`{"due_date":"2025-09-15","dismiss_voice_coachmark":true}`)), "u1")
 	rec := httptest.NewRecorder()
 	h.PatchMe(rec, req)
 	if rec.Code != http.StatusBadRequest {

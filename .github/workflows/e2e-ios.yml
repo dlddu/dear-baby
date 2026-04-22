@@ -21,6 +21,15 @@ jobs:
 
       - name: Setup backend
         uses: ./.github/actions/setup-backend
+        with:
+          redis-url: redis://localhost:6379
+          internal-api-token: ci-internal-token
+
+      - name: Setup AI worker
+        uses: ./.github/actions/setup-ai-worker
+        with:
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+          internal-api-token: ci-internal-token
 
       - name: Setup JS
         uses: ./.github/actions/setup-js
@@ -62,7 +71,7 @@ jobs:
           maestro test .maestro/health.yaml
           maestro test .maestro/login.yaml
           maestro test .maestro/onboarding-stage1.yaml
-          maestro test .maestro/onboarding-stage2.yaml
+          maestro test .maestro/home-onboarding.yaml
 
       - name: Upload Maestro debug artifacts
         if: always()
@@ -70,10 +79,13 @@ jobs:
         with:
           name: maestro-ios-output
 
-      - name: Stop backend
+      - name: Stop backend and worker
         if: always()
-        working-directory: backend
+        shell: bash
         run: |
-          if [ -f server.pid ]; then
-            kill "$(cat server.pid)" || true
+          if [ -f backend/server.pid ]; then
+            kill "$(cat backend/server.pid)" || true
+          fi
+          if [ -f worker/worker.pid ]; then
+            kill "$(cat worker/worker.pid)" || true
           fi

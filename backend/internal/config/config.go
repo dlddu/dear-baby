@@ -24,6 +24,13 @@ type Config struct {
 	// session for any requested email without OAuth verification. Set via
 	// the TEST_AUTH_ENABLED env var ("1" or "true").
 	TestAuthEnabled bool
+	// RedisURL is the `redis://host:port` URL for the task queue + pub/sub.
+	// Empty disables the onboarding AI-preview flow (e.g. in CI without a
+	// Redis dependency).
+	RedisURL string
+	// InternalAPIToken authenticates the worker → backend internal endpoints
+	// (`/internal/*`). Empty disables the internal API mount entirely.
+	InternalAPIToken string
 }
 
 // Load reads the environment and returns a populated Config. It never fails
@@ -58,6 +65,9 @@ func Load() (*Config, error) {
 	case "1", "true", "yes", "on":
 		cfg.TestAuthEnabled = true
 	}
+
+	cfg.RedisURL = os.Getenv("REDIS_URL")
+	cfg.InternalAPIToken = os.Getenv("INTERNAL_API_TOKEN")
 
 	return cfg, nil
 }

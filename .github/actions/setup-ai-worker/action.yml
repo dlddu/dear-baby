@@ -1,0 +1,83 @@
+name: Setup AI Worker
+description: Install Redis + build/start the TypeScript worker with OpenRouter credentials
+
+inputs:
+  openrouter-api-key:
+    description: OpenRouter API key (typically pulled from ${{ secrets.OPENROUTER_API_KEY }})
+    required: true
+  openrouter-model:
+    description: OpenRouter model slug
+    required: false
+    default: "anthropic/claude-haiku"
+  internal-api-token:
+    description: Shared secret for worker → backend internal API (must match backend env)
+    required: false
+    default: "ci-internal-token"
+  node-version:
+    description: Node version to use
+    required: false
+    default: "20"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install Redis (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew install redis
+
+    - name: Install Redis (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y redis-server
+
+    - name: Start Redis
+      shell: bash
+      run: |
+        redis-server --daemonize yes --save "" --appendonly no --port 6379
+        for i in $(seq 1 10); do
+          if redis-cli -p 6379 ping >/dev/null 2>&1; then
+            echo "Redis up"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Redis failed to start"; exit 1
+
+    - name: Install worker deps
+      shell: bash
+      working-directory: worker
+      run: npm install --no-audit --no-fund
+
+    - name: Build worker
+      shell: bash
+      working-directory: worker
+      run: npx tsc
+
+    - name: Start worker
+      shell: bash
+      working-directory: worker
+      env:
+        REDIS_URL: redis://localhost:6379
+        INTERNAL_API_URL: http://localhost:8080
+        INTERNAL_API_TOKEN: ${{ inputs.internal-api-token }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        OPENROUTER_MODEL: ${{ inputs.openrouter-model }}
+      run: |
+        nohup node dist/index.js > worker.log 2>&1 &
+        echo $! > worker.pid
+        sleep 2
+        if ! ps -p "$(cat worker.pid)" > /dev/null; then
+          echo "Worker failed to start"
+          cat worker.log
+          exit 1
+        fi
+        echo "Worker PID $(cat worker.pid)"

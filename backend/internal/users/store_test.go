@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 )
 
 func newTestDB(t *testing.T) *sql.DB {
@@ -22,12 +24,17 @@ CREATE TABLE users (
   email                           TEXT NOT NULL UNIQUE,
   name                            TEXT,
   picture_url                     TEXT,
-  due_date                        TEXT,
-  onboarded_at                    TEXT,
-  stage2_coachmark_dismissed_at   TEXT,
-  first_record_at                 TEXT,
   created_at                      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at                      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE onboarding (
+  user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  due_date                     TEXT,
+  onboarded_at                 TEXT,
+  voice_coachmark_dismissed_at TEXT,
+  first_record_at              TEXT,
+  ai_preview                   TEXT,
+  updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE oauth_accounts (
   provider         TEXT NOT NULL,
@@ -54,63 +61,66 @@ func seedUser(t *testing.T, db *sql.DB, id, email string) {
 	if _, err := db.Exec(`INSERT INTO users (id, email) VALUES (?, ?)`, id, email); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
+	if _, err := db.Exec(`INSERT INTO onboarding (user_id) VALUES (?)`, id); err != nil {
+		t.Fatalf("seed onboarding: %v", err)
+	}
 }
 
-func TestUpdateOnboarding_WithDueDate(t *testing.T) {
+func TestUpdateDueDateAndOnboardedAt_WithDueDate(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1", "a@b.com")
 
-	store := &Store{DB: db}
+	onb := &onboarding.Store{DB: db}
 	ctx := context.Background()
 	due := "2025-09-15"
-	if err := store.UpdateOnboarding(ctx, "u1", &due); err != nil {
+	if err := onb.UpdateDueDateAndOnboardedAt(ctx, "u1", &due); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 
-	u, err := store.GetByID(ctx, "u1")
+	o, err := onb.Get(ctx, "u1")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if u.DueDate == nil || *u.DueDate != "2025-09-15" {
-		t.Errorf("due_date: got %v want 2025-09-15", u.DueDate)
+	if o.DueDate == nil || *o.DueDate != "2025-09-15" {
+		t.Errorf("due_date: got %v want 2025-09-15", o.DueDate)
 	}
-	if u.OnboardedAt == nil {
+	if o.OnboardedAt == nil {
 		t.Errorf("onboarded_at should be set")
 	}
 }
 
-func TestUpdateOnboarding_NullDueDate(t *testing.T) {
+func TestUpdateDueDateAndOnboardedAt_NullDueDate(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1", "a@b.com")
 
-	store := &Store{DB: db}
+	onb := &onboarding.Store{DB: db}
 	ctx := context.Background()
-	if err := store.UpdateOnboarding(ctx, "u1", nil); err != nil {
+	if err := onb.UpdateDueDateAndOnboardedAt(ctx, "u1", nil); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 
-	u, err := store.GetByID(ctx, "u1")
+	o, err := onb.Get(ctx, "u1")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if u.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *u.DueDate)
+	if o.DueDate != nil {
+		t.Errorf("due_date: got %v want nil", *o.DueDate)
 	}
-	if u.OnboardedAt == nil {
+	if o.OnboardedAt == nil {
 		t.Errorf("onboarded_at should be set even when due_date is null")
 	}
 }
 
-func TestUpdateOnboarding_NotFound(t *testing.T) {
+func TestUpdateDueDateAndOnboardedAt_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 
-	store := &Store{DB: db}
-	err := store.UpdateOnboarding(context.Background(), "missing", nil)
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("err: got %v want ErrNotFound", err)
+	onb := &onboarding.Store{DB: db}
+	err := onb.UpdateDueDateAndOnboardedAt(context.Background(), "missing", nil)
+	if !errors.Is(err, onboarding.ErrNotFound) {
+		t.Errorf("err: got %v want onboarding.ErrNotFound", err)
 	}
 }
 
@@ -120,25 +130,26 @@ func TestResetOnboardingByEmail(t *testing.T) {
 	seedUser(t, db, "u1", "a@b.com")
 
 	store := &Store{DB: db}
+	onb := &onboarding.Store{DB: db}
 	ctx := context.Background()
 	due := "2025-09-15"
-	if err := store.UpdateOnboarding(ctx, "u1", &due); err != nil {
+	if err := onb.UpdateDueDateAndOnboardedAt(ctx, "u1", &due); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 
-	if err := store.ResetOnboardingByEmail(ctx, "a@b.com"); err != nil {
+	if err := store.ResetOnboardingByEmail(ctx, "a@b.com", onb); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
 
-	u, err := store.GetByID(ctx, "u1")
+	o, err := onb.Get(ctx, "u1")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if u.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *u.DueDate)
+	if o.DueDate != nil {
+		t.Errorf("due_date: got %v want nil", *o.DueDate)
 	}
-	if u.OnboardedAt != nil {
-		t.Errorf("onboarded_at: got %v want nil", *u.OnboardedAt)
+	if o.OnboardedAt != nil {
+		t.Errorf("onboarded_at: got %v want nil", *o.OnboardedAt)
 	}
 }
 
@@ -147,7 +158,8 @@ func TestResetOnboardingByEmail_NotFound(t *testing.T) {
 	defer db.Close()
 
 	store := &Store{DB: db}
-	err := store.ResetOnboardingByEmail(context.Background(), "missing@example.com")
+	onb := &onboarding.Store{DB: db}
+	err := store.ResetOnboardingByEmail(context.Background(), "missing@example.com", onb)
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("err: got %v want ErrNotFound", err)
 	}
@@ -158,92 +170,92 @@ func TestGetByID_UnonboardedUserHasNilFields(t *testing.T) {
 	defer db.Close()
 	seedUser(t, db, "u1", "a@b.com")
 
-	store := &Store{DB: db}
-	u, err := store.GetByID(context.Background(), "u1")
+	onb := &onboarding.Store{DB: db}
+	o, err := onb.Get(context.Background(), "u1")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if u.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *u.DueDate)
+	if o.DueDate != nil {
+		t.Errorf("due_date: got %v want nil", *o.DueDate)
 	}
-	if u.OnboardedAt != nil {
-		t.Errorf("onboarded_at: got %v want nil", *u.OnboardedAt)
+	if o.OnboardedAt != nil {
+		t.Errorf("onboarded_at: got %v want nil", *o.OnboardedAt)
 	}
-	if u.Stage2CoachmarkDismissedAt != nil {
-		t.Errorf("stage2_coachmark_dismissed_at: got %v want nil", *u.Stage2CoachmarkDismissedAt)
+	if o.VoiceCoachmarkDismissedAt != nil {
+		t.Errorf("voice_coachmark_dismissed_at: got %v want nil", *o.VoiceCoachmarkDismissedAt)
 	}
 }
 
-func TestDismissStage2Coachmark(t *testing.T) {
+func TestDismissVoiceCoachmark(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1", "a@b.com")
 
-	store := &Store{DB: db}
+	onb := &onboarding.Store{DB: db}
 	ctx := context.Background()
 
-	if err := store.DismissStage2Coachmark(ctx, "u1"); err != nil {
+	if err := onb.DismissVoiceCoachmark(ctx, "u1"); err != nil {
 		t.Fatalf("dismiss: %v", err)
 	}
-	first, err := store.GetByID(ctx, "u1")
+	first, err := onb.Get(ctx, "u1")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if first.Stage2CoachmarkDismissedAt == nil {
-		t.Fatal("stage2_coachmark_dismissed_at should be set after first dismiss")
+	if first.VoiceCoachmarkDismissedAt == nil {
+		t.Fatal("voice_coachmark_dismissed_at should be set after first dismiss")
 	}
-	stamped := *first.Stage2CoachmarkDismissedAt
+	stamped := *first.VoiceCoachmarkDismissedAt
 
 	// Second call must be a no-op: the original timestamp is preserved.
-	if err := store.DismissStage2Coachmark(ctx, "u1"); err != nil {
+	if err := onb.DismissVoiceCoachmark(ctx, "u1"); err != nil {
 		t.Fatalf("second dismiss: %v", err)
 	}
-	second, err := store.GetByID(ctx, "u1")
+	second, err := onb.Get(ctx, "u1")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if second.Stage2CoachmarkDismissedAt == nil ||
-		!second.Stage2CoachmarkDismissedAt.Equal(stamped) {
+	if second.VoiceCoachmarkDismissedAt == nil ||
+		!second.VoiceCoachmarkDismissedAt.Equal(stamped) {
 		t.Errorf("timestamp changed on second dismiss: got %v want %v",
-			second.Stage2CoachmarkDismissedAt, stamped)
+			second.VoiceCoachmarkDismissedAt, stamped)
 	}
 }
 
-func TestDismissStage2Coachmark_NotFound(t *testing.T) {
+func TestDismissVoiceCoachmark_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 
-	store := &Store{DB: db}
-	err := store.DismissStage2Coachmark(context.Background(), "missing")
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("err: got %v want ErrNotFound", err)
+	onb := &onboarding.Store{DB: db}
+	err := onb.DismissVoiceCoachmark(context.Background(), "missing")
+	if !errors.Is(err, onboarding.ErrNotFound) {
+		t.Errorf("err: got %v want onboarding.ErrNotFound", err)
 	}
 }
 
-func TestResetOnboarding_ClearsStage2Coachmark(t *testing.T) {
+func TestReset_ClearsVoiceCoachmark(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1", "a@b.com")
 
-	store := &Store{DB: db}
+	onb := &onboarding.Store{DB: db}
 	ctx := context.Background()
-	if err := store.DismissStage2Coachmark(ctx, "u1"); err != nil {
+	if err := onb.DismissVoiceCoachmark(ctx, "u1"); err != nil {
 		t.Fatalf("dismiss: %v", err)
 	}
-	if err := store.ResetOnboarding(ctx, "u1"); err != nil {
+	if err := onb.Reset(ctx, "u1"); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
-	u, err := store.GetByID(ctx, "u1")
+	o, err := onb.Get(ctx, "u1")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if u.Stage2CoachmarkDismissedAt != nil {
+	if o.VoiceCoachmarkDismissedAt != nil {
 		t.Errorf("coachmark should be cleared on reset, got %v",
-			*u.Stage2CoachmarkDismissedAt)
+			*o.VoiceCoachmarkDismissedAt)
 	}
 }
 
-func TestResetOnboarding_ClearsFirstRecordAtButPreservesRecords(t *testing.T) {
+func TestReset_ClearsFirstRecordAtButPreservesRecords(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1", "a@b.com")
@@ -256,22 +268,22 @@ func TestResetOnboarding_ClearsFirstRecordAtButPreservesRecords(t *testing.T) {
 		t.Fatalf("seed record: %v", err)
 	}
 	if _, err := db.Exec(`
-		UPDATE users SET first_record_at = datetime('now') WHERE id = 'u1';
+		UPDATE onboarding SET first_record_at = datetime('now') WHERE user_id = 'u1';
 	`); err != nil {
 		t.Fatalf("seed first_record_at: %v", err)
 	}
 
-	store := &Store{DB: db}
+	onb := &onboarding.Store{DB: db}
 	ctx := context.Background()
-	if err := store.ResetOnboarding(ctx, "u1"); err != nil {
+	if err := onb.Reset(ctx, "u1"); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
-	u, err := store.GetByID(ctx, "u1")
+	o, err := onb.Get(ctx, "u1")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if u.FirstRecordAt != nil {
-		t.Errorf("first_record_at should be cleared, got %v", *u.FirstRecordAt)
+	if o.FirstRecordAt != nil {
+		t.Errorf("first_record_at should be cleared, got %v", *o.FirstRecordAt)
 	}
 	// Records themselves must survive reset — the replay is a UX flow, not
 	// a data wipe.

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dear-baby-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dear-baby-worker
+  template:
+    metadata:
+      labels:
+        app: dear-baby-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/dlddu/dear-baby-worker:latest
+          imagePullPolicy: Always
+          env:
+            - name: OPENROUTER_MODEL
+              value: "anthropic/claude-haiku"
+            - name: INTERNAL_API_URL
+              value: "http://dear-baby:8080"
+          envFrom:
+            - secretRef:
+                name: openrouter-secret
+                optional: true
+            - secretRef:
+                name: redis-secret
+                optional: true
+            - secretRef:
+                name: internal-auth-secret
+                optional: true
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

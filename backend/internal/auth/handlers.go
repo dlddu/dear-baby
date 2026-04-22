@@ -8,6 +8,7 @@ import (
 
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
+	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
@@ -16,11 +17,11 @@ import (
 // namespace stays untouched by the E2E harness.
 const testProvider = "test"
 
-
 // Handlers exposes the auth HTTP endpoints.
 type Handlers struct {
-	Cfg     *config.Config
-	Service *Service
+	Cfg        *config.Config
+	Service    *Service
+	Onboarding *onboarding.Store
 }
 
 type googleSignInRequest struct {
@@ -28,9 +29,27 @@ type googleSignInRequest struct {
 }
 
 type sessionResponse struct {
-	AccessToken  string      `json:"access_token"`
-	RefreshToken string      `json:"refresh_token"`
-	User         *users.User `json:"user"`
+	AccessToken  string           `json:"access_token"`
+	RefreshToken string           `json:"refresh_token"`
+	User         users.MeResponse `json:"user"`
+}
+
+// buildSessionResponse fetches the onboarding row and composes the flat user
+// body for a session response.
+func (h *Handlers) buildSessionResponse(r *http.Request, result *SessionResult) (sessionResponse, error) {
+	var onb *onboarding.Onboarding
+	if h.Onboarding != nil && result.User != nil {
+		got, err := h.Onboarding.Get(r.Context(), result.User.ID)
+		if err != nil && !errors.Is(err, onboarding.ErrNotFound) {
+			return sessionResponse{}, err
+		}
+		onb = got
+	}
+	return sessionResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		User:         users.BuildMeResponse(result.User, onb),
+	}, nil
 }
 
 // Google handles POST /auth/google.
@@ -50,11 +69,12 @@ func (h *Handlers) Google(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusUnauthorized, "invalid google token")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, sessionResponse{
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-		User:         result.User,
-	})
+	resp, err := h.buildSessionResponse(r, result)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 type refreshRequest struct {
@@ -77,11 +97,12 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusUnauthorized, "refresh failed")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, sessionResponse{
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-		User:         result.User,
-	})
+	resp, err := h.buildSessionResponse(r, result)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 // testLoginRequest is the body for POST /auth/test-login. All fields are
@@ -124,28 +145,25 @@ func (h *Handlers) TestLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	// Align the user's onboarding state with the request so the same
 	// email can be reused across E2E flows that test both paths.
-	if req.Onboarded && u.OnboardedAt == nil {
-		if err := h.Service.Users.UpdateOnboarding(ctx, u.ID, nil); err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "onboarding failed")
+	if req.Onboarded {
+		existing, err := h.Onboarding.Get(ctx, u.ID)
+		if err != nil && !errors.Is(err, onboarding.ErrNotFound) {
+			httpx.WriteError(w, http.StatusInternalServerError, "onboarding lookup failed")
 			return
 		}
-		u, err = h.Service.Users.GetByID(ctx, u.ID)
-		if err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "reload failed")
-			return
+		if existing == nil || existing.OnboardedAt == nil {
+			if err := h.Onboarding.UpdateDueDateAndOnboardedAt(ctx, u.ID, nil); err != nil {
+				httpx.WriteError(w, http.StatusInternalServerError, "onboarding failed")
+				return
+			}
 		}
-	} else if !req.Onboarded {
+	} else {
 		// Reset unconditionally so repeated E2E runs start from the same
-		// blank state (onboarded_at / due_date / stage2 coachmark all NULL),
-		// even when the previous run only dismissed the coachmark but did
-		// not complete Stage 1.
-		if err := h.Service.Users.ResetOnboarding(ctx, u.ID); err != nil {
+		// blank state (onboarded_at / due_date / coachmark / first_record_at
+		// / ai_preview all NULL), even when the previous run only dismissed
+		// the coachmark but did not complete Stage 1.
+		if err := h.Onboarding.Reset(ctx, u.ID); err != nil {
 			httpx.WriteError(w, http.StatusInternalServerError, "reset onboarding failed")
-			return
-		}
-		u, err = h.Service.Users.GetByID(ctx, u.ID)
-		if err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "reload failed")
 			return
 		}
 	}
@@ -154,11 +172,12 @@ func (h *Handlers) TestLogin(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusInternalServerError, "issue failed")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, sessionResponse{
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-		User:         result.User,
-	})
+	resp, err := h.buildSessionResponse(r, result)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 // Logout handles POST /auth/logout. Always 204 to avoid leaking whether the

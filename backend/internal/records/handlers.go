@@ -16,7 +16,9 @@ import (
 // paragraphs) while keeping the payload small on low-end networks.
 const maxContentRunes = 2000
 
-// Handlers exposes the POST /records endpoint.
+// Handlers exposes the POST /records endpoint. Deliberately does NOT know
+// about the task queue — AI preview generation is a separate concern owned
+// by the onboarding package (POST /onboarding/ai-preview).
 type Handlers struct {
 	Store           *Store
 	Users           *users.Store
@@ -27,13 +29,11 @@ type createBody struct {
 	Content string `json:"content"`
 }
 
-// createResponse returns the new record alongside the updated user so the
-// client can refresh AuthContext in one round-trip. See plan file for the
-// motivation — partial failure (record saved but /me refresh missed) would
-// leave the home-screen AI preview blurred and desync the local cache.
+// createResponse returns the new record alongside the merged user/onboarding
+// flat response so the client can refresh AuthContext in one round-trip.
 type createResponse struct {
-	Record *Record     `json:"record"`
-	User   *users.User `json:"user"`
+	Record *Record          `json:"record"`
+	User   users.MeResponse `json:"user"`
 }
 
 // Create handles POST /records. Accepts `{content: string}`, trims it,
@@ -64,7 +64,7 @@ func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rec, u, err := h.Store.CreateText(r.Context(), h.Users, uid, content)
+	res, err := h.Store.CreateText(r.Context(), h.Users, uid, content)
 	if err != nil {
 		if errors.Is(err, users.ErrNotFound) {
 			httpx.WriteError(w, http.StatusNotFound, "user not found")
@@ -73,5 +73,6 @@ func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusInternalServerError, "internal")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusCreated, createResponse{Record: rec, User: u})
+	me := users.BuildMeResponse(res.User, res.Onboarding)
+	httpx.WriteJSON(w, http.StatusCreated, createResponse{Record: res.Record, User: me})
 }

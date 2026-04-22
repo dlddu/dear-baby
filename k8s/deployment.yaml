@@ -28,6 +28,12 @@ spec:
             - secretRef:
                 name: dear-baby-secrets
                 optional: true
+            - secretRef:
+                name: redis-secret
+                optional: true
+            - secretRef:
+                name: internal-auth-secret
+                optional: true
           volumeMounts:
             - name: data
               mountPath: /data

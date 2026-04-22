@@ -34,8 +34,9 @@ type AuthContextValue = {
   user: User | null;
   setSession: (session: Session) => Promise<void>;
   completeOnboarding: (dueDate: string | null) => Promise<void>;
-  dismissStage2Coachmark: () => Promise<void>;
+  dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string) => Promise<void>;
+  applyAiPreview: (preview: string) => void;
   signOut: () => Promise<void>;
 };
 
@@ -53,11 +54,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<User | null>(null);
 
-  // Boot: if there is a stored access token, try /me. This is the only place
-  // where status flips to 'authenticated'/'onboarding' automatically. While
-  // we are waiting on /me (or if no token exists) status stays 'loading' →
-  // 'unauthenticated' and the router keeps the user on the landing screen,
-  // which preserves the Maestro health-check flow on cold start.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -74,15 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await setCachedOnboarding(
           u.onboarded_at,
           u.due_date,
-          u.stage2_coachmark_dismissed_at,
+          u.voice_coachmark_dismissed_at,
           u.first_record_at,
         );
       } catch {
         if (cancelled) return;
-        // /me failed. If we have a cached onboarding marker, the user has
-        // definitely completed onboarding before — treat as authenticated
-        // so they aren't pushed back into the funnel on a transient error.
-        // Otherwise clear tokens and send them to the landing screen.
         const cachedOnboardedAt = await getCachedOnboardedAt();
         if (cachedOnboardedAt) {
           setStatus('authenticated');
@@ -104,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await setCachedOnboarding(
       session.user.onboarded_at,
       session.user.due_date,
-      session.user.stage2_coachmark_dismissed_at,
+      session.user.voice_coachmark_dismissed_at,
       session.user.first_record_at,
     );
   }, []);
@@ -116,39 +108,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await setCachedOnboarding(
       updated.onboarded_at,
       updated.due_date,
-      updated.stage2_coachmark_dismissed_at,
+      updated.voice_coachmark_dismissed_at,
       updated.first_record_at,
     );
   }, []);
 
-  // dismissStage2Coachmark is called when the user taps the close button on
+  // dismissVoiceCoachmark is called when the user taps the close button on
   // the home-screen voice-record coachmark. The backend stamps a timestamp
   // that persists across devices; we also optimistically update local state
   // so the coachmark vanishes immediately without waiting on the response.
-  const dismissStage2Coachmark = useCallback(async () => {
-    const updated = await patchMe({ dismiss_stage2_coachmark: true });
+  const dismissVoiceCoachmark = useCallback(async () => {
+    const updated = await patchMe({ dismiss_voice_coachmark: true });
     setUser(updated);
     await setCachedOnboarding(
       updated.onboarded_at,
       updated.due_date,
-      updated.stage2_coachmark_dismissed_at,
+      updated.voice_coachmark_dismissed_at,
       updated.first_record_at,
     );
   }, []);
 
-  // createTextRecord saves a text entry and refreshes local user state so
-  // the home-screen AI preview unblurs immediately (driven by
-  // user.first_record_at). The backend stamps first_record_at on the first
-  // call only, so subsequent records won't move the Stage 2 unblur trigger.
+  // createTextRecord saves a text entry and refreshes local user state. The
+  // home screen is responsible for detecting the first-record transition and
+  // triggering the AI preview flow — AuthContext stays record-agnostic.
   const createTextRecord = useCallback(async (content: string) => {
     const { user: updated } = await apiCreateTextRecord(content);
     setUser(updated);
     await setCachedOnboarding(
       updated.onboarded_at,
       updated.due_date,
-      updated.stage2_coachmark_dismissed_at,
+      updated.voice_coachmark_dismissed_at,
       updated.first_record_at,
     );
+  }, []);
+
+  // applyAiPreview merges an ai_preview string (from the SSE stream) into
+  // the local user object so the UI transitions from loading → ready.
+  const applyAiPreview = useCallback((preview: string) => {
+    setUser((u) => (u ? { ...u, ai_preview: preview } : u));
   }, []);
 
   const signOut = useCallback(async () => {
@@ -168,8 +165,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       setSession,
       completeOnboarding,
-      dismissStage2Coachmark,
+      dismissVoiceCoachmark,
       createTextRecord,
+      applyAiPreview,
       signOut,
     }),
     [
@@ -177,8 +175,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       setSession,
       completeOnboarding,
-      dismissStage2Coachmark,
+      dismissVoiceCoachmark,
       createTextRecord,
+      applyAiPreview,
       signOut,
     ],
   );

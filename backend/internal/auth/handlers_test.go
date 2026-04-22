@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
@@ -15,6 +16,7 @@ func newTestHandlers(t *testing.T) (*Handlers, func()) {
 	t.Helper()
 	db := newTestDB(t)
 	usersStore := &users.Store{DB: db}
+	onbStore := &onboarding.Store{DB: db}
 	refreshStore := &RefreshStore{DB: db}
 	issuer := &Issuer{
 		Secret:     []byte("test-secret"),
@@ -27,7 +29,7 @@ func newTestHandlers(t *testing.T) (*Handlers, func()) {
 		Refresh:  refreshStore,
 		Issuer:   issuer,
 	}
-	h := &Handlers{Service: svc}
+	h := &Handlers{Service: svc, Onboarding: onbStore}
 	return h, func() { db.Close() }
 }
 
@@ -67,7 +69,7 @@ func TestTestLogin_WithEmail(t *testing.T) {
 	if resp.AccessToken == "" || resp.RefreshToken == "" {
 		t.Error("tokens should be non-empty")
 	}
-	if resp.User == nil || resp.User.Email != email {
+	if resp.User.Email != email {
 		t.Errorf("email: got %+v", resp.User)
 	}
 	if resp.User.OnboardedAt != nil {
@@ -162,13 +164,11 @@ func TestTestLogin_ResetOnboarding(t *testing.T) {
 		return r
 	}
 
-	// First call: onboarded=true sets onboarded_at.
 	r1 := call(`{"email":"reset@test.com","onboarded":true}`)
 	if r1.User.OnboardedAt == nil {
 		t.Fatal("expected onboarded_at to be set")
 	}
 
-	// Second call: onboarded=false (default) should reset onboarded_at.
 	r2 := call(`{"email":"reset@test.com","onboarded":false}`)
 	if r2.User.OnboardedAt != nil {
 		t.Error("expected onboarded_at to be nil after reset")

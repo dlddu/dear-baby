@@ -1,30 +1,35 @@
-// AiPreviewCard — Stage 2 teaser showing blurred AI-edited content so the
-// user can imagine the value of the first record before writing it
-// (docs/design-system/onboarding.md `#호기심유발` `#가치선경험`).
+// AiPreviewCard — Stage 2 AI-edit preview card. Four states:
+//  - 'teaser':  user hasn't saved a first record yet. Blurred block glyphs +
+//               "기록을 남기면 AI가 이렇게 정리해드려요".
+//  - 'loading': first record saved, waiting on the worker. Animated ellipsis
+//               + "AI가 정리하는 중이에요".
+//  - 'ready':   ai_preview populated. Real text + footnote.
+//  - 'failed':  worker error or SSE disconnect. Retry button surfaced.
 //
 // Pure-RN implementation: rather than pulling in expo-blur just for a
 // teaser, we mask the body text with block characters and dim opacity.
-// When `blurred=false` the real `mockText` renders so the parent can
-// swap to an "unblurred after first record" state later.
 
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 
 import { Card } from './Card';
 import { IconCircle } from './IconCircle';
 import { Text } from './Text';
 
+export type AiPreviewStatus = 'teaser' | 'loading' | 'ready' | 'failed';
+
 export type AiPreviewCardProps = {
-  mockText: string;
-  blurred: boolean;
+  status: AiPreviewStatus;
+  content?: string | null;
+  onRetry?: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
 
-// maskText replaces each non-whitespace code point with a shaded block so
-// the text shape remains but the content is unreadable — mimics a blur
-// without needing a native blur view.
+const TEASER_MOCK = '엄마가 너를 처음 느낀 그 순간, 세상이 조금 더 따뜻해졌어.';
+
 function maskText(input: string): string {
   let out = '';
   for (const ch of input) {
@@ -34,12 +39,12 @@ function maskText(input: string): string {
 }
 
 export function AiPreviewCard({
-  mockText,
-  blurred,
+  status,
+  content,
+  onRetry,
   style,
   testID,
 }: AiPreviewCardProps) {
-  const body = blurred ? maskText(mockText) : mockText;
   return (
     <Card surface="ivory" padding="md" style={style} testID={testID}>
       <View style={styles.header}>
@@ -48,20 +53,91 @@ export function AiPreviewCard({
           AI 미리보기
         </Text>
       </View>
-      <Text
-        variant="emotion"
-        color={blurred ? 'muted' : 'primary'}
-        style={[styles.body, blurred && styles.bodyBlurred]}
-      >
-        {body}
-      </Text>
-      <Text variant="caption" color="muted" style={styles.footnote}>
-        {blurred
-          ? '기록을 남기면 AI가 이렇게 정리해드려요'
-          : 'AI가 당신의 기록을 이렇게 정리했어요'}
-      </Text>
+      {renderBody(status, content)}
+      {renderFootnote(status, onRetry)}
     </Card>
   );
+}
+
+function renderBody(status: AiPreviewStatus, content?: string | null) {
+  switch (status) {
+    case 'ready':
+      return (
+        <Text variant="emotion" color="primary" style={styles.body}>
+          {content ?? ''}
+        </Text>
+      );
+    case 'loading':
+      return (
+        <Text variant="emotion" color="muted" style={styles.body}>
+          ✨ ✨ ✨
+        </Text>
+      );
+    case 'failed':
+      return (
+        <Text variant="emotion" color="muted" style={styles.body}>
+          —
+        </Text>
+      );
+    case 'teaser':
+    default:
+      return (
+        <Text
+          variant="emotion"
+          color="muted"
+          style={[styles.body, styles.bodyBlurred]}
+        >
+          {maskText(TEASER_MOCK)}
+        </Text>
+      );
+  }
+}
+
+function renderFootnote(status: AiPreviewStatus, onRetry?: () => void) {
+  switch (status) {
+    case 'ready':
+      return (
+        <Text variant="caption" color="muted">
+          AI가 당신의 기록을 이렇게 정리했어요
+        </Text>
+      );
+    case 'loading':
+      return (
+        <Text variant="caption" color="muted">
+          AI가 정리하는 중이에요
+        </Text>
+      );
+    case 'failed':
+      return (
+        <View style={styles.footRow}>
+          <Text variant="caption" color="muted">
+            AI 정리에 실패했어요
+          </Text>
+          {onRetry ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onRetry}
+              style={({ pressed }) => [
+                styles.retry,
+                pressed && styles.retryPressed,
+              ]}
+              testID="home-ai-preview-retry"
+            >
+              <Text variant="caption" color="primary">
+                다시 시도
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      );
+    case 'teaser':
+    default:
+      return (
+        <Text variant="caption" color="muted">
+          기록을 남기면 AI가 이렇게 정리해드려요
+        </Text>
+      );
+  }
 }
 
 const styles = StyleSheet.create({
@@ -78,5 +154,18 @@ const styles = StyleSheet.create({
     opacity: 0.55,
     letterSpacing: 2,
   },
-  footnote: {},
+  footRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[3],
+  },
+  retry: {
+    paddingVertical: spacing[1],
+    paddingHorizontal: spacing[3],
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.text.muted,
+  },
+  retryPressed: { opacity: 0.6 },
 });

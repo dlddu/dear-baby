@@ -10,8 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
+	"github.com/dlddu/dear-baby/backend/internal/tasks"
 )
 
 // Run loads config, opens the DB, applies migrations, starts the HTTP server,
@@ -35,7 +38,26 @@ func Run() error {
 		return err
 	}
 
-	r := newRouter(cfg, sqlDB, logger)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var redisClient *redis.Client
+	var hub *tasks.Hub
+	if cfg.RedisURL != "" {
+		opts, err := redis.ParseURL(cfg.RedisURL)
+		if err != nil {
+			return err
+		}
+		redisClient = redis.NewClient(opts)
+		hub = tasks.NewHub(redisClient, logger)
+		go func() {
+			if err := hub.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error("tasks hub stopped", "err", err)
+			}
+		}()
+	}
+
+	r := newRouter(cfg, sqlDB, logger, redisClient, hub)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -59,8 +81,8 @@ func Run() error {
 		return err
 	case <-quit:
 		logger.Info("shutting down")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		return srv.Shutdown(ctx)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		return srv.Shutdown(shutdownCtx)
 	}
 }

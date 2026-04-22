@@ -14,6 +14,7 @@ import (
 
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
+	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
@@ -41,7 +42,8 @@ func run(args []string) error {
 	defer d.Close()
 
 	store := &users.Store{DB: d}
-	if err := store.ResetOnboardingByEmail(context.Background(), email); err != nil {
+	onb := &onboarding.Store{DB: d}
+	if err := store.ResetOnboardingByEmail(context.Background(), email, onb); err != nil {
 		if errors.Is(err, users.ErrNotFound) {
 			return fmt.Errorf("no user found with email %q", email)
 		}

@@ -21,9 +21,15 @@ import { spacing } from '../theme/spacing';
 
 import { Text } from './Text';
 
+export type CoachmarkArrowAlign = 'left' | 'center' | 'right';
+
 export type CoachmarkProps = {
   label: string;
   onDismiss: () => void;
+  // arrowAlign positions the downward-pointing arrow under the bubble.
+  // Defaults to 'center'. Use 'left' when the coachmark is anchored above
+  // a left-aligned target (e.g. the voice CTA at the left of a dual CTA row).
+  arrowAlign?: CoachmarkArrowAlign;
   style?: StyleProp<ViewStyle>;
   testID?: string;
   dismissTestID?: string;
@@ -32,6 +38,7 @@ export type CoachmarkProps = {
 export function Coachmark({
   label,
   onDismiss,
+  arrowAlign = 'center',
   style,
   testID,
   dismissTestID,
@@ -55,7 +62,7 @@ export function Coachmark({
           </Text>
         </Pressable>
       </View>
-      <View style={styles.arrow} />
+      <View style={[styles.arrow, arrowStyles[arrowAlign]]} />
     </View>
   );
 }
@@ -64,8 +71,7 @@ const ARROW_SIZE = 10;
 
 const styles = StyleSheet.create({
   wrapper: {
-    alignSelf: 'center',
-    alignItems: 'center',
+    alignItems: 'stretch',
   },
   bubble: {
     flexDirection: 'row',
@@ -94,4 +100,10 @@ const styles = StyleSheet.create({
     borderRightColor: 'transparent',
     borderTopColor: colors.surface.ivory,
   },
+});
+
+const arrowStyles = StyleSheet.create({
+  left: { alignSelf: 'flex-start', marginLeft: spacing[5] },
+  center: { alignSelf: 'center' },
+  right: { alignSelf: 'flex-end', marginRight: spacing[5] },
 });

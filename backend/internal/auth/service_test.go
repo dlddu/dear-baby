@@ -24,12 +24,17 @@ CREATE TABLE users (
   email                           TEXT NOT NULL UNIQUE,
   name                            TEXT,
   picture_url                     TEXT,
-  due_date                        TEXT,
-  onboarded_at                    TEXT,
-  stage2_coachmark_dismissed_at   TEXT,
-  first_record_at                 TEXT,
   created_at                      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at                      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE onboarding (
+  user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  due_date                     TEXT,
+  onboarded_at                 TEXT,
+  voice_coachmark_dismissed_at TEXT,
+  first_record_at              TEXT,
+  ai_preview                   TEXT,
+  updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE oauth_accounts (
   provider         TEXT NOT NULL,
