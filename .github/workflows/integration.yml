@@ -29,15 +29,41 @@ jobs:
       - name: Load image into kind
         run: kind load docker-image ghcr.io/dlddu/dear-baby:ci --name dear-baby-integration
 
+      # Seed the split secrets the backend reads from before applying the
+      # Deployment — with these in place the AI-preview routes come online,
+      # which the checks below exercise end-to-end.
+      - name: Create Redis + internal-auth secrets
+        run: |
+          kubectl create secret generic redis-secret \
+            --from-literal=REDIS_URL=redis://redis:6379
+          kubectl create secret generic internal-auth-secret \
+            --from-literal=INTERNAL_API_TOKEN=integration-token
+
       - name: Apply manifests
         run: |
           sed -i \
             -e 's|ghcr.io/dlddu/dear-baby:latest|ghcr.io/dlddu/dear-baby:ci|' \
             -e 's|imagePullPolicy: Always|imagePullPolicy: Never|' \
             k8s/deployment.yaml
-          kubectl apply -f k8s/
+          # Explicit list — the worker deployment is intentionally
+          # excluded because this integration cluster doesn't load the
+          # worker image or the openrouter-secret. The backend + Redis
+          # alone cover the routes we assert below.
+          kubectl apply \
+            -f k8s/deployment.yaml \
+            -f k8s/service.yaml \
+            -f k8s/pvc.yaml \
+            -f k8s/redis-deployment.yaml \
+            -f k8s/redis-service.yaml
 
-      - name: Wait for rollout
+      - name: Wait for Redis rollout
+        run: kubectl rollout status deployment/redis --timeout=120s
+
+      - name: Wait for backend rollout
+        # Backend pings Redis at startup; a failure here means the pod
+        # couldn't reach the Redis service or env vars weren't plumbed
+        # through. Either way this guards the subsequent connectivity
+        # checks against false negatives.
         run: kubectl rollout status deployment/dear-baby --timeout=180s
 
       - name: Diagnostics on rollout failure
@@ -49,36 +75,137 @@ jobs:
           echo "::group::kubectl describe deployment/dear-baby"
           kubectl describe deployment/dear-baby || true
           echo "::endgroup::"
+          echo "::group::kubectl describe deployment/redis"
+          kubectl describe deployment/redis || true
+          echo "::endgroup::"
           echo "::group::kubectl describe pods"
           kubectl describe pods -l app=dear-baby || true
+          kubectl describe pods -l app=redis || true
           echo "::endgroup::"
           echo "::group::kubectl logs"
           kubectl logs deployment/dear-baby --tail=200 --all-containers=true || true
           kubectl logs deployment/dear-baby --tail=200 --all-containers=true --previous || true
+          kubectl logs deployment/redis --tail=200 --all-containers=true || true
           echo "::endgroup::"
           echo "::group::kubectl get events"
           kubectl get events --sort-by=.lastTimestamp || true
           echo "::endgroup::"
 
-      - name: Integration test /health via Service
+      - name: Port-forward backend
         run: |
-          set -euo pipefail
           kubectl port-forward svc/dear-baby 18080:8080 >/tmp/pf.log 2>&1 &
-          PF_PID=$!
-          trap "kill $PF_PID 2>/dev/null || true" EXIT
-
+          echo $! > /tmp/pf.pid
+          # Wait for the forward to accept.
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:18080/health >/tmp/resp.json 2>/dev/null; then
-              echo "response: $(cat /tmp/resp.json)"
-              grep -q '"status":"ok"' /tmp/resp.json
-              echo "integration test passed"
+            if curl -fsS http://127.0.0.1:18080/health >/dev/null 2>&1; then
+              echo "port-forward ready"
               exit 0
             fi
             sleep 1
           done
-
-          echo "integration test failed; diagnostics:"
-          kubectl get pods,svc,endpoints -o wide
-          kubectl describe deployment/dear-baby
-          kubectl logs deployment/dear-baby --tail=200 || true
+          echo "port-forward never came up"
+          cat /tmp/pf.log
           exit 1
+
+      - name: Integration test /health via Service
+        run: |
+          set -euo pipefail
+          curl -fsS http://127.0.0.1:18080/health >/tmp/resp.json
+          echo "response: $(cat /tmp/resp.json)"
+          grep -q '"status":"ok"' /tmp/resp.json
+          echo "health check passed"
+
+      - name: Backend connected to Redis
+        # REDIS_URL is wired through the split secret; if the backend
+        # failed to ping Redis on boot, the rollout above would have
+        # timed out. Belt-and-braces: confirm the "disabled" warning is
+        # not in the logs.
+        run: |
+          set -euo pipefail
+          if kubectl logs deployment/dear-baby --tail=500 | grep -q 'REDIS_URL not set'; then
+            echo "backend logs claim REDIS_URL is unset — secret wiring broken"
+            kubectl logs deployment/dear-baby --tail=500
+            exit 1
+          fi
+          echo "backend Redis wiring OK"
+
+      - name: Internal API rejects missing token
+        # The internal API is token-gated. No header → 401.
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
+            http://127.0.0.1:18080/internal/tasks/ai-preview/pending)
+          if [ "$code" != "401" ]; then
+            echo "expected 401 without token, got $code, body=$(cat /tmp/body.txt)"
+            exit 1
+          fi
+          echo "unauth → 401 OK"
+
+      - name: Internal API rejects wrong token
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
+            -H 'X-Internal-Token: definitely-not-the-token' \
+            http://127.0.0.1:18080/internal/tasks/ai-preview/pending)
+          if [ "$code" != "401" ]; then
+            echo "expected 401 with wrong token, got $code, body=$(cat /tmp/body.txt)"
+            exit 1
+          fi
+          echo "wrong token → 401 OK"
+
+      - name: Internal API happy path — pending list is empty
+        # With a correct token and no users seeded, the pending list
+        # must be an empty JSON array. This proves the Redis-backed
+        # routes actually mounted (they're only wired when REDIS_URL is
+        # non-empty) and that the token we seeded matches the one the
+        # backend verifies.
+        run: |
+          set -euo pipefail
+          body=$(curl -fsS \
+            -H 'X-Internal-Token: integration-token' \
+            http://127.0.0.1:18080/internal/tasks/ai-preview/pending)
+          echo "pending response: $body"
+          if [ "$body" != "[]" ]; then
+            echo "expected [], got $body"
+            exit 1
+          fi
+
+      - name: Internal API 404s on unknown user
+        # Guards the save endpoint's existence check — the handler
+        # should return 404 when the referenced user/onboarding row is
+        # missing, rather than silently updating nothing.
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
+            -X POST \
+            -H 'X-Internal-Token: integration-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"user_id":"does-not-exist","preview":"hello"}' \
+            http://127.0.0.1:18080/internal/onboarding/ai-preview)
+          if [ "$code" != "404" ]; then
+            echo "expected 404 for unknown user, got $code, body=$(cat /tmp/body.txt)"
+            exit 1
+          fi
+          echo "unknown user → 404 OK"
+
+      - name: AI preview enqueue path is gated on Redis
+        # POST /onboarding/ai-preview requires a valid access token from
+        # the auth pipeline, which we don't mint here. Assert that the
+        # route exists (401) rather than 404 — a 404 would mean the
+        # Redis-dependent route group didn't mount.
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
+            -X POST http://127.0.0.1:18080/onboarding/ai-preview)
+          if [ "$code" != "401" ]; then
+            echo "expected 401 (route exists, auth missing), got $code, body=$(cat /tmp/body.txt)"
+            exit 1
+          fi
+          echo "AI preview route mounted (401 on unauth) OK"
+
+      - name: Stop port-forward
+        if: always()
+        run: |
+          if [ -f /tmp/pf.pid ]; then
+            kill "$(cat /tmp/pf.pid)" || true
+          fi
