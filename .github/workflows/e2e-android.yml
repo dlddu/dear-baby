@@ -15,6 +15,9 @@ jobs:
       # Mirrors the app-side flag so the backend mounts /auth/test-login for
       # the Maestro login flow. CI/dev only — never enable in production.
       TEST_AUTH_ENABLED: "true"
+      # Hoisted to job-level env so subsequent `if: env.OPENROUTER_API_KEY
+      # != ''` conditions can inspect it.
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
     steps:
       - name: Checkout
@@ -27,6 +30,7 @@ jobs:
           internal-api-token: ci-internal-token
 
       - name: Setup AI worker
+        if: env.OPENROUTER_API_KEY != ''
         uses: ./.github/actions/setup-ai-worker
         with:
           openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
@@ -88,8 +92,10 @@ jobs:
       # persist across lines. We instead write the whole flow to a file and
       # invoke it with a single-line command.
       - name: Prepare e2e script
+        env:
+          RUN_AI_FLOW: ${{ env.OPENROUTER_API_KEY != '' && '1' || '0' }}
         run: |
-          cat > /tmp/e2e-android.sh <<'SCRIPT'
+          cat > /tmp/e2e-android.sh <<SCRIPT
           #!/usr/bin/env bash
           set -eux
 
@@ -107,16 +113,21 @@ jobs:
             fi
           done
 
-          cd "$GITHUB_WORKSPACE/app"
-          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
-          echo "Installing $APK"
-          adb install -r "$APK"
+          cd "\$GITHUB_WORKSPACE/app"
+          APK=\$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
+          echo "Installing \$APK"
+          adb install -r "\$APK"
           adb shell monkey -p com.dlddu.dearbaby -c android.intent.category.LAUNCHER 1
           sleep 3
           maestro test .maestro/health.yaml
           maestro test .maestro/login.yaml
           maestro test .maestro/onboarding-stage1.yaml
           maestro test .maestro/home-onboarding.yaml
+          if [ "${RUN_AI_FLOW}" = "1" ]; then
+            maestro test .maestro/home-onboarding-ai.yaml
+          else
+            echo "Skipping AI flow — OPENROUTER_API_KEY not configured"
+          fi
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 

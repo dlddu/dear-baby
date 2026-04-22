@@ -1,12 +1,15 @@
 appId: com.dlddu.dearbaby
 ---
-# Home / Onboarding Stage 2 – E2E Tests
+# Home / Onboarding Stage 2 – E2E Tests (basic paths, no worker required)
 # Verifies the home-screen voice-record coachmark + question card + dual CTAs
-# + AI preview shown to users who just completed Stage 1. Requires
+# + initial teaser state of the AI preview. Requires
 # EXPO_PUBLIC_TEST_AUTH_ENABLED=true (app) and TEST_AUTH_ENABLED=true
-# (backend), same as Stage 1. Test-login with onboarded=false also resets the
-# server-side onboarding row (coachmark dismissal + first_record_at +
+# (backend), same as Stage 1. Test-login with onboarded=false also resets
+# the server-side onboarding row (coachmark dismissal + first_record_at +
 # ai_preview), so each run starts from a blank slate.
+#
+# Path 3 (first record → loading → ready via the worker + OpenRouter) lives
+# in home-onboarding-ai.yaml and is gated on OPENROUTER_API_KEY.
 
 # ─── Path 1: due date → home shows full Stage 2 + coachmark persists ───
 
@@ -123,42 +126,12 @@ appId: com.dlddu.dearbaby
 - assertNotVisible:
     id: "home-week-badge"
 
-# ─── Path 3: voice is still "coming soon"; text flow saves + AI loads ───
-
+# Voice CTA still "coming soon".
 - tapOn:
     id: "home-voice-cta"
 - assertVisible: "곧 추가됩니다"
 - tapOn: "OK"
 
 # Voice tap also engages with the coachmark target → coachmark closes.
-- assertNotVisible:
-    id: "home-coachmark"
-
-# Text CTA opens the record modal, save → backend stamps first_record_at →
-# home detects the transition and triggers the AI preview task. NOTE:
-# Maestro's `inputText` does not support Unicode on Android
-# (mobile-dev-inc/maestro#146), so the body here is ASCII.
-- tapOn:
-    id: "home-text-cta"
-- assertVisible:
-    id: "record-text-screen"
-- tapOn:
-    id: "record-text-input"
-- inputText: "today i felt you move for the first time"
-# Android 에선 soft keyboard 가 저장 버튼을 덮어 tapOn 이 실패한다. 입력
-# 직후 키보드를 내려 버튼을 노출시킨다.
-- hideKeyboard
-- tapOn:
-    id: "record-text-save"
-- assertVisible:
-    id: "home-tab"
-
-# Loading → ready: the worker takes ≤30s to round-trip OpenRouter.
-- assertVisible: "AI가 정리하는 중이에요"
-- assertVisible:
-    text: "AI가 당신의 기록을 이렇게 정리했어요"
-    timeout: 30000
-
-# Coachmark is auto-hidden once first_record_at is stamped.
 - assertNotVisible:
     id: "home-coachmark"
