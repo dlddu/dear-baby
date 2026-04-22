@@ -16,9 +16,11 @@ inputs:
     description: OpenRouter API key.
     required: true
   openrouter-model:
-    description: OpenRouter model slug.
+    description: OpenRouter model slug. Defaults to the free-tier
+      auto-router (https://openrouter.ai/openrouter/free) so the E2E
+      run doesn't need paid credits.
     required: false
-    default: "openai/gpt-4o-mini"
+    default: "openrouter/free"
 
 runs:
   using: composite

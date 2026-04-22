@@ -20,9 +20,11 @@ spec:
             - name: LOG_LEVEL
               value: "info"
             # Model is plain config, not a secret. Override via a
-            # ConfigMap or literal env as needed.
+            # ConfigMap or literal env as needed. Defaults to OpenRouter's
+            # free-tier auto-router (https://openrouter.ai/openrouter/free)
+            # so dev/integration clusters don't need paid credits.
             - name: OPENROUTER_MODEL
-              value: "openai/gpt-4o-mini"
+              value: "openrouter/free"
             - name: INTERNAL_API_URL
               value: "http://dear-baby:8080"
           envFrom:
