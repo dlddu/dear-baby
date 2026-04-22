@@ -3,7 +3,7 @@ description: Install Redis + build/start the TypeScript worker with OpenRouter c
 
 inputs:
   openrouter-api-key:
-    description: OpenRouter API key (typically pulled from ${{ secrets.OPENROUTER_API_KEY }})
+    description: OpenRouter API key. Pass secrets.OPENROUTER_API_KEY from the calling workflow.
     required: true
   openrouter-model:
     description: OpenRouter model slug
