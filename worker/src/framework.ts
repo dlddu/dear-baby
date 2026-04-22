@@ -88,6 +88,7 @@ export function runWorker(opts: WorkerOptions): WorkerHandle {
   };
 
   const consume = async () => {
+    logger.info({ queue: QUEUE_KEY, blockTimeoutSec }, 'entering consume loop');
     while (!stopping) {
       let popped: [string, string] | null = null;
       try {
@@ -101,6 +102,7 @@ export function runWorker(opts: WorkerOptions): WorkerHandle {
       }
       if (!popped) continue;
       const raw = popped[1];
+      logger.debug({ rawLength: raw.length }, 'brpop returned task');
       let envJSON: unknown;
       try {
         envJSON = JSON.parse(raw);
@@ -110,6 +112,7 @@ export function runWorker(opts: WorkerOptions): WorkerHandle {
       }
       try {
         await registry.dispatch(envJSON, deps);
+        logger.debug('task dispatch finished');
       } catch (err) {
         logger.error({ err: errMessage(err), raw }, 'dispatch failed');
       }

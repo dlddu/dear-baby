@@ -1,0 +1,46 @@
+name: Upload Service Logs
+description: Dump backend + worker logs inline and upload them as artifacts.
+  Called on E2E failure to give humans enough breadcrumbs to diagnose the
+  AI preview pipeline without re-running.
+
+inputs:
+  name:
+    description: Artifact name prefix (e.g. "e2e-ios" → e2e-ios-service-logs).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Dump backend log (inline)
+      if: always()
+      shell: bash
+      run: |
+        echo "::group::backend/server.log"
+        if [ -f backend/server.log ]; then
+          tail -n 500 backend/server.log || true
+        else
+          echo "(no backend/server.log)"
+        fi
+        echo "::endgroup::"
+
+    - name: Dump worker log (inline)
+      if: always()
+      shell: bash
+      run: |
+        echo "::group::worker/worker.log"
+        if [ -f worker/worker.log ]; then
+          tail -n 500 worker/worker.log || true
+        else
+          echo "(no worker/worker.log)"
+        fi
+        echo "::endgroup::"
+
+    - name: Upload service logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}-service-logs
+        path: |
+          backend/server.log
+          worker/worker.log
+        if-no-files-found: ignore

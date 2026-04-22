@@ -159,6 +159,12 @@ jobs:
         with:
           name: maestro-android-output
 
+      - name: Upload backend + worker logs
+        if: always()
+        uses: ./.github/actions/upload-service-logs
+        with:
+          name: e2e-android
+
       - name: Stop worker
         if: always()
         working-directory: worker

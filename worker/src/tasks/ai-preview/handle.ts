@@ -49,14 +49,22 @@ export async function handle(
   const { user_id, content } = payload;
   const log = deps.logger.child({ task: 'ai_preview', user_id });
 
+  log.debug({ model: deps.model, contentLength: content.length }, 'handle start');
+  const started = Date.now();
+
   try {
     const preview = await generatePreview(deps, content);
+    log.debug(
+      { elapsedMs: Date.now() - started, previewLength: preview.length },
+      'openrouter returned',
+    );
     await deps.backend.saveAIPreview(user_id, preview);
+    log.debug('saved preview via internal API');
     await deps.redis.publish(
       resultChannel('ai_preview', user_id),
       JSON.stringify({ status: 'ok', preview }),
     );
-    log.info({ preview }, 'preview ready');
+    log.info({ preview, elapsedMs: Date.now() - started }, 'preview ready');
   } catch (err) {
     const msg = errMessage(err);
     log.error({ err: msg }, 'preview generation failed');

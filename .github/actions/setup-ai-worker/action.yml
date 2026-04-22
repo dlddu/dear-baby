@@ -21,6 +21,11 @@ inputs:
       run doesn't need paid credits.
     required: false
     default: "openrouter/free"
+  log-level:
+    description: pino log level. CI defaults to debug so AI-preview
+      pipeline failures leave a full breadcrumb trail.
+    required: false
+    default: "debug"
 
 runs:
   using: composite
@@ -48,7 +53,14 @@ runs:
         INTERNAL_API_TOKEN: ${{ inputs.internal-api-token }}
         OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
         OPENROUTER_MODEL: ${{ inputs.openrouter-model }}
+        LOG_LEVEL: ${{ inputs.log-level }}
       run: |
+        echo "worker env:"
+        echo "  REDIS_URL=$REDIS_URL"
+        echo "  INTERNAL_API_URL=$INTERNAL_API_URL"
+        echo "  OPENROUTER_MODEL=$OPENROUTER_MODEL"
+        echo "  LOG_LEVEL=$LOG_LEVEL"
+        echo "  OPENROUTER_API_KEY=$(printf '%s' "$OPENROUTER_API_KEY" | head -c 6)..."
         nohup node dist/index.js > worker.log 2>&1 &
         echo $! > worker.pid
         sleep 2
@@ -58,3 +70,6 @@ runs:
           exit 1
         fi
         echo "Worker started (pid=$(cat worker.pid))"
+        echo "--- initial worker.log ---"
+        cat worker.log
+        echo "--- end ---"
