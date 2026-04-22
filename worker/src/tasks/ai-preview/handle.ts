@@ -56,7 +56,7 @@ export async function handle(
       resultChannel('ai_preview', user_id),
       JSON.stringify({ status: 'ok', preview }),
     );
-    log.info('preview ready');
+    log.info({ preview }, 'preview ready');
   } catch (err) {
     const msg = errMessage(err);
     log.error({ err: msg }, 'preview generation failed');

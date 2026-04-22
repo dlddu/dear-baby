@@ -67,6 +67,7 @@ jobs:
     uses: ./.github/workflows/integration.yml
     permissions:
       contents: read
+    secrets: inherit
 
   e2e-ios:
     name: E2E Tests (iOS)
