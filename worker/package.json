@@ -1,0 +1,27 @@
+{
+  "name": "dear-baby-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Task worker for dear-baby. Consumes jobs from Redis, calls OpenRouter, writes results back via the backend internal API.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1",
+    "openai": "^4.76.1",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.2",
+    "vitest": "^2.1.8"
+  }
+}

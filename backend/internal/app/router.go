@@ -7,17 +7,23 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/dlddu/dear-baby/backend/internal/auth"
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
+	"github.com/dlddu/dear-baby/backend/internal/internalapi"
+	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 	"github.com/dlddu/dear-baby/backend/internal/records"
+	"github.com/dlddu/dear-baby/backend/internal/tasks"
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
 // newRouter builds the chi router, wires middleware and handlers, and
-// returns an http.Handler ready for the http.Server.
-func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger) http.Handler {
+// returns an http.Handler ready for the http.Server. redisClient + hub
+// are optional — when nil, AI-preview routes are skipped so /health and
+// auth continue to work without Redis (local dev / smoke tests).
+func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -26,6 +32,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger) http.Handler
 	r.Use(httpx.CORS())
 
 	usersStore := &users.Store{DB: db}
+	onboardingStore := &onboarding.Store{DB: db}
 	refreshStore := &auth.RefreshStore{DB: db}
 	issuer := &auth.Issuer{
 		Secret:     cfg.JWTSecret,
@@ -34,15 +41,22 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger) http.Handler
 	}
 	verifier := &auth.GoogleVerifier{Audiences: cfg.GoogleAudiences}
 	authService := &auth.Service{
-		Verifier: verifier,
-		Users:    usersStore,
-		Refresh:  refreshStore,
-		Issuer:   issuer,
+		Verifier:   verifier,
+		Users:      usersStore,
+		Onboarding: onboardingStore,
+		Refresh:    refreshStore,
+		Issuer:     issuer,
 	}
-	authHandlers := &auth.Handlers{Cfg: cfg, Service: authService}
+	authHandlers := &auth.Handlers{
+		Cfg:        cfg,
+		Service:    authService,
+		Onboarding: onboardingStore,
+	}
 	usersHandlers := &users.Handlers{
-		Store:           usersStore,
-		UserIDFromCtxFn: auth.UserIDFromRequest,
+		Store:                 usersStore,
+		Onboarding:            onboardingStore,
+		OnboardingErrNotFound: onboarding.ErrNotFound,
+		UserIDFromCtxFn:       auth.UserIDFromRequest,
 	}
 	recordsStore := &records.Store{DB: db}
 	recordsHandlers := &records.Handlers{
@@ -75,6 +89,39 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger) http.Handler
 		pr.Patch("/me", usersHandlers.PatchMe)
 		pr.Post("/records", recordsHandlers.Create)
 	})
+
+	if redisClient != nil && hub != nil {
+		tasksClient := &tasks.Client{Redis: redisClient}
+		onbHandlers := &onboarding.Handlers{
+			Store:           onboardingStore,
+			Tasks:           tasksClient,
+			Hub:             hub,
+			UserIDFromCtxFn: auth.UserIDFromRequest,
+		}
+
+		// Authenticated onboarding routes. The SSE route permits query
+		// token fallback because some RN EventSource shims cannot set
+		// headers reliably.
+		r.Group(func(pr chi.Router) {
+			pr.Use(auth.RequireAuth(issuer))
+			pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
+		})
+		r.Group(func(pr chi.Router) {
+			pr.Use(auth.RequireAuthWithQueryFallback(issuer))
+			pr.Get("/onboarding/ai-preview/events", onbHandlers.AIPreviewEvents)
+		})
+
+		// Internal API: token-guarded, cluster-local.
+		intHandlers := &internalapi.Handlers{
+			Onboarding: onboardingStore,
+			Token:      cfg.InternalAPIToken,
+		}
+		r.Group(func(pr chi.Router) {
+			pr.Use(intHandlers.RequireToken)
+			pr.Get("/internal/tasks/ai-preview/pending", intHandlers.ListPendingAIPreviews)
+			pr.Post("/internal/onboarding/ai-preview", intHandlers.SaveAIPreview)
+		})
+	}
 
 	return r
 }

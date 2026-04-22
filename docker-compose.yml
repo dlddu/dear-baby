@@ -1,0 +1,41 @@
+services:
+  # Volatile Redis — no PVC, no AOF, no RDB. AI-preview jobs recover from
+  # the onboarding table on worker boot, so losing the queue on a restart
+  # is acceptable. See k8s/redis-deployment.yaml for the mirroring prod
+  # configuration.
+  redis:
+    image: redis:7-alpine
+    command: ["--appendonly", "no", "--save", ""]
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"
+      REDIS_URL: "redis://redis:6379"
+      INTERNAL_API_TOKEN: "${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN required}"
+    ports:
+      - "8080:8080"
+    volumes:
+      - backend-data:/data
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: ./worker
+    environment:
+      REDIS_URL: "redis://redis:6379"
+      INTERNAL_API_URL: "http://backend:8080"
+      INTERNAL_API_TOKEN: "${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN required}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY required}"
+      OPENROUTER_MODEL: "${OPENROUTER_MODEL:?OPENROUTER_MODEL required}"
+    depends_on:
+      - redis
+      - backend
+
+volumes:
+  backend-data: {}

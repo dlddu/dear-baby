@@ -12,17 +12,20 @@ import (
 // combines the Google verifier, the users store, the refresh-token store,
 // and the JWT issuer.
 type Service struct {
-	Verifier *GoogleVerifier
-	Users    *users.Store
-	Refresh  *RefreshStore
-	Issuer   *Issuer
+	Verifier   *GoogleVerifier
+	Users      *users.Store
+	Onboarding users.OnboardingEnsurer
+	Refresh    *RefreshStore
+	Issuer     *Issuer
 }
 
 // SessionResult bundles the artifacts returned by SignInWithGoogle and Refresh.
+// User is the flat profile view matching GET /me so clients can hydrate
+// AuthContext directly from the session response.
 type SessionResult struct {
 	AccessToken  string
 	RefreshToken string
-	User         *users.User
+	User         *users.Profile
 }
 
 // SignInWithGoogle verifies a Google ID token, upserts the user, issues a
@@ -32,11 +35,11 @@ func (s *Service) SignInWithGoogle(ctx context.Context, idToken string) (*Sessio
 	if err != nil {
 		return nil, fmt.Errorf("verify: %w", err)
 	}
-	u, err := s.Users.UpsertByOAuth(ctx, "google", claims.Sub, claims.Email, claims.Name, claims.Picture)
+	u, err := s.Users.UpsertByOAuth(ctx, s.Onboarding, "google", claims.Sub, claims.Email, claims.Name, claims.Picture)
 	if err != nil {
 		return nil, fmt.Errorf("upsert: %w", err)
 	}
-	return s.issueSession(ctx, u)
+	return s.issueSession(ctx, u.ID)
 }
 
 // RefreshSession consumes and rotates a refresh token, returning a new pair.
@@ -60,11 +63,7 @@ func (s *Service) RefreshSession(ctx context.Context, refreshToken string) (*Ses
 	if err := s.Refresh.Revoke(ctx, hash); err != nil {
 		return nil, err
 	}
-	u, err := s.Users.GetByID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	return s.issueSession(ctx, u)
+	return s.issueSession(ctx, userID)
 }
 
 // Logout revokes a refresh token if it exists. Always returns nil to avoid
@@ -80,25 +79,29 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 // test-login endpoint used by the E2E harness; production sign-in flows must
 // route through SignInWithGoogle/RefreshSession.
 func (s *Service) IssueSessionForUser(ctx context.Context, u *users.User) (*SessionResult, error) {
-	return s.issueSession(ctx, u)
+	return s.issueSession(ctx, u.ID)
 }
 
-func (s *Service) issueSession(ctx context.Context, u *users.User) (*SessionResult, error) {
-	access, err := s.Issuer.IssueAccess(u.ID)
+func (s *Service) issueSession(ctx context.Context, userID string) (*SessionResult, error) {
+	access, err := s.Issuer.IssueAccess(userID)
 	if err != nil {
 		return nil, fmt.Errorf("issue access: %w", err)
 	}
-	refresh, _, err := s.Issuer.IssueRefresh(u.ID)
+	refresh, _, err := s.Issuer.IssueRefresh(userID)
 	if err != nil {
 		return nil, fmt.Errorf("issue refresh: %w", err)
 	}
 	exp := time.Now().Add(s.Issuer.RefreshTTL)
-	if err := s.Refresh.Insert(ctx, u.ID, HashToken(refresh), exp); err != nil {
+	if err := s.Refresh.Insert(ctx, userID, HashToken(refresh), exp); err != nil {
 		return nil, err
+	}
+	p, err := s.Users.GetProfile(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("load profile: %w", err)
 	}
 	return &SessionResult{
 		AccessToken:  access,
 		RefreshToken: refresh,
-		User:         u,
+		User:         p,
 	}, nil
 }

@@ -107,6 +107,8 @@
 
 `#호기심유발` `#가치선경험`
 
+> 구현 범위: Stage 2의 AI 미리보기는 **첫 기록 1건**을 1~2문장으로 다듬어 `onboarding.ai_preview`에 저장합니다. Stage 3의 서사체 AI(다수 기록 합본)와는 별도 피처입니다. 상세 경계는 [docs/engineering/ai-preview-scopes.md](../engineering/ai-preview-scopes.md) 참고.
+
 ### 코치마크 규칙
 
 - 한 화면에 **1개만** 표시

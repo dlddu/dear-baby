@@ -25,8 +25,18 @@ spec:
             - name: DATABASE_URL
               value: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"
           envFrom:
+            # Legacy blob — kept optional so existing deploys don't
+            # break while we migrate to the split secrets below.
             - secretRef:
                 name: dear-baby-secrets
+                optional: true
+            # REDIS_URL, shared with the worker pod.
+            - secretRef:
+                name: redis-secret
+                optional: true
+            # INTERNAL_API_TOKEN, shared with the worker pod.
+            - secretRef:
+                name: internal-auth-secret
                 optional: true
           volumeMounts:
             - name: data

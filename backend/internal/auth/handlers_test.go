@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +13,57 @@ import (
 
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
+
+// localOnboardingOps implements both OnboardingOps and
+// users.OnboardingEnsurer against the test DB so the handlers can run
+// without pulling in the onboarding package.
+type localOnboardingOps struct{ db *sql.DB }
+
+func (l *localOnboardingOps) EnsureRowTx(ctx context.Context, tx *sql.Tx, userID string) error {
+	_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO onboarding (user_id) VALUES (?)`, userID)
+	return err
+}
+
+var errLocalOnboardingNotFound = errors.New("onboarding not found")
+
+func (l *localOnboardingOps) Reset(ctx context.Context, userID string) error {
+	res, err := l.db.ExecContext(ctx, `
+		UPDATE onboarding
+		SET due_date = NULL, onboarded_at = NULL,
+		    voice_coachmark_dismissed_at = NULL,
+		    first_record_at = NULL, ai_preview = NULL,
+		    updated_at = datetime('now')
+		WHERE user_id = ?
+	`, userID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return errLocalOnboardingNotFound
+	}
+	return nil
+}
+
+func (l *localOnboardingOps) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error {
+	var dueArg any
+	if dueDate != nil {
+		dueArg = *dueDate
+	}
+	res, err := l.db.ExecContext(ctx, `
+		UPDATE onboarding
+		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
+		WHERE user_id = ?
+	`, dueArg, userID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return errLocalOnboardingNotFound
+	}
+	return nil
+}
 
 func newTestHandlers(t *testing.T) (*Handlers, func()) {
 	t.Helper()
@@ -21,13 +75,15 @@ func newTestHandlers(t *testing.T) (*Handlers, func()) {
 		AccessTTL:  5 * time.Minute,
 		RefreshTTL: time.Hour,
 	}
+	onb := &localOnboardingOps{db: db}
 	svc := &Service{
-		Verifier: &GoogleVerifier{},
-		Users:    usersStore,
-		Refresh:  refreshStore,
-		Issuer:   issuer,
+		Verifier:   &GoogleVerifier{},
+		Users:      usersStore,
+		Onboarding: onb,
+		Refresh:    refreshStore,
+		Issuer:     issuer,
 	}
-	h := &Handlers{Service: svc}
+	h := &Handlers{Service: svc, Onboarding: onb}
 	return h, func() { db.Close() }
 }
 
@@ -162,13 +218,11 @@ func TestTestLogin_ResetOnboarding(t *testing.T) {
 		return r
 	}
 
-	// First call: onboarded=true sets onboarded_at.
 	r1 := call(`{"email":"reset@test.com","onboarded":true}`)
 	if r1.User.OnboardedAt == nil {
 		t.Fatal("expected onboarded_at to be set")
 	}
 
-	// Second call: onboarded=false (default) should reset onboarded_at.
 	r2 := call(`{"email":"reset@test.com","onboarded":false}`)
 	if r2.User.OnboardedAt != nil {
 		t.Error("expected onboarded_at to be nil after reset")

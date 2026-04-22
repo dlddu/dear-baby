@@ -1,0 +1,58 @@
+name: Setup AI Worker
+description: Install Node, build the worker, and start it in the background with OpenRouter credentials.
+
+inputs:
+  redis-url:
+    description: REDIS_URL to connect to.
+    required: true
+  internal-api-url:
+    description: Backend URL the worker should call back into.
+    required: true
+    default: "http://localhost:8080"
+  internal-api-token:
+    description: Shared internal-auth token.
+    required: true
+  openrouter-api-key:
+    description: OpenRouter API key.
+    required: true
+  openrouter-model:
+    description: OpenRouter model slug.
+    required: false
+    default: "openai/gpt-4o-mini"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: "npm"
+        cache-dependency-path: worker/package-lock.json
+
+    - name: Install + build worker
+      working-directory: worker
+      shell: bash
+      run: |
+        npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+        npm run build
+
+    - name: Start worker
+      working-directory: worker
+      shell: bash
+      env:
+        REDIS_URL: ${{ inputs.redis-url }}
+        INTERNAL_API_URL: ${{ inputs.internal-api-url }}
+        INTERNAL_API_TOKEN: ${{ inputs.internal-api-token }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        OPENROUTER_MODEL: ${{ inputs.openrouter-model }}
+      run: |
+        nohup node dist/index.js > worker.log 2>&1 &
+        echo $! > worker.pid
+        sleep 2
+        if ! kill -0 "$(cat worker.pid)"; then
+          echo "Worker died on startup"
+          cat worker.log
+          exit 1
+        fi
+        echo "Worker started (pid=$(cat worker.pid))"

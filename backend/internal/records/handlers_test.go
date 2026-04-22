@@ -27,16 +27,21 @@ func newTestDB(t *testing.T) *sql.DB {
 	db.SetMaxOpenConns(1)
 	schema := `
 CREATE TABLE users (
-  id                              TEXT PRIMARY KEY,
-  email                           TEXT NOT NULL UNIQUE,
-  name                            TEXT,
-  picture_url                     TEXT,
-  due_date                        TEXT,
-  onboarded_at                    TEXT,
-  stage2_coachmark_dismissed_at   TEXT,
-  first_record_at                 TEXT,
-  created_at                      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at                      TEXT NOT NULL DEFAULT (datetime('now'))
+  id          TEXT PRIMARY KEY,
+  email       TEXT NOT NULL UNIQUE,
+  name        TEXT,
+  picture_url TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE onboarding (
+  user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  due_date                     TEXT,
+  onboarded_at                 TEXT,
+  voice_coachmark_dismissed_at TEXT,
+  first_record_at              TEXT,
+  ai_preview                   TEXT,
+  updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (
   id         TEXT PRIMARY KEY,
@@ -55,6 +60,9 @@ func seedUser(t *testing.T, db *sql.DB, id, email string) {
 	t.Helper()
 	if _, err := db.Exec(`INSERT INTO users (id, email) VALUES (?, ?)`, id, email); err != nil {
 		t.Fatalf("seed user: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO onboarding (user_id) VALUES (?)`, id); err != nil {
+		t.Fatalf("seed onboarding: %v", err)
 	}
 }
 
@@ -113,9 +121,6 @@ func TestCreate_HappyPath_StampsFirstRecordAt(t *testing.T) {
 }
 
 func TestCreate_AfterReset_ReusesOldestExistingRecord(t *testing.T) {
-	// Scenario: user already has older records but first_record_at is NULL
-	// (e.g. after ResetOnboarding). A new record must set first_record_at
-	// to the oldest existing record's created_at, not datetime('now').
 	h, db := newHandlers(t, "u1")
 	defer db.Close()
 
@@ -159,9 +164,6 @@ func TestCreate_SecondRecord_PreservesFirstRecordAt(t *testing.T) {
 	}
 	stamped := *first.User.FirstRecordAt
 
-	// Sleep would be flaky; instead rely on datetime('now') granularity. If
-	// the second COALESCE accidentally overwrote, the value could only move
-	// forward, so "not equal" is a stricter-than-necessary assertion.
 	r2 := post(t, h, "u1", `{"content":"two"}`)
 	if r2.Code != http.StatusCreated {
 		t.Fatalf("second: %d %s", r2.Code, r2.Body.String())
