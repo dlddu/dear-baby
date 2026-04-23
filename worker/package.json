@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "ioredis": "^5.4.1",
+    "langfuse": "^3.30.0",
     "openai": "^4.76.1",
     "pino": "^9.5.0",
     "zod": "^3.23.8"

@@ -33,6 +33,11 @@ services:
       INTERNAL_API_TOKEN: "${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN required}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY required}"
       OPENROUTER_MODEL: "${OPENROUTER_MODEL:?OPENROUTER_MODEL required}"
+      # Langfuse keys are optional locally — without them observeOpenAI is a
+      # pass-through and the worker still calls OpenRouter normally.
+      LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY:-}"
+      LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY:-}"
+      LANGFUSE_BASEURL: "${LANGFUSE_BASEURL:-}"
     depends_on:
       - redis
       - backend
