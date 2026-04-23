@@ -71,10 +71,6 @@ runs:
         LANGFUSE_PUBLIC_KEY: ${{ inputs.langfuse-public-key }}
         LANGFUSE_SECRET_KEY: ${{ inputs.langfuse-secret-key }}
         LANGFUSE_BASEURL: ${{ inputs.langfuse-baseurl }}
-        # CI-only debug toggle so Langfuse SDK prints ingestion activity
-        # to the worker log — needed to distinguish init failure from
-        # flush-timing issues when traces don't show up in the UI.
-        LANGFUSE_DEBUG: "true"
       run: |
         echo "worker env:"
         echo "  REDIS_URL=$REDIS_URL"

@@ -1,4 +1,5 @@
 import type { TaskDeps } from '../../deps';
+import { flushLangfuse } from '../../openrouter';
 import { resultChannel } from '../../protocol';
 import { errMessage } from '../../framework';
 
@@ -35,6 +36,11 @@ export async function generatePreview(
     },
     { timeout: HANDLE_TIMEOUT_MS },
   );
+  // Await the Langfuse POST inline so CI / short-lived pods don't lose
+  // the trace by dying before the 10s flush timer fires. No-op when the
+  // wrapper is inactive (missing keys) or when deps.openrouter is a
+  // plain test mock.
+  await flushLangfuse(deps.openrouter);
   const text = completion.choices?.[0]?.message?.content?.trim();
   if (!text) {
     throw new Error('empty preview from model');

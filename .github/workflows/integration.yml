@@ -95,11 +95,7 @@ jobs:
             --from-literal=OPENROUTER_API_KEY="$OR_KEY"
 
       # Worker's envFrom references langfuse-secret as optional: true, so
-      # it's safe to skip this when keys aren't configured. LANGFUSE_DEBUG
-      # rides along in the same Secret so the wrapper prints ingestion
-      # activity from the very first pod boot — setting it via a separate
-      # kubectl set env would cause a second rollout and replace the pod
-      # that actually processes the test job.
+      # it's safe to skip this when keys aren't configured.
       - name: Create Langfuse secret
         if: steps.has_openrouter_key.outputs.value == 'true' && steps.has_langfuse_keys.outputs.value == 'true'
         env:
@@ -110,8 +106,7 @@ jobs:
           kubectl create secret generic langfuse-secret \
             --from-literal=LANGFUSE_PUBLIC_KEY="$LF_PUB" \
             --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC" \
-            --from-literal=LANGFUSE_BASEURL="${LF_BASE:-https://cloud.langfuse.com}" \
-            --from-literal=LANGFUSE_DEBUG=true
+            --from-literal=LANGFUSE_BASEURL="${LF_BASE:-https://cloud.langfuse.com}"
 
       - name: Apply backend + Redis manifests
         run: |

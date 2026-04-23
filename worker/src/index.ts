@@ -3,7 +3,7 @@ import pino from 'pino';
 
 import { httpInternalAPI } from './deps';
 import { TaskRegistry, runWorker } from './framework';
-import { openrouterClient } from './openrouter';
+import { openrouterClient, shutdownLangfuse } from './openrouter';
 import { aiPreviewTask } from './tasks/ai-preview';
 
 // requireEnv fails fast at boot if any mandatory variable is missing so
@@ -43,6 +43,20 @@ async function main(): Promise<void> {
   });
   redis.on('error', (err: Error) => logger.error({ err: err.message }, 'redis error'));
 
+  // Langfuse activates when both keys are present; log it at boot so an
+  // operator can tell at a glance whether tracing is live without
+  // digging through the SDK's silent-degrade behaviour.
+  const langfuseEnabled = Boolean(
+    process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY,
+  );
+  logger.info(
+    {
+      enabled: langfuseEnabled,
+      baseURL: process.env.LANGFUSE_BASEURL ?? 'https://cloud.langfuse.com',
+    },
+    'langfuse tracing',
+  );
+
   const deps = {
     redis,
     openrouter: openrouterClient(openrouterAPIKey),
@@ -62,7 +76,8 @@ async function main(): Promise<void> {
   const handle = runWorker({ registry, deps, logger });
 
   // SIGTERM/SIGINT: drain the current job (runWorker finishes the
-  // in-flight dispatch before returning from wait()), close Redis, exit.
+  // in-flight dispatch before returning from wait()), flush Langfuse,
+  // close Redis, exit.
   const shutdown = async (sig: string) => {
     logger.info({ signal: sig }, 'shutdown requested');
     await handle.stop();
@@ -71,6 +86,12 @@ async function main(): Promise<void> {
     } catch (err) {
       logger.error({ err: err instanceof Error ? err.message : String(err) }, 'wait error');
     }
+    await shutdownLangfuse(deps.openrouter).catch((err: unknown) =>
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        'langfuse shutdown error',
+      ),
+    );
     await redis.quit().catch(() => {});
     process.exit(0);
   };
