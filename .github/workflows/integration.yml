@@ -130,6 +130,15 @@ jobs:
             k8s/worker-deployment.yaml
           kubectl apply -f k8s/worker-deployment.yaml
 
+      # LANGFUSE_DEBUG flips the SDK into verbose mode so Langfuse HTTP
+      # ingestion responses (and failures) surface in the worker logs,
+      # which is the only way to tell an init/flush problem from a
+      # missing-credentials problem in CI. Triggers a worker rollout.
+      - name: Enable Langfuse debug logging on worker
+        if: steps.has_openrouter_key.outputs.value == 'true' && steps.has_langfuse_keys.outputs.value == 'true'
+        run: |
+          kubectl set env deployment/worker LANGFUSE_DEBUG=true
+
       # Enable /auth/test-login so the end-to-end test can mint a
       # session without going through Google OAuth. Only effective on
       # this cluster; the production manifests don't carry this env.
