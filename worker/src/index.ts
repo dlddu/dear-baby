@@ -5,6 +5,7 @@ import { httpInternalAPI } from './deps';
 import { TaskRegistry, runWorker } from './framework';
 import { openrouterClient } from './openrouter';
 import { aiPreviewTask } from './tasks/ai-preview';
+import { bootstrapTracing } from './tracing';
 
 // requireEnv fails fast at boot if any mandatory variable is missing so
 // an operator gets a clear log line instead of a mid-flight crash.
@@ -38,6 +39,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Bootstrap OpenTelemetry + LangfuseSpanProcessor before constructing
+  // the OpenAI client — observeOpenAI emits spans regardless, but nothing
+  // exports them until this is wired up.
+  const tracing = bootstrapTracing(logger);
+
   const redis = new IORedis(redisURL, {
     maxRetriesPerRequest: null,
   });
@@ -53,6 +59,7 @@ async function main(): Promise<void> {
       logger,
     }),
     logger,
+    tracing,
   };
 
   const registry = new TaskRegistry();
@@ -62,7 +69,8 @@ async function main(): Promise<void> {
   const handle = runWorker({ registry, deps, logger });
 
   // SIGTERM/SIGINT: drain the current job (runWorker finishes the
-  // in-flight dispatch before returning from wait()), close Redis, exit.
+  // in-flight dispatch before returning from wait()), flush Langfuse,
+  // close Redis, exit.
   const shutdown = async (sig: string) => {
     logger.info({ signal: sig }, 'shutdown requested');
     await handle.stop();
@@ -70,6 +78,14 @@ async function main(): Promise<void> {
       await handle.wait();
     } catch (err) {
       logger.error({ err: err instanceof Error ? err.message : String(err) }, 'wait error');
+    }
+    if (tracing) {
+      await tracing.shutdown().catch((err: unknown) =>
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          'tracing shutdown error',
+        ),
+      );
     }
     await redis.quit().catch(() => {});
     process.exit(0);

@@ -49,7 +49,7 @@ function buildDeps(options: {
   const logger = pino({ level: 'silent' });
 
   return {
-    deps: { redis, openrouter, model: 'test-model', backend, logger },
+    deps: { redis, openrouter, model: 'test-model', backend, logger, tracing: null },
     publishes,
     saves,
     mocks: { openrouter, redis, backend },

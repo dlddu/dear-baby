@@ -36,3 +36,8 @@ spec:
                 name: openrouter-secret
             - secretRef:
                 name: internal-auth-secret
+            # Optional: when langfuse-secret is missing, observeOpenAI
+            # degrades to a pass-through and the worker still ships.
+            - secretRef:
+                name: langfuse-secret
+                optional: true

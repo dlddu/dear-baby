@@ -35,6 +35,10 @@ export async function generatePreview(
     },
     { timeout: HANDLE_TIMEOUT_MS },
   );
+  // Force the OTel span processor to flush before we return — otherwise
+  // CI pods get killed ~1s after the preview completes and the span
+  // export request never gets off the box. No-op when tracing is off.
+  await deps.tracing?.flush();
   const text = completion.choices?.[0]?.message?.content?.trim();
   if (!text) {
     throw new Error('empty preview from model');
