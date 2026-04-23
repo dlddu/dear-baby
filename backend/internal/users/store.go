@@ -18,14 +18,32 @@ type Store struct {
 	DB *sql.DB
 }
 
+// OnboardingEnsurer inserts an empty onboarding row for a new user inside
+// an existing transaction. The users package wires this up to the
+// onboarding.Store so every user has a companion onboarding row without
+// introducing a circular import. Never returns nil — see NoopEnsurer for
+// tests that do not care about the onboarding table.
+type OnboardingEnsurer interface {
+	EnsureRowTx(ctx context.Context, tx *sql.Tx, userID string) error
+}
+
+// NoopEnsurer is used in tests that exercise the users package without the
+// onboarding schema in scope.
+type NoopEnsurer struct{}
+
+// EnsureRowTx implements OnboardingEnsurer as a no-op.
+func (NoopEnsurer) EnsureRowTx(ctx context.Context, tx *sql.Tx, userID string) error {
+	return nil
+}
+
 // sqliteTimeLayout is the format SQLite emits for datetime('now').
 const sqliteTimeLayout = "2006-01-02 15:04:05"
 
 // UpsertByOAuth finds an existing user by (provider, providerUserID),
 // falling back to matching by email, and otherwise creating a new user.
-// It also ensures an oauth_accounts row exists linking the provider to the
-// user.
-func (s *Store) UpsertByOAuth(ctx context.Context, provider, providerUserID, email, name, picture string) (*User, error) {
+// For new users it also seeds an onboarding row (idempotent) so every
+// users row has a companion onboarding row.
+func (s *Store) UpsertByOAuth(ctx context.Context, onb OnboardingEnsurer, provider, providerUserID, email, name, picture string) (*User, error) {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin: %w", err)
@@ -73,6 +91,12 @@ func (s *Store) UpsertByOAuth(ctx context.Context, provider, providerUserID, ema
 		return nil, fmt.Errorf("lookup oauth: %w", err)
 	}
 
+	// Ensure the onboarding row exists for this user — runs for both new
+	// and returning users to heal any historical rows missing a companion.
+	if err := onb.EnsureRowTx(ctx, tx, userID); err != nil {
+		return nil, err
+	}
+
 	user, err := getByIDTx(ctx, tx, userID)
 	if err != nil {
 		return nil, err
@@ -94,12 +118,12 @@ type rowScanner interface {
 
 func getByID(ctx context.Context, q rowScanner, id string) (*User, error) {
 	u := &User{}
-	var name, picture, dueDate, onboardedAt, stage2DismissedAt sql.NullString
+	var name, picture sql.NullString
 	var createdAt, updatedAt string
 	err := q.QueryRowContext(ctx, `
-		SELECT id, email, name, picture_url, due_date, onboarded_at, stage2_coachmark_dismissed_at, created_at, updated_at
+		SELECT id, email, name, picture_url, created_at, updated_at
 		FROM users WHERE id = ?
-	`, id).Scan(&u.ID, &u.Email, &name, &picture, &dueDate, &onboardedAt, &stage2DismissedAt, &createdAt, &updatedAt)
+	`, id).Scan(&u.ID, &u.Email, &name, &picture, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -108,126 +132,84 @@ func getByID(ctx context.Context, q rowScanner, id string) (*User, error) {
 	}
 	u.Name = name.String
 	u.PictureURL = picture.String
-	if dueDate.Valid {
-		s := dueDate.String
-		u.DueDate = &s
-	}
-	if onboardedAt.Valid {
-		// onboarded_at is written by datetime('now'); parse with sqliteTimeLayout.
-		if t, err := time.Parse(sqliteTimeLayout, onboardedAt.String); err == nil {
-			u.OnboardedAt = &t
-		}
-	}
-	if stage2DismissedAt.Valid {
-		if t, err := time.Parse(sqliteTimeLayout, stage2DismissedAt.String); err == nil {
-			u.Stage2CoachmarkDismissedAt = &t
-		}
-	}
 	u.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
 	u.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
 	return u, nil
 }
 
-// UpdateOnboarding persists the user's due date (nullable) and marks the
-// account as onboarded by stamping onboarded_at with the current time.
-// Returns ErrNotFound if no row matched.
-func (s *Store) UpdateOnboarding(ctx context.Context, id string, dueDate *string) error {
-	var dueArg any
-	if dueDate != nil {
-		dueArg = *dueDate
-	} else {
-		dueArg = nil
-	}
-	res, err := s.DB.ExecContext(ctx, `
-		UPDATE users
-		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
-		WHERE id = ?
-	`, dueArg, id)
-	if err != nil {
-		return fmt.Errorf("update onboarding: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
-	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
+// GetProfile returns the flat view merging users + onboarding. LEFT JOIN
+// so a missing onboarding row still yields a Profile (with null onboarding
+// fields) rather than a 404 — this mirrors the pre-move behavior where all
+// fields lived on users.
+func (s *Store) GetProfile(ctx context.Context, id string) (*Profile, error) {
+	return getProfile(ctx, s.DB, id)
 }
 
-// DismissStage2Coachmark stamps stage2_coachmark_dismissed_at with the current
-// time. Idempotent: the WHERE clause ensures a second call is a no-op so the
-// original dismissal timestamp is preserved. Returns ErrNotFound if no user
-// exists with the given id (but NOT if the coachmark was already dismissed —
-// that is a successful no-op).
-func (s *Store) DismissStage2Coachmark(ctx context.Context, id string) error {
-	// Existence check first so "already dismissed" and "user missing" are
-	// distinguishable even though both produce 0 rows affected.
-	if _, err := getByID(ctx, s.DB, id); err != nil {
-		return err
-	}
-	if _, err := s.DB.ExecContext(ctx, `
-		UPDATE users
-		SET stage2_coachmark_dismissed_at = datetime('now'), updated_at = datetime('now')
-		WHERE id = ? AND stage2_coachmark_dismissed_at IS NULL
-	`, id); err != nil {
-		return fmt.Errorf("dismiss stage2 coachmark: %w", err)
-	}
-	return nil
+// GetProfileTx mirrors GetProfile inside an existing transaction — used by
+// the records package to return a consistent view alongside the new record.
+func (s *Store) GetProfileTx(ctx context.Context, tx *sql.Tx, id string) (*Profile, error) {
+	return getProfile(ctx, tx, id)
 }
 
-// ResetOnboarding clears the user's onboarding state by setting both
-// onboarded_at and due_date to NULL. Used by the test-login handler so that
-// successive E2E runs can re-enter the onboarding funnel with the same user.
-// Stage 2 coachmark dismissal is also cleared so each run can verify the
-// coachmark flow end-to-end.
-func (s *Store) ResetOnboarding(ctx context.Context, id string) error {
-	res, err := s.DB.ExecContext(ctx, `
-		UPDATE users
-		SET due_date = NULL,
-		    onboarded_at = NULL,
-		    stage2_coachmark_dismissed_at = NULL,
-		    updated_at = datetime('now')
-		WHERE id = ?
-	`, id)
+func getProfile(ctx context.Context, q rowScanner, id string) (*Profile, error) {
+	p := &Profile{}
+	var name, picture, dueDate, onboardedAt, voiceDismissedAt, firstRecordAt, aiPreview sql.NullString
+	var createdAt, updatedAt string
+	err := q.QueryRowContext(ctx, `
+		SELECT u.id, u.email, u.name, u.picture_url,
+		       o.due_date, o.onboarded_at, o.voice_coachmark_dismissed_at,
+		       o.first_record_at, o.ai_preview,
+		       u.created_at, u.updated_at
+		FROM users u
+		LEFT JOIN onboarding o ON o.user_id = u.id
+		WHERE u.id = ?
+	`, id).Scan(&p.ID, &p.Email, &name, &picture,
+		&dueDate, &onboardedAt, &voiceDismissedAt,
+		&firstRecordAt, &aiPreview,
+		&createdAt, &updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
-		return fmt.Errorf("reset onboarding: %w", err)
+		return nil, fmt.Errorf("select profile: %w", err)
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
+	p.Name = name.String
+	p.PictureURL = picture.String
+	if dueDate.Valid {
+		v := dueDate.String
+		p.DueDate = &v
 	}
-	if n == 0 {
-		return ErrNotFound
+	if onboardedAt.Valid {
+		if t, err := time.Parse(sqliteTimeLayout, onboardedAt.String); err == nil {
+			p.OnboardedAt = &t
+		}
 	}
-	return nil
-}
-
-// ResetOnboardingByEmail clears the onboarding state for the user with the
-// given email. Returns ErrNotFound if no such user exists.
-func (s *Store) ResetOnboardingByEmail(ctx context.Context, email string) error {
-	res, err := s.DB.ExecContext(ctx, `
-		UPDATE users
-		SET due_date = NULL,
-		    onboarded_at = NULL,
-		    stage2_coachmark_dismissed_at = NULL,
-		    updated_at = datetime('now')
-		WHERE email = ?
-	`, email)
-	if err != nil {
-		return fmt.Errorf("reset onboarding by email: %w", err)
+	if voiceDismissedAt.Valid {
+		if t, err := time.Parse(sqliteTimeLayout, voiceDismissedAt.String); err == nil {
+			p.VoiceCoachmarkDismissedAt = &t
+		}
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
+	if firstRecordAt.Valid {
+		if t, err := time.Parse(sqliteTimeLayout, firstRecordAt.String); err == nil {
+			p.FirstRecordAt = &t
+		}
 	}
-	if n == 0 {
-		return ErrNotFound
+	if aiPreview.Valid {
+		v := aiPreview.String
+		p.AIPreview = &v
 	}
-	return nil
+	p.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
+	p.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
+	return p, nil
 }
 
 func getByIDTx(ctx context.Context, tx *sql.Tx, id string) (*User, error) {
 	return getByID(ctx, tx, id)
+}
+
+// GetByIDTx fetches a user inside an existing transaction. Exported so the
+// records package can look up the user and commit its own writes in the
+// same tx.
+func (s *Store) GetByIDTx(ctx context.Context, tx *sql.Tx, id string) (*User, error) {
+	return getByIDTx(ctx, tx, id)
 }

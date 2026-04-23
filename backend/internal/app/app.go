@@ -10,8 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
+	"github.com/dlddu/dear-baby/backend/internal/tasks"
 )
 
 // Run loads config, opens the DB, applies migrations, starts the HTTP server,
@@ -35,7 +38,37 @@ func Run() error {
 		return err
 	}
 
-	r := newRouter(cfg, sqlDB, logger)
+	// Redis + pubsub hub are optional: local dev without Redis skips
+	// wiring the AI-preview routes so /health and auth still work.
+	var redisClient *redis.Client
+	var hub *tasks.Hub
+	if cfg.RedisURL != "" {
+		opt, err := redis.ParseURL(cfg.RedisURL)
+		if err != nil {
+			return err
+		}
+		redisClient = redis.NewClient(opt)
+		defer redisClient.Close()
+
+		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := redisClient.Ping(pingCtx).Err(); err != nil {
+			cancel()
+			return err
+		}
+		cancel()
+
+		hub = &tasks.Hub{Redis: redisClient, Logger: logger}
+		hubCtx, cancelHub := context.WithCancel(context.Background())
+		defer cancelHub()
+		if err := hub.Start(hubCtx); err != nil {
+			return err
+		}
+		defer hub.Stop()
+	} else {
+		logger.Warn("REDIS_URL not set — AI-preview routes disabled")
+	}
+
+	r := newRouter(cfg, sqlDB, logger, redisClient, hub)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

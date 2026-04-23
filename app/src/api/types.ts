@@ -8,12 +8,37 @@ export type User = {
   // onboarding). `onboarded_at` is an ISO timestamp set by the backend.
   due_date: string | null;
   onboarded_at: string | null;
-  // Stage 2 voice-record coachmark dismissal timestamp. Null until the user
-  // closes the coachmark on the home screen; once stamped, the coachmark
+  // Voice-record coachmark dismissal timestamp (shown on the home screen).
+  // Null until the user closes the coachmark; once stamped, the coachmark
   // never shows again.
-  stage2_coachmark_dismissed_at: string | null;
+  voice_coachmark_dismissed_at: string | null;
+  // Timestamp of the user's first saved record. Drives the AI preview
+  // state: null → blurred teaser; set → request + render the LLM-edited
+  // preview. Stamped once by the backend and preserved on subsequent
+  // records.
+  first_record_at: string | null;
+  // AI-edited preview text. Null until the worker finishes editing the
+  // first record. The home screen subscribes to an SSE stream that
+  // notifies when this flips from null → string.
+  ai_preview: string | null;
   created_at: string;
   updated_at: string;
+};
+
+// Record mirrors the backend `records` row returned by POST /records.
+// Today only text records exist; voice is a separate PRD.
+export type Record = {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+};
+
+// CreateRecordResponse is the POST /records body: the new record plus the
+// updated user, so AuthContext can refresh in one round-trip.
+export type CreateRecordResponse = {
+  record: Record;
+  user: User;
 };
 
 export type Session = {

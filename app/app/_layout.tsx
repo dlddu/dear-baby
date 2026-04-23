@@ -27,11 +27,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     const root = segments[0];
     const inTabs = root === '(tabs)';
     const inOnboarding = root === '(onboarding)';
-    if (status === 'authenticated' && !inTabs) {
+    // Authenticated-only modals live at the root but are still part of the
+    // signed-in UX, so AuthGate treats them as equivalent to `(tabs)` — we
+    // must not redirect back to the home tab or the modal would close
+    // immediately after `router.push`.
+    const inAuthedModal = root === 'record-text';
+    if (status === 'authenticated' && !inTabs && !inAuthedModal) {
       router.replace('/(tabs)');
     } else if (status === 'onboarding' && !inOnboarding) {
       router.replace('/(onboarding)/welcome');
-    } else if (status === 'unauthenticated' && (inTabs || inOnboarding)) {
+    } else if (
+      status === 'unauthenticated' &&
+      (inTabs || inOnboarding || inAuthedModal)
+    ) {
       router.replace('/');
     }
   }, [status, segments, router]);
@@ -69,6 +77,10 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="(onboarding)" />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="record-text"
+              options={{ presentation: 'modal', headerShown: false }}
+            />
           </Stack>
         </AuthGate>
       </AuthProvider>

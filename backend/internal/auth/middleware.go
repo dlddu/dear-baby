@@ -16,14 +16,32 @@ const userIDKey ctxKey = "user_id"
 // access-type Bearer token. On success, it injects the user id into the
 // request context, where handlers can retrieve it via UserIDFromContext.
 func RequireAuth(issuer *Issuer) func(http.Handler) http.Handler {
+	return requireAuth(issuer, false)
+}
+
+// RequireAuthWithQueryFallback behaves like RequireAuth, but also accepts
+// `?token=<jwt>` as a fallback when the Authorization header is missing.
+// React Native's EventSource shims can't always set headers reliably, so
+// the SSE route needs this escape hatch. Never use on non-streaming
+// routes — query strings leak into logs.
+func RequireAuthWithQueryFallback(issuer *Issuer) func(http.Handler) http.Handler {
+	return requireAuth(issuer, true)
+}
+
+func requireAuth(issuer *Issuer, queryFallback bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var tokenString string
 			h := r.Header.Get("Authorization")
-			if !strings.HasPrefix(h, "Bearer ") {
+			if strings.HasPrefix(h, "Bearer ") {
+				tokenString = strings.TrimPrefix(h, "Bearer ")
+			} else if queryFallback {
+				tokenString = r.URL.Query().Get("token")
+			}
+			if tokenString == "" {
 				httpx.WriteError(w, http.StatusUnauthorized, "missing bearer token")
 				return
 			}
-			tokenString := strings.TrimPrefix(h, "Bearer ")
 			claims, err := issuer.Parse(tokenString)
 			if err != nil {
 				httpx.WriteError(w, http.StatusUnauthorized, "invalid token")

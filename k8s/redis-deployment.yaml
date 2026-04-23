@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          # AI-preview jobs are short-lived and recoverable from the
+          # onboarding table on worker boot (sync()), so we intentionally
+          # disable all disk persistence: no AOF, no RDB snapshots. Losing
+          # the queue on a pod restart is acceptable — the sync() step
+          # replays every user with first_record_at set and ai_preview null.
+          args:
+            - --appendonly
+            - "no"
+            - --save
+            - ""
+          ports:
+            - name: redis
+              containerPort: 6379
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 2
+            periodSeconds: 10

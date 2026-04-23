@@ -1,7 +1,12 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 
-import { AiPreviewCard } from '../../src/components/AiPreviewCard';
+import { openAiPreviewStream, requestAiPreview } from '../../src/api/ai';
+import {
+  AiPreviewCard,
+  type AiPreviewStatus,
+} from '../../src/components/AiPreviewCard';
 import { Button } from '../../src/components/Button';
 import { Coachmark } from '../../src/components/Coachmark';
 import { QuestionCard } from '../../src/components/QuestionCard';
@@ -12,23 +17,36 @@ import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { calcPregnancy } from '../../src/utils/pregnancy';
 
-// HomeTab renders the Stage 2 of onboarding — voice-record coachmark + daily
-// question card + dual CTAs + blurred AI preview. See docs/design-system/
-// onboarding.md for the spec. Voice/text recording itself is out of scope
-// for this PR; the CTAs surface a "coming soon" alert so the layout can be
-// verified end-to-end before the record pipeline is built.
+// HomeTab renders Stage 2 of onboarding — voice-record coachmark + daily
+// question card + dual CTAs + AI preview card. See docs/design-system/
+// onboarding.md for the spec. Voice recording itself is still out of
+// scope (PRD-001); the voice CTA surfaces a "coming soon" alert until the
+// audio pipeline lands.
+//
+// AI preview flow: when `first_record_at` flips from null → set (first
+// save), the home kicks off a `requestAiPreview()` and opens an SSE
+// stream to listen for `ready` or `error`. The SSE stream is closed and
+// reopened automatically when the preview state changes.
 
 const COACHMARK_LABEL = '🎙 말하기만 해도 기록이 돼요!';
 const ENCOURAGEMENT = '첫 기록이 가장 소중해요 🌱';
-const AI_PREVIEW_MOCK =
-  '엄마가 너를 처음 느낀 그 순간, 세상이 조금 더 따뜻해졌어.';
 
 export default function HomeTab() {
-  const { user, dismissStage2Coachmark } = useAuth();
+  const router = useRouter();
+  const { user, dismissVoiceCoachmark, applyAiPreview } = useAuth();
   // Local flag hides the coachmark immediately on tap; the backend call is
   // fire-and-forget so the UI never waits on the network. Persisted state
-  // comes from `user.stage2_coachmark_dismissed_at` on next session load.
+  // comes from `user.voice_coachmark_dismissed_at` on next session load.
   const [coachmarkHidden, setCoachmarkHidden] = useState(false);
+  // `aiPreviewFailed` flips when the SSE stream reports an error; reset
+  // whenever the user asks for a retry.
+  const [aiPreviewFailed, setAiPreviewFailed] = useState(false);
+  // `aiStreamOpen` tracks whether the SSE effect currently has a live
+  // subscription. Used to distinguish "loading" (stream open, waiting)
+  // from "failed" (stream errored or never opened).
+  const [aiStreamOpen, setAiStreamOpen] = useState(false);
+
+  const prevFirstRecordAtRef = useRef<string | null>(null);
 
   const pregnancy = useMemo(
     () => calcPregnancy(user?.due_date ?? null),
@@ -37,24 +55,78 @@ export default function HomeTab() {
   const question = useMemo(() => pickDailyQuestion(), []);
 
   const showCoachmark =
-    !coachmarkHidden && !user?.stage2_coachmark_dismissed_at;
+    !coachmarkHidden &&
+    !user?.voice_coachmark_dismissed_at &&
+    !user?.first_record_at;
+
+  // Detect null → non-null transition of first_record_at: the moment we
+  // should ask the backend to kick off AI preview generation. Runs only
+  // on the transition itself so repeated re-renders don't re-fire.
+  useEffect(() => {
+    const prev = prevFirstRecordAtRef.current;
+    const current = user?.first_record_at ?? null;
+    prevFirstRecordAtRef.current = current;
+    if (!prev && current && !user?.ai_preview) {
+      setAiPreviewFailed(false);
+      void requestAiPreview().catch(() => setAiPreviewFailed(true));
+    }
+  }, [user?.first_record_at, user?.ai_preview]);
+
+  // Subscribe to the SSE stream while the preview is pending. Automatic
+  // close on unmount, and on every input change (so status transitions
+  // clean up cleanly).
+  useEffect(() => {
+    if (!user?.first_record_at) return undefined;
+    if (user.ai_preview) return undefined;
+    setAiStreamOpen(true);
+    const close = openAiPreviewStream(
+      (evt) => {
+        if (evt.type === 'ready') {
+          setAiPreviewFailed(false);
+          void applyAiPreview(evt.preview);
+        } else {
+          setAiPreviewFailed(true);
+        }
+      },
+      () => {
+        setAiPreviewFailed(true);
+      },
+    );
+    return () => {
+      setAiStreamOpen(false);
+      close();
+    };
+  }, [user?.first_record_at, user?.ai_preview, applyAiPreview]);
+
+  const handleRetry = useCallback(() => {
+    setAiPreviewFailed(false);
+    void requestAiPreview().catch(() => setAiPreviewFailed(true));
+  }, []);
+
+  const aiPreviewStatus = useMemo<AiPreviewStatus>(() => {
+    if (user?.ai_preview) return 'ready';
+    if (!user?.first_record_at) return 'teaser';
+    if (aiPreviewFailed) return 'failed';
+    if (aiStreamOpen) return 'loading';
+    return 'loading';
+  }, [user?.ai_preview, user?.first_record_at, aiPreviewFailed, aiStreamOpen]);
 
   const handleDismissCoachmark = useCallback(() => {
     setCoachmarkHidden(true);
     // Swallow errors: a transient failure just means the coachmark will
     // appear again next cold boot, which is acceptable.
-    void dismissStage2Coachmark().catch(() => {});
-  }, [dismissStage2Coachmark]);
+    void dismissVoiceCoachmark().catch(() => {});
+  }, [dismissVoiceCoachmark]);
 
   const handleVoicePress = useCallback(() => {
-    // Tapping the target element counts as engagement with the coachmark.
     if (showCoachmark) handleDismissCoachmark();
     Alert.alert('곧 추가됩니다', '음성 기록 기능은 준비 중이에요.');
   }, [showCoachmark, handleDismissCoachmark]);
 
   const handleTextPress = useCallback(() => {
-    Alert.alert('곧 추가됩니다', '텍스트 기록 기능은 준비 중이에요.');
-  }, []);
+    if (showCoachmark) handleDismissCoachmark();
+    router.push('/record-text');
+  }, [router, showCoachmark, handleDismissCoachmark]);
 
   return (
     <ScrollView
@@ -73,6 +145,7 @@ export default function HomeTab() {
       {showCoachmark ? (
         <Coachmark
           label={COACHMARK_LABEL}
+          arrowAlign="left"
           onDismiss={handleDismissCoachmark}
           testID="stage2-coachmark"
           dismissTestID="stage2-coachmark-dismiss"
@@ -103,8 +176,9 @@ export default function HomeTab() {
       </View>
 
       <AiPreviewCard
-        mockText={AI_PREVIEW_MOCK}
-        blurred
+        status={aiPreviewStatus}
+        content={user?.ai_preview}
+        onRetry={handleRetry}
         testID="stage2-ai-preview"
       />
 

@@ -20,15 +20,12 @@ func newTestDB(t *testing.T) *sql.DB {
 	db.SetMaxOpenConns(1)
 	schema := `
 CREATE TABLE users (
-  id                              TEXT PRIMARY KEY,
-  email                           TEXT NOT NULL UNIQUE,
-  name                            TEXT,
-  picture_url                     TEXT,
-  due_date                        TEXT,
-  onboarded_at                    TEXT,
-  stage2_coachmark_dismissed_at   TEXT,
-  created_at                      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at                      TEXT NOT NULL DEFAULT (datetime('now'))
+  id          TEXT PRIMARY KEY,
+  email       TEXT NOT NULL UNIQUE,
+  name        TEXT,
+  picture_url TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE oauth_accounts (
   provider         TEXT NOT NULL,
@@ -36,6 +33,15 @@ CREATE TABLE oauth_accounts (
   user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (provider, provider_user_id)
+);
+CREATE TABLE onboarding (
+  user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  due_date                     TEXT,
+  onboarded_at                 TEXT,
+  voice_coachmark_dismissed_at TEXT,
+  first_record_at              TEXT,
+  ai_preview                   TEXT,
+  updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE refresh_tokens (
   id          TEXT PRIMARY KEY,
@@ -45,11 +51,26 @@ CREATE TABLE refresh_tokens (
   revoked_at  TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE records (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content    TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatalf("schema: %v", err)
 	}
 	return db
+}
+
+// testEnsurer inserts an empty onboarding row inside the upsert
+// transaction — mirrors what onboarding.Store.EnsureRowTx does.
+type testEnsurer struct{}
+
+func (testEnsurer) EnsureRowTx(ctx context.Context, tx *sql.Tx, userID string) error {
+	_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO onboarding (user_id) VALUES (?)`, userID)
+	return err
 }
 
 func TestJWTRoundtrip(t *testing.T) {
@@ -93,7 +114,6 @@ func TestRefreshHashInsertAndConsume(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 
-	// Seed a user so the FK is satisfied.
 	if _, err := db.Exec(`INSERT INTO users (id, email) VALUES ('u1', 'a@b.com')`); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -118,14 +138,14 @@ func TestUpsertByOAuthNewAndExisting(t *testing.T) {
 	store := &users.Store{DB: db}
 	ctx := context.Background()
 
-	u1, err := store.UpsertByOAuth(ctx, "google", "g-sub-1", "a@b.com", "Alice", "http://p/a")
+	u1, err := store.UpsertByOAuth(ctx, testEnsurer{}, "google", "g-sub-1", "a@b.com", "Alice", "http://p/a")
 	if err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 	if u1.Email != "a@b.com" {
 		t.Errorf("email: got %q", u1.Email)
 	}
-	u2, err := store.UpsertByOAuth(ctx, "google", "g-sub-1", "a@b.com", "Alice Updated", "http://p/a2")
+	u2, err := store.UpsertByOAuth(ctx, testEnsurer{}, "google", "g-sub-1", "a@b.com", "Alice Updated", "http://p/a2")
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}

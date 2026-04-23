@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
+import { createTextRecord as apiCreateTextRecord } from '../api/records';
 import type { Session, User } from '../api/types';
 import { patchMe } from '../api/users';
 import {
@@ -33,7 +34,9 @@ type AuthContextValue = {
   user: User | null;
   setSession: (session: Session) => Promise<void>;
   completeOnboarding: (dueDate: string | null) => Promise<void>;
-  dismissStage2Coachmark: () => Promise<void>;
+  dismissVoiceCoachmark: () => Promise<void>;
+  createTextRecord: (content: string) => Promise<void>;
+  applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -45,6 +48,16 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // escape-hatch path intentionally leaves due_date null.
 function statusForUser(u: User): AuthStatus {
   return u.onboarded_at ? 'authenticated' : 'onboarding';
+}
+
+function cacheFromUser(u: User) {
+  return setCachedOnboarding(
+    u.onboarded_at,
+    u.due_date,
+    u.voice_coachmark_dismissed_at,
+    u.first_record_at,
+    u.ai_preview,
+  );
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -69,11 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         setUser(u);
         setStatus(statusForUser(u));
-        await setCachedOnboarding(
-          u.onboarded_at,
-          u.due_date,
-          u.stage2_coachmark_dismissed_at,
-        );
+        await cacheFromUser(u);
       } catch {
         if (cancelled) return;
         // /me failed. If we have a cached onboarding marker, the user has
@@ -98,36 +107,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await setTokens(session.accessToken, session.refreshToken);
     setUser(session.user);
     setStatus(statusForUser(session.user));
-    await setCachedOnboarding(
-      session.user.onboarded_at,
-      session.user.due_date,
-      session.user.stage2_coachmark_dismissed_at,
-    );
+    await cacheFromUser(session.user);
   }, []);
 
   const completeOnboarding = useCallback(async (dueDate: string | null) => {
     const updated = await patchMe({ due_date: dueDate });
     setUser(updated);
     setStatus(statusForUser(updated));
-    await setCachedOnboarding(
-      updated.onboarded_at,
-      updated.due_date,
-      updated.stage2_coachmark_dismissed_at,
-    );
+    await cacheFromUser(updated);
   }, []);
 
-  // dismissStage2Coachmark is called when the user taps the close button on
+  // dismissVoiceCoachmark is called when the user taps the close button on
   // the home-screen voice-record coachmark. The backend stamps a timestamp
   // that persists across devices; we also optimistically update local state
   // so the coachmark vanishes immediately without waiting on the response.
-  const dismissStage2Coachmark = useCallback(async () => {
-    const updated = await patchMe({ dismiss_stage2_coachmark: true });
+  const dismissVoiceCoachmark = useCallback(async () => {
+    const updated = await patchMe({ dismiss_voice_coachmark: true });
     setUser(updated);
-    await setCachedOnboarding(
-      updated.onboarded_at,
-      updated.due_date,
-      updated.stage2_coachmark_dismissed_at,
-    );
+    await cacheFromUser(updated);
+  }, []);
+
+  // createTextRecord saves a text entry and refreshes local user state.
+  // Responsibility is strictly storage + user cache update — the home
+  // screen observes `first_record_at` to decide when to request an AI
+  // preview and subscribe to the SSE stream.
+  const createTextRecord = useCallback(async (content: string) => {
+    const { user: updated } = await apiCreateTextRecord(content);
+    setUser(updated);
+    await cacheFromUser(updated);
+  }, []);
+
+  // applyAiPreview is called by the home screen when the SSE stream
+  // delivers a `ready` event. It merges the new preview text into the
+  // current user without hitting /me again.
+  const applyAiPreview = useCallback(async (preview: string) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ai_preview: preview };
+      void cacheFromUser(next);
+      return next;
+    });
   }, []);
 
   const signOut = useCallback(async () => {
@@ -147,7 +166,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       setSession,
       completeOnboarding,
-      dismissStage2Coachmark,
+      dismissVoiceCoachmark,
+      createTextRecord,
+      applyAiPreview,
       signOut,
     }),
     [
@@ -155,7 +176,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       setSession,
       completeOnboarding,
-      dismissStage2Coachmark,
+      dismissVoiceCoachmark,
+      createTextRecord,
+      applyAiPreview,
       signOut,
     ],
   );

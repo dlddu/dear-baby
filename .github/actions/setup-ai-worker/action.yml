@@ -1,0 +1,98 @@
+name: Setup AI Worker
+description: Install Node, build the worker, and start it in the background with OpenRouter credentials.
+
+inputs:
+  redis-url:
+    description: REDIS_URL to connect to.
+    required: true
+  internal-api-url:
+    description: Backend URL the worker should call back into.
+    required: true
+    default: "http://localhost:8080"
+  internal-api-token:
+    description: Shared internal-auth token.
+    required: true
+  openrouter-api-key:
+    description: OpenRouter API key.
+    required: true
+  openrouter-model:
+    description: OpenRouter model slug. Defaults to the free-tier
+      auto-router (https://openrouter.ai/openrouter/free) so the E2E
+      run doesn't need paid credits.
+    required: false
+    default: "openrouter/free"
+  log-level:
+    description: pino log level. CI defaults to debug so AI-preview
+      pipeline failures leave a full breadcrumb trail.
+    required: false
+    default: "debug"
+  langfuse-public-key:
+    description: Langfuse public key. When set together with the secret
+      key, observeOpenAI sends traces for every OpenRouter call. When
+      unset the wrapper is a no-op pass-through.
+    required: false
+    default: ""
+  langfuse-secret-key:
+    description: Langfuse secret key. Paired with langfuse-public-key.
+    required: false
+    default: ""
+  langfuse-baseurl:
+    description: Langfuse ingestion URL. Defaults to US region (our account).
+    required: false
+    default: "https://us.cloud.langfuse.com"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: "npm"
+        cache-dependency-path: worker/package-lock.json
+
+    - name: Install + build worker
+      working-directory: worker
+      shell: bash
+      run: |
+        npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+        npm run build
+
+    - name: Start worker
+      working-directory: worker
+      shell: bash
+      env:
+        REDIS_URL: ${{ inputs.redis-url }}
+        INTERNAL_API_URL: ${{ inputs.internal-api-url }}
+        INTERNAL_API_TOKEN: ${{ inputs.internal-api-token }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        OPENROUTER_MODEL: ${{ inputs.openrouter-model }}
+        LOG_LEVEL: ${{ inputs.log-level }}
+        LANGFUSE_PUBLIC_KEY: ${{ inputs.langfuse-public-key }}
+        LANGFUSE_SECRET_KEY: ${{ inputs.langfuse-secret-key }}
+        LANGFUSE_BASE_URL: ${{ inputs.langfuse-baseurl }}
+      run: |
+        echo "worker env:"
+        echo "  REDIS_URL=$REDIS_URL"
+        echo "  INTERNAL_API_URL=$INTERNAL_API_URL"
+        echo "  OPENROUTER_MODEL=$OPENROUTER_MODEL"
+        echo "  LOG_LEVEL=$LOG_LEVEL"
+        echo "  OPENROUTER_API_KEY=$(printf '%s' "$OPENROUTER_API_KEY" | head -c 6)..."
+        if [ -n "$LANGFUSE_PUBLIC_KEY" ] && [ -n "$LANGFUSE_SECRET_KEY" ]; then
+          echo "  LANGFUSE_PUBLIC_KEY=$(printf '%s' "$LANGFUSE_PUBLIC_KEY" | head -c 6)..."
+          echo "  LANGFUSE_BASE_URL=$LANGFUSE_BASE_URL"
+        else
+          echo "  LANGFUSE: disabled (keys not set — spans emitted but nothing exports them)"
+        fi
+        nohup node dist/index.js > worker.log 2>&1 &
+        echo $! > worker.pid
+        sleep 2
+        if ! kill -0 "$(cat worker.pid)"; then
+          echo "Worker died on startup"
+          cat worker.log
+          exit 1
+        fi
+        echo "Worker started (pid=$(cat worker.pid))"
+        echo "--- initial worker.log ---"
+        cat worker.log
+        echo "--- end ---"
