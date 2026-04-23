@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - "backend/**"
+      - "worker/**"
       - "app/**"
       - "k8s/**"
       - ".github/workflows/**"
   pull_request:
     paths:
       - "backend/**"
+      - "worker/**"
       - "app/**"
       - "k8s/**"
       - ".github/workflows/**"
@@ -27,6 +29,7 @@ jobs:
       contents: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      worker: ${{ steps.filter.outputs.worker }}
       app: ${{ steps.filter.outputs.app }}
       k8s: ${{ steps.filter.outputs.k8s }}
       e2e: ${{ steps.filter.outputs.e2e }}
@@ -42,6 +45,10 @@ jobs:
               - 'backend/**'
               - '.github/workflows/backend-image.yml'
               - '.github/actions/setup-backend/**'
+            worker:
+              - 'worker/**'
+              - '.github/workflows/worker-image.yml'
+              - '.github/actions/setup-ai-worker/**'
             app:
               - 'app/**'
               - '.github/workflows/deploy-testflight.yml'
@@ -62,8 +69,9 @@ jobs:
     name: Integration Tests
     needs: [changes]
     if: >-
-      needs.changes.outputs.backend == 'true' || needs.changes.outputs.k8s == 'true' ||
-      needs.changes.outputs.integration == 'true' || needs.changes.outputs.ci == 'true'
+      needs.changes.outputs.backend == 'true' || needs.changes.outputs.worker == 'true' ||
+      needs.changes.outputs.k8s == 'true' || needs.changes.outputs.integration == 'true' ||
+      needs.changes.outputs.ci == 'true'
     uses: ./.github/workflows/integration.yml
     permissions:
       contents: read
@@ -96,6 +104,18 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/backend-image.yml
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
+
+  build-worker-image:
+    name: Build & Push Worker Image
+    needs: [integration, e2e-ios, e2e-android, changes]
+    if: >-
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.worker == 'true' || needs.changes.outputs.ci == 'true')
+    uses: ./.github/workflows/worker-image.yml
     permissions:
       contents: read
       packages: write
