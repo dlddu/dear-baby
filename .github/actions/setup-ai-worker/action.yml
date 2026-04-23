@@ -26,6 +26,20 @@ inputs:
       pipeline failures leave a full breadcrumb trail.
     required: false
     default: "debug"
+  langfuse-public-key:
+    description: Langfuse public key. When set together with the secret
+      key, observeOpenAI sends traces for every OpenRouter call. When
+      unset the wrapper is a no-op pass-through.
+    required: false
+    default: ""
+  langfuse-secret-key:
+    description: Langfuse secret key. Paired with langfuse-public-key.
+    required: false
+    default: ""
+  langfuse-baseurl:
+    description: Langfuse ingestion URL. Defaults to Langfuse Cloud.
+    required: false
+    default: "https://cloud.langfuse.com"
 
 runs:
   using: composite
@@ -54,6 +68,9 @@ runs:
         OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
         OPENROUTER_MODEL: ${{ inputs.openrouter-model }}
         LOG_LEVEL: ${{ inputs.log-level }}
+        LANGFUSE_PUBLIC_KEY: ${{ inputs.langfuse-public-key }}
+        LANGFUSE_SECRET_KEY: ${{ inputs.langfuse-secret-key }}
+        LANGFUSE_BASEURL: ${{ inputs.langfuse-baseurl }}
       run: |
         echo "worker env:"
         echo "  REDIS_URL=$REDIS_URL"
@@ -61,6 +78,12 @@ runs:
         echo "  OPENROUTER_MODEL=$OPENROUTER_MODEL"
         echo "  LOG_LEVEL=$LOG_LEVEL"
         echo "  OPENROUTER_API_KEY=$(printf '%s' "$OPENROUTER_API_KEY" | head -c 6)..."
+        if [ -n "$LANGFUSE_PUBLIC_KEY" ] && [ -n "$LANGFUSE_SECRET_KEY" ]; then
+          echo "  LANGFUSE_PUBLIC_KEY=$(printf '%s' "$LANGFUSE_PUBLIC_KEY" | head -c 6)..."
+          echo "  LANGFUSE_BASEURL=$LANGFUSE_BASEURL"
+        else
+          echo "  LANGFUSE: disabled (keys not set — observeOpenAI is a pass-through)"
+        fi
         nohup node dist/index.js > worker.log 2>&1 &
         echo $! > worker.pid
         sleep 2
