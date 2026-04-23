@@ -27,10 +27,12 @@ spec:
               value: "openrouter/free"
             - name: INTERNAL_API_URL
               value: "http://dear-baby:8080"
+            # In-cluster Redis is ClusterIP-only with no auth, so the URL
+            # carries no secret material — keep it as plain config.
+            - name: REDIS_URL
+              value: "redis://redis:6379"
           envFrom:
             - secretRef:
                 name: openrouter-secret
-            - secretRef:
-                name: redis-secret
             - secretRef:
                 name: internal-auth-secret
