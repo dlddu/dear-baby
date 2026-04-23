@@ -78,7 +78,30 @@ describe('ai-preview handle', () => {
     const args = create.mock.calls[0][0];
     expect(args.model).toBe('test-model');
     expect(args.messages[0].role).toBe('system');
+    // The user message wraps the raw record in an explicit 원본 기록
+    // delimiter so weak free-tier models see "polish this" instead of an
+    // open-ended conversation.
+    expect(args.messages[1].role).toBe('user');
     expect(args.messages[1].content).toContain('움직임');
+    expect(args.messages[1].content).toContain('<원본 기록>');
+    expect(args.messages[1].content).toContain('</원본 기록>');
+  });
+
+  it('refuses to call the LLM when content is empty (sync bypass guard)', async () => {
+    const { deps, publishes, mocks } = buildDeps({});
+    await handle(
+      { user_id: 'u4', record_id: 'r4', content: '   ' },
+      deps,
+    );
+
+    const create = mocks.openrouter.chat.completions.create as ReturnType<
+      typeof vi.fn
+    >;
+    expect(create).not.toHaveBeenCalled();
+    expect(publishes).toHaveLength(1);
+    const payload = JSON.parse(publishes[0].message);
+    expect(payload.status).toBe('error');
+    expect(payload.error).toContain('empty record');
   });
 
   it('publishes error + skips saveAIPreview on OpenRouter failure', async () => {
