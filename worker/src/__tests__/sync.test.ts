@@ -34,7 +34,7 @@ function buildDeps(pending: Array<{ user_id: string; record_id: string; content:
   const logger = pino({ level: 'silent' });
 
   return {
-    deps: { redis, openrouter, model: 'm', backend, logger },
+    deps: { redis, openrouter, model: 'm', backend, logger, tracing: null },
     saves,
     publishes,
   };

@@ -33,6 +33,13 @@ services:
       INTERNAL_API_TOKEN: "${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN required}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY required}"
       OPENROUTER_MODEL: "${OPENROUTER_MODEL:?OPENROUTER_MODEL required}"
+      # Langfuse keys are optional locally — without them the span
+      # processor is never installed and observeOpenAI spans go nowhere.
+      # LANGFUSE_BASE_URL defaults to US (our account region); set it
+      # explicitly if you switch projects.
+      LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY:-}"
+      LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY:-}"
+      LANGFUSE_BASE_URL: "${LANGFUSE_BASE_URL:-https://us.cloud.langfuse.com}"
     depends_on:
       - redis
       - backend

@@ -36,6 +36,23 @@ jobs:
             echo "::warning::OPENROUTER_API_KEY not set — end-to-end AI preview integration skipped"
           fi
 
+      # LANGFUSE_{PUBLIC,SECRET}_KEY, when present, activate the
+      # observeOpenAI wrapper inside the worker so CI runs ship traces.
+      # Both keys are required together; the worker deployment references
+      # langfuse-secret as optional, so absence is a no-op pass-through.
+      - name: Check Langfuse keys
+        id: has_langfuse_keys
+        env:
+          LF_PUB: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LF_SEC: ${{ secrets.LANGFUSE_SECRET_KEY }}
+        run: |
+          if [ -n "$LF_PUB" ] && [ -n "$LF_SEC" ]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::LANGFUSE_PUBLIC_KEY/LANGFUSE_SECRET_KEY not set — worker will run without Langfuse tracing"
+          fi
+
       - name: Build worker image (local)
         if: steps.has_openrouter_key.outputs.value == 'true'
         uses: docker/build-push-action@v6
@@ -62,10 +79,10 @@ jobs:
       # Seed the split secrets the backend reads from before applying the
       # Deployment — with these in place the AI-preview routes come online,
       # which the checks below exercise end-to-end.
-      - name: Create Redis + internal-auth secrets
+      - name: Create auth + internal-auth secrets
         run: |
-          kubectl create secret generic redis-secret \
-            --from-literal=REDIS_URL=redis://redis:6379
+          kubectl create secret generic auth-secret \
+            --from-literal=JWT_SECRET=integration-jwt-secret
           kubectl create secret generic internal-auth-secret \
             --from-literal=INTERNAL_API_TOKEN=integration-token
 
@@ -76,6 +93,22 @@ jobs:
         run: |
           kubectl create secret generic openrouter-secret \
             --from-literal=OPENROUTER_API_KEY="$OR_KEY"
+
+      # Worker's envFrom references langfuse-secret as optional: true, so
+      # it's safe to skip this when keys aren't configured. Default base
+      # URL is US (our account region); override by setting the
+      # LANGFUSE_BASE_URL GitHub secret.
+      - name: Create Langfuse secret
+        if: steps.has_openrouter_key.outputs.value == 'true' && steps.has_langfuse_keys.outputs.value == 'true'
+        env:
+          LF_PUB: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LF_SEC: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LF_BASE: ${{ secrets.LANGFUSE_BASE_URL }}
+        run: |
+          kubectl create secret generic langfuse-secret \
+            --from-literal=LANGFUSE_PUBLIC_KEY="$LF_PUB" \
+            --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC" \
+            --from-literal=LANGFUSE_BASE_URL="${LF_BASE:-https://us.cloud.langfuse.com}"
 
       - name: Apply backend + Redis manifests
         run: |
@@ -175,10 +208,10 @@ jobs:
           echo "health check passed"
 
       - name: Backend connected to Redis
-        # REDIS_URL is wired through the split secret; if the backend
-        # failed to ping Redis on boot, the rollout above would have
-        # timed out. Belt-and-braces: confirm the "disabled" warning is
-        # not in the logs.
+        # REDIS_URL is wired as a plain env var on the deployment; if
+        # the backend failed to ping Redis on boot, the rollout above
+        # would have timed out. Belt-and-braces: confirm the "disabled"
+        # warning is not in the logs.
         run: |
           set -euo pipefail
           if kubectl logs deployment/dear-baby --tail=500 | grep -q 'REDIS_URL not set'; then

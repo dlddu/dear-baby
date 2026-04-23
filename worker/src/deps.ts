@@ -2,6 +2,8 @@ import type { Logger } from 'pino';
 import type Redis from 'ioredis';
 import type OpenAI from 'openai';
 
+import type { TracingHandle } from './tracing';
+
 // InternalAPIClient is the thin HTTP client that lets tasks read and write
 // backend state without Redis in the loop. Scoped to what the worker
 // actually needs — broader endpoints should be added only as tasks demand.
@@ -22,12 +24,16 @@ export interface TaskDeps {
   model: string;
   backend: InternalAPIClient;
   logger: Logger;
+  // tracing is null when Langfuse credentials aren't configured; tasks
+  // should optional-chain the flush call so tests and dev runs stay
+  // agnostic.
+  tracing: TracingHandle | null;
 }
 
 // httpInternalAPI is the fetch-backed implementation used in production
 // and integration tests. Authenticates with a shared token in the
 // `X-Internal-Token` header — the token is configured out-of-band via the
-// `internal-auth-secret` k8s Secret (see k8s/secrets/internal-auth-secret.example.yaml).
+// `internal-auth-secret` k8s Secret (see k8s/secrets/internal-auth-secret.example).
 export function httpInternalAPI(options: {
   baseURL: string;
   token: string;

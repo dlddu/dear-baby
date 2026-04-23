@@ -24,20 +24,16 @@ spec:
               value: "8080"
             - name: DATABASE_URL
               value: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"
+            # In-cluster Redis is ClusterIP-only with no auth, so the URL
+            # carries no secret material — keep it as plain config.
+            - name: REDIS_URL
+              value: "redis://redis:6379"
           envFrom:
-            # Legacy blob — kept optional so existing deploys don't
-            # break while we migrate to the split secrets below.
             - secretRef:
-                name: dear-baby-secrets
-                optional: true
-            # REDIS_URL, shared with the worker pod.
-            - secretRef:
-                name: redis-secret
-                optional: true
+                name: auth-secret
             # INTERNAL_API_TOKEN, shared with the worker pod.
             - secretRef:
                 name: internal-auth-secret
-                optional: true
           volumeMounts:
             - name: data
               mountPath: /data
