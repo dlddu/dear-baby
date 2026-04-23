@@ -155,12 +155,12 @@ func writeSSE(w http.ResponseWriter, event string, data any) {
 
 // writeSSEResult takes the raw worker payload (already JSON-serialized,
 // either {"status":"ok","preview":...} or {"status":"error",...}) and
-// writes it as an SSE event named after the status. The client only
-// needs to look at the event name to decide whether to render or retry.
+// writes it as an SSE event. The event name maps worker status to the
+// UX-facing vocabulary the client listens on: ok → `ready`, error →
+// `error`. A status the client doesn't know about falls through as the
+// raw name so future additions (e.g. `warning`) don't need a backend
+// deploy to surface.
 func writeSSEResult(w http.ResponseWriter, payload string) {
-	// Parse just enough to route by status. If parsing fails, emit a
-	// generic error event so the client stops waiting rather than
-	// hanging.
 	var shell struct {
 		Status string `json:"status"`
 	}
@@ -168,6 +168,10 @@ func writeSSEResult(w http.ResponseWriter, payload string) {
 		fmt.Fprintf(w, "event: error\ndata: {\"error\":\"malformed result\"}\n\n")
 		return
 	}
-	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", shell.Status, payload)
+	event := shell.Status
+	if shell.Status == "ok" {
+		event = "ready"
+	}
+	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, payload)
 }
 
