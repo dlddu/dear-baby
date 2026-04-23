@@ -27,7 +27,7 @@ export interface TaskDeps {
 // httpInternalAPI is the fetch-backed implementation used in production
 // and integration tests. Authenticates with a shared token in the
 // `X-Internal-Token` header — the token is configured out-of-band via the
-// `internal-auth-secret` k8s Secret (see k8s/secrets/internal-auth-secret.example.yaml).
+// `internal-auth-secret` k8s Secret (see k8s/secrets/internal-auth-secret.example).
 export function httpInternalAPI(options: {
   baseURL: string;
   token: string;
