@@ -34,9 +34,3 @@ spec:
                 name: redis-secret
             - secretRef:
                 name: internal-auth-secret
-          resources:
-            requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
-              memory: 256Mi

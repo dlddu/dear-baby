@@ -33,11 +33,9 @@ spec:
             # REDIS_URL, shared with the worker pod.
             - secretRef:
                 name: redis-secret
-                optional: true
             # INTERNAL_API_TOKEN, shared with the worker pod.
             - secretRef:
                 name: internal-auth-secret
-                optional: true
           volumeMounts:
             - name: data
               mountPath: /data
