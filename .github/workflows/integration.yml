@@ -62,10 +62,10 @@ jobs:
       # Seed the split secrets the backend reads from before applying the
       # Deployment — with these in place the AI-preview routes come online,
       # which the checks below exercise end-to-end.
-      - name: Create Redis + internal-auth secrets
+      - name: Create auth + internal-auth secrets
         run: |
-          kubectl create secret generic redis-secret \
-            --from-literal=REDIS_URL=redis://redis:6379
+          kubectl create secret generic auth-secret \
+            --from-literal=JWT_SECRET=integration-jwt-secret
           kubectl create secret generic internal-auth-secret \
             --from-literal=INTERNAL_API_TOKEN=integration-token
 
@@ -175,10 +175,10 @@ jobs:
           echo "health check passed"
 
       - name: Backend connected to Redis
-        # REDIS_URL is wired through the split secret; if the backend
-        # failed to ping Redis on boot, the rollout above would have
-        # timed out. Belt-and-braces: confirm the "disabled" warning is
-        # not in the logs.
+        # REDIS_URL is wired as a plain env var on the deployment; if
+        # the backend failed to ping Redis on boot, the rollout above
+        # would have timed out. Belt-and-braces: confirm the "disabled"
+        # warning is not in the logs.
         run: |
           set -euo pipefail
           if kubectl logs deployment/dear-baby --tail=500 | grep -q 'REDIS_URL not set'; then
