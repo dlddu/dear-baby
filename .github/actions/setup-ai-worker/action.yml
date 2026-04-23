@@ -37,9 +37,9 @@ inputs:
     required: false
     default: ""
   langfuse-baseurl:
-    description: Langfuse ingestion URL. Defaults to Langfuse Cloud.
+    description: Langfuse ingestion URL. Defaults to US region (our account).
     required: false
-    default: "https://cloud.langfuse.com"
+    default: "https://us.cloud.langfuse.com"
 
 runs:
   using: composite
@@ -70,7 +70,7 @@ runs:
         LOG_LEVEL: ${{ inputs.log-level }}
         LANGFUSE_PUBLIC_KEY: ${{ inputs.langfuse-public-key }}
         LANGFUSE_SECRET_KEY: ${{ inputs.langfuse-secret-key }}
-        LANGFUSE_BASEURL: ${{ inputs.langfuse-baseurl }}
+        LANGFUSE_BASE_URL: ${{ inputs.langfuse-baseurl }}
       run: |
         echo "worker env:"
         echo "  REDIS_URL=$REDIS_URL"
@@ -80,9 +80,9 @@ runs:
         echo "  OPENROUTER_API_KEY=$(printf '%s' "$OPENROUTER_API_KEY" | head -c 6)..."
         if [ -n "$LANGFUSE_PUBLIC_KEY" ] && [ -n "$LANGFUSE_SECRET_KEY" ]; then
           echo "  LANGFUSE_PUBLIC_KEY=$(printf '%s' "$LANGFUSE_PUBLIC_KEY" | head -c 6)..."
-          echo "  LANGFUSE_BASEURL=$LANGFUSE_BASEURL"
+          echo "  LANGFUSE_BASE_URL=$LANGFUSE_BASE_URL"
         else
-          echo "  LANGFUSE: disabled (keys not set — observeOpenAI is a pass-through)"
+          echo "  LANGFUSE: disabled (keys not set — spans emitted but nothing exports them)"
         fi
         nohup node dist/index.js > worker.log 2>&1 &
         echo $! > worker.pid

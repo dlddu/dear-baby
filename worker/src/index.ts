@@ -3,8 +3,9 @@ import pino from 'pino';
 
 import { httpInternalAPI } from './deps';
 import { TaskRegistry, runWorker } from './framework';
-import { openrouterClient, shutdownLangfuse } from './openrouter';
+import { openrouterClient } from './openrouter';
 import { aiPreviewTask } from './tasks/ai-preview';
+import { bootstrapTracing } from './tracing';
 
 // requireEnv fails fast at boot if any mandatory variable is missing so
 // an operator gets a clear log line instead of a mid-flight crash.
@@ -38,24 +39,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Bootstrap OpenTelemetry + LangfuseSpanProcessor before constructing
+  // the OpenAI client — observeOpenAI emits spans regardless, but nothing
+  // exports them until this is wired up.
+  const tracing = bootstrapTracing(logger);
+
   const redis = new IORedis(redisURL, {
     maxRetriesPerRequest: null,
   });
   redis.on('error', (err: Error) => logger.error({ err: err.message }, 'redis error'));
-
-  // Langfuse activates when both keys are present; log it at boot so an
-  // operator can tell at a glance whether tracing is live without
-  // digging through the SDK's silent-degrade behaviour.
-  const langfuseEnabled = Boolean(
-    process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY,
-  );
-  logger.info(
-    {
-      enabled: langfuseEnabled,
-      baseURL: process.env.LANGFUSE_BASEURL ?? 'https://cloud.langfuse.com',
-    },
-    'langfuse tracing',
-  );
 
   const deps = {
     redis,
@@ -67,6 +59,7 @@ async function main(): Promise<void> {
       logger,
     }),
     logger,
+    tracing,
   };
 
   const registry = new TaskRegistry();
@@ -86,12 +79,14 @@ async function main(): Promise<void> {
     } catch (err) {
       logger.error({ err: err instanceof Error ? err.message : String(err) }, 'wait error');
     }
-    await shutdownLangfuse(deps.openrouter).catch((err: unknown) =>
-      logger.error(
-        { err: err instanceof Error ? err.message : String(err) },
-        'langfuse shutdown error',
-      ),
-    );
+    if (tracing) {
+      await tracing.shutdown().catch((err: unknown) =>
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          'tracing shutdown error',
+        ),
+      );
+    }
     await redis.quit().catch(() => {});
     process.exit(0);
   };

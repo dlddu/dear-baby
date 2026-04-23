@@ -17,6 +17,7 @@ function buildDeps(): TaskDeps {
       saveAIPreview: vi.fn(),
     },
     logger,
+    tracing: null,
   };
 }
 
