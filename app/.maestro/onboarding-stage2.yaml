@@ -4,9 +4,8 @@ appId: com.dlddu.dearbaby
 # Verifies the home-screen voice-record coachmark + question card + dual CTAs
 # + blurred AI preview shown to users who just completed Stage 1. Requires
 # EXPO_PUBLIC_TEST_AUTH_ENABLED=true (app) and TEST_AUTH_ENABLED=true
-# (backend), same as Stage 1. Test-login with onboarded=false also resets the
-# server-side Stage 2 coachmark dismissal so each run starts from a blank
-# slate.
+# (backend), same as Stage 1. Test-login with onboarded=false resets the
+# server-side Stage 2 state so each run starts from a blank slate.
 
 # ─── Path 1: due date → home shows full Stage 2 + coachmark persists ───
 
@@ -123,7 +122,7 @@ appId: com.dlddu.dearbaby
 - assertNotVisible:
     id: "stage2-week-badge"
 
-# ─── Path 3: voice is still "coming soon"; text flow saves + unblurs ───
+# ─── Path 3: voice is still "coming soon"; text flow saves + AI preview ──
 
 - tapOn:
     id: "stage2-voice-cta"
@@ -135,9 +134,10 @@ appId: com.dlddu.dearbaby
     id: "stage2-coachmark"
 
 # Text CTA opens the record modal, save → backend stamps first_record_at →
-# AI preview unblurs on return. NOTE: Maestro's `inputText` does not support
-# Unicode on Android (mobile-dev-inc/maestro#146), so the body here is ASCII.
-# The assertion afterwards checks the app's own footnote text, not the input.
+# home subscribes to SSE → AI preview renders when the worker finishes.
+# NOTE: Maestro's `inputText` does not support Unicode on Android
+# (mobile-dev-inc/maestro#146), so the body here is ASCII. The assertions
+# afterwards check the app's own status copy, not user-provided text.
 - tapOn:
     id: "stage2-text-cta"
 - assertVisible:
@@ -152,4 +152,15 @@ appId: com.dlddu.dearbaby
     id: "record-text-save"
 - assertVisible:
     id: "home-tab"
-- assertVisible: "AI가 당신의 기록을 이렇게 정리했어요"
+
+# First-record save flips `first_record_at`, which auto-hides the coachmark.
+- assertNotVisible:
+    id: "stage2-coachmark"
+
+# Wait for the AI preview ready copy. The loading copy is intentionally
+# not asserted — a fast free-tier model can flip from loading → ready
+# before Maestro queries the UI, making that check flaky. The ready
+# footer is the authoritative signal the pipeline succeeded.
+- extendedWaitUntil:
+    visible: "AI가 당신의 기록을 이렇게 정리했어요"
+    timeout: 30000

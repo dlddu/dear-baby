@@ -16,7 +16,8 @@ import (
 // paragraphs) while keeping the payload small on low-end networks.
 const maxContentRunes = 2000
 
-// Handlers exposes the POST /records endpoint.
+// Handlers exposes the POST /records endpoint. Scope is strictly records
+// CRUD; AI-preview enqueuing is the onboarding package's concern.
 type Handlers struct {
 	Store           *Store
 	Users           *users.Store
@@ -27,18 +28,16 @@ type createBody struct {
 	Content string `json:"content"`
 }
 
-// createResponse returns the new record alongside the updated user so the
-// client can refresh AuthContext in one round-trip. See plan file for the
-// motivation — partial failure (record saved but /me refresh missed) would
-// leave the home-screen AI preview blurred and desync the local cache.
+// createResponse returns the new record alongside the updated flat profile
+// so the client can refresh AuthContext in one round-trip.
 type createResponse struct {
-	Record *Record     `json:"record"`
-	User   *users.User `json:"user"`
+	Record *Record        `json:"record"`
+	User   *users.Profile `json:"user"`
 }
 
 // Create handles POST /records. Accepts `{content: string}`, trims it,
-// validates length (1..2000 runes), persists, and stamps first_record_at
-// if this is the user's first entry.
+// validates length (1..2000 runes), persists, and re-derives
+// first_record_at from the oldest existing record.
 func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 	uid, ok := h.UserIDFromCtxFn(r)
 	if !ok {
@@ -64,7 +63,7 @@ func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rec, u, err := h.Store.CreateText(r.Context(), h.Users, uid, content)
+	res, err := h.Store.CreateText(r.Context(), h.Users, uid, content)
 	if err != nil {
 		if errors.Is(err, users.ErrNotFound) {
 			httpx.WriteError(w, http.StatusNotFound, "user not found")
@@ -73,5 +72,5 @@ func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusInternalServerError, "internal")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusCreated, createResponse{Record: rec, User: u})
+	httpx.WriteJSON(w, http.StatusCreated, createResponse{Record: res.Record, User: res.Profile})
 }

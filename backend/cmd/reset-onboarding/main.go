@@ -1,6 +1,6 @@
-// Command reset-onboarding clears onboarded_at and due_date for the user
-// matching the given email. Intended to be invoked inside the backend
-// container, e.g.
+// Command reset-onboarding clears onboarded_at, due_date, and the voice
+// coachmark dismissal for the user matching the given email. Intended to
+// be invoked inside the backend container, e.g.
 //
 //	/reset-onboarding user@example.com
 package main
@@ -14,7 +14,7 @@ import (
 
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
-	"github.com/dlddu/dear-baby/backend/internal/users"
+	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 )
 
 func main() {
@@ -40,9 +40,9 @@ func run(args []string) error {
 	}
 	defer d.Close()
 
-	store := &users.Store{DB: d}
-	if err := store.ResetOnboardingByEmail(context.Background(), email); err != nil {
-		if errors.Is(err, users.ErrNotFound) {
+	store := &onboarding.Store{DB: d}
+	if err := store.ResetByEmail(context.Background(), email); err != nil {
+		if errors.Is(err, onboarding.ErrNotFound) {
 			return fmt.Errorf("no user found with email %q", email)
 		}
 		return err

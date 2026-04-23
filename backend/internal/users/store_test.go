@@ -18,16 +18,12 @@ func newTestDB(t *testing.T) *sql.DB {
 	db.SetMaxOpenConns(1)
 	schema := `
 CREATE TABLE users (
-  id                              TEXT PRIMARY KEY,
-  email                           TEXT NOT NULL UNIQUE,
-  name                            TEXT,
-  picture_url                     TEXT,
-  due_date                        TEXT,
-  onboarded_at                    TEXT,
-  stage2_coachmark_dismissed_at   TEXT,
-  first_record_at                 TEXT,
-  created_at                      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at                      TEXT NOT NULL DEFAULT (datetime('now'))
+  id          TEXT PRIMARY KEY,
+  email       TEXT NOT NULL UNIQUE,
+  name        TEXT,
+  picture_url TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE oauth_accounts (
   provider         TEXT NOT NULL,
@@ -35,6 +31,15 @@ CREATE TABLE oauth_accounts (
   user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (provider, provider_user_id)
+);
+CREATE TABLE onboarding (
+  user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  due_date                     TEXT,
+  onboarded_at                 TEXT,
+  voice_coachmark_dismissed_at TEXT,
+  first_record_at              TEXT,
+  ai_preview                   TEXT,
+  updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (
   id         TEXT PRIMARY KEY,
@@ -54,106 +59,24 @@ func seedUser(t *testing.T, db *sql.DB, id, email string) {
 	if _, err := db.Exec(`INSERT INTO users (id, email) VALUES (?, ?)`, id, email); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
-}
-
-func TestUpdateOnboarding_WithDueDate(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-	seedUser(t, db, "u1", "a@b.com")
-
-	store := &Store{DB: db}
-	ctx := context.Background()
-	due := "2025-09-15"
-	if err := store.UpdateOnboarding(ctx, "u1", &due); err != nil {
-		t.Fatalf("update: %v", err)
-	}
-
-	u, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if u.DueDate == nil || *u.DueDate != "2025-09-15" {
-		t.Errorf("due_date: got %v want 2025-09-15", u.DueDate)
-	}
-	if u.OnboardedAt == nil {
-		t.Errorf("onboarded_at should be set")
+	if _, err := db.Exec(`INSERT INTO onboarding (user_id) VALUES (?)`, id); err != nil {
+		t.Fatalf("seed onboarding: %v", err)
 	}
 }
 
-func TestUpdateOnboarding_NullDueDate(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-	seedUser(t, db, "u1", "a@b.com")
-
-	store := &Store{DB: db}
-	ctx := context.Background()
-	if err := store.UpdateOnboarding(ctx, "u1", nil); err != nil {
-		t.Fatalf("update: %v", err)
-	}
-
-	u, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if u.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *u.DueDate)
-	}
-	if u.OnboardedAt == nil {
-		t.Errorf("onboarded_at should be set even when due_date is null")
-	}
+// fakeEnsurer records invocations for tests that want to verify
+// UpsertByOAuth wires the ensurer through.
+type fakeEnsurer struct {
+	calls int
 }
 
-func TestUpdateOnboarding_NotFound(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-
-	store := &Store{DB: db}
-	err := store.UpdateOnboarding(context.Background(), "missing", nil)
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("err: got %v want ErrNotFound", err)
-	}
+func (f *fakeEnsurer) EnsureRowTx(ctx context.Context, tx *sql.Tx, userID string) error {
+	f.calls++
+	_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO onboarding (user_id) VALUES (?)`, userID)
+	return err
 }
 
-func TestResetOnboardingByEmail(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-	seedUser(t, db, "u1", "a@b.com")
-
-	store := &Store{DB: db}
-	ctx := context.Background()
-	due := "2025-09-15"
-	if err := store.UpdateOnboarding(ctx, "u1", &due); err != nil {
-		t.Fatalf("update: %v", err)
-	}
-
-	if err := store.ResetOnboardingByEmail(ctx, "a@b.com"); err != nil {
-		t.Fatalf("reset: %v", err)
-	}
-
-	u, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if u.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *u.DueDate)
-	}
-	if u.OnboardedAt != nil {
-		t.Errorf("onboarded_at: got %v want nil", *u.OnboardedAt)
-	}
-}
-
-func TestResetOnboardingByEmail_NotFound(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-
-	store := &Store{DB: db}
-	err := store.ResetOnboardingByEmail(context.Background(), "missing@example.com")
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("err: got %v want ErrNotFound", err)
-	}
-}
-
-func TestGetByID_UnonboardedUserHasNilFields(t *testing.T) {
+func TestGetByID_CoreFieldsOnly(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1", "a@b.com")
@@ -163,123 +86,83 @@ func TestGetByID_UnonboardedUserHasNilFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if u.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *u.DueDate)
-	}
-	if u.OnboardedAt != nil {
-		t.Errorf("onboarded_at: got %v want nil", *u.OnboardedAt)
-	}
-	if u.Stage2CoachmarkDismissedAt != nil {
-		t.Errorf("stage2_coachmark_dismissed_at: got %v want nil", *u.Stage2CoachmarkDismissedAt)
+	if u.Email != "a@b.com" {
+		t.Errorf("email: got %q", u.Email)
 	}
 }
 
-func TestDismissStage2Coachmark(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-	seedUser(t, db, "u1", "a@b.com")
-
-	store := &Store{DB: db}
-	ctx := context.Background()
-
-	if err := store.DismissStage2Coachmark(ctx, "u1"); err != nil {
-		t.Fatalf("dismiss: %v", err)
-	}
-	first, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if first.Stage2CoachmarkDismissedAt == nil {
-		t.Fatal("stage2_coachmark_dismissed_at should be set after first dismiss")
-	}
-	stamped := *first.Stage2CoachmarkDismissedAt
-
-	// Second call must be a no-op: the original timestamp is preserved.
-	if err := store.DismissStage2Coachmark(ctx, "u1"); err != nil {
-		t.Fatalf("second dismiss: %v", err)
-	}
-	second, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if second.Stage2CoachmarkDismissedAt == nil ||
-		!second.Stage2CoachmarkDismissedAt.Equal(stamped) {
-		t.Errorf("timestamp changed on second dismiss: got %v want %v",
-			second.Stage2CoachmarkDismissedAt, stamped)
-	}
-}
-
-func TestDismissStage2Coachmark_NotFound(t *testing.T) {
+func TestGetByID_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 
 	store := &Store{DB: db}
-	err := store.DismissStage2Coachmark(context.Background(), "missing")
+	_, err := store.GetByID(context.Background(), "missing")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("err: got %v want ErrNotFound", err)
 	}
 }
 
-func TestResetOnboarding_ClearsStage2Coachmark(t *testing.T) {
+func TestGetProfile_MergesOnboardingFields(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1", "a@b.com")
 
+	if _, err := db.Exec(`
+		UPDATE onboarding SET due_date = '2025-09-15', onboarded_at = datetime('now')
+		WHERE user_id = 'u1'
+	`); err != nil {
+		t.Fatalf("stamp onboarding: %v", err)
+	}
+
 	store := &Store{DB: db}
-	ctx := context.Background()
-	if err := store.DismissStage2Coachmark(ctx, "u1"); err != nil {
-		t.Fatalf("dismiss: %v", err)
-	}
-	if err := store.ResetOnboarding(ctx, "u1"); err != nil {
-		t.Fatalf("reset: %v", err)
-	}
-	u, err := store.GetByID(ctx, "u1")
+	p, err := store.GetProfile(context.Background(), "u1")
 	if err != nil {
-		t.Fatalf("get: %v", err)
+		t.Fatalf("get profile: %v", err)
 	}
-	if u.Stage2CoachmarkDismissedAt != nil {
-		t.Errorf("coachmark should be cleared on reset, got %v",
-			*u.Stage2CoachmarkDismissedAt)
+	if p.DueDate == nil || *p.DueDate != "2025-09-15" {
+		t.Errorf("due_date: got %v", p.DueDate)
+	}
+	if p.OnboardedAt == nil {
+		t.Error("onboarded_at should be set")
 	}
 }
 
-func TestResetOnboarding_ClearsFirstRecordAtButPreservesRecords(t *testing.T) {
+func TestGetProfile_NilOnboardingFieldsWhenRowMissing(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
-	seedUser(t, db, "u1", "a@b.com")
-
-	// Seed a record + first_record_at directly to avoid depending on the
-	// records package from this test.
-	if _, err := db.Exec(`
-		INSERT INTO records (id, user_id, content) VALUES ('r1', 'u1', 'hello');
-	`); err != nil {
-		t.Fatalf("seed record: %v", err)
-	}
-	if _, err := db.Exec(`
-		UPDATE users SET first_record_at = datetime('now') WHERE id = 'u1';
-	`); err != nil {
-		t.Fatalf("seed first_record_at: %v", err)
+	if _, err := db.Exec(`INSERT INTO users (id, email) VALUES ('u1', 'a@b.com')`); err != nil {
+		t.Fatalf("seed: %v", err)
 	}
 
 	store := &Store{DB: db}
-	ctx := context.Background()
-	if err := store.ResetOnboarding(ctx, "u1"); err != nil {
-		t.Fatalf("reset: %v", err)
-	}
-	u, err := store.GetByID(ctx, "u1")
+	p, err := store.GetProfile(context.Background(), "u1")
 	if err != nil {
-		t.Fatalf("get: %v", err)
+		t.Fatalf("get profile: %v", err)
 	}
-	if u.FirstRecordAt != nil {
-		t.Errorf("first_record_at should be cleared, got %v", *u.FirstRecordAt)
+	if p.DueDate != nil || p.OnboardedAt != nil || p.VoiceCoachmarkDismissedAt != nil || p.FirstRecordAt != nil || p.AIPreview != nil {
+		t.Errorf("missing onboarding row should give all-nil onboarding fields: got %+v", p)
 	}
-	// Records themselves must survive reset — the replay is a UX flow, not
-	// a data wipe.
+}
+
+func TestUpsertByOAuth_InvokesEnsurer(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	store := &Store{DB: db}
+	f := &fakeEnsurer{}
+	u, err := store.UpsertByOAuth(context.Background(), f, "google", "g-sub-1", "a@b.com", "Alice", "")
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if f.calls != 1 {
+		t.Errorf("ensurer calls: got %d want 1", f.calls)
+	}
+
 	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM records WHERE user_id = ?`, "u1").Scan(&n); err != nil {
-		t.Fatalf("count records: %v", err)
+	if err := db.QueryRow(`SELECT COUNT(*) FROM onboarding WHERE user_id = ?`, u.ID).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
 	}
 	if n != 1 {
-		t.Errorf("records should be preserved on reset, got %d want 1", n)
+		t.Errorf("onboarding rows: got %d want 1", n)
 	}
 }

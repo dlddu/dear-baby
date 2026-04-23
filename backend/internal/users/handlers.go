@@ -1,6 +1,8 @@
 package users
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,21 +12,32 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
 )
 
-// Handlers exposes the user-scoped HTTP handlers.
-type Handlers struct {
-	Store           *Store
-	UserIDFromCtxFn func(r *http.Request) (string, bool)
+// OnboardingUpdater is the minimal surface the users.Handlers need from
+// the onboarding store. Declared as an interface so the users package does
+// not import the onboarding package. The router wires in the concrete
+// *onboarding.Store.
+type OnboardingUpdater interface {
+	UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error
+	DismissVoiceCoachmark(ctx context.Context, userID string) error
 }
 
-// Me returns the authenticated user's profile. Expects that an auth
-// middleware has already injected the user id into the request context.
+// Handlers exposes the user-scoped HTTP handlers.
+type Handlers struct {
+	Store                 *Store
+	Onboarding            OnboardingUpdater
+	OnboardingErrNotFound error // sentinel from the onboarding package, for error mapping
+	UserIDFromCtxFn       func(r *http.Request) (string, bool)
+}
+
+// Me returns the authenticated user's profile — the flat view that merges
+// users + onboarding.
 func (h *Handlers) Me(w http.ResponseWriter, r *http.Request) {
 	id, ok := h.UserIDFromCtxFn(r)
 	if !ok {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	u, err := h.Store.GetByID(r.Context(), id)
+	p, err := h.Store.GetProfile(r.Context(), id)
 	if errors.Is(err, ErrNotFound) {
 		httpx.WriteError(w, http.StatusNotFound, "user not found")
 		return
@@ -33,27 +46,18 @@ func (h *Handlers) Me(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusInternalServerError, "internal")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, u)
+	httpx.WriteJSON(w, http.StatusOK, p)
 }
 
 // isoDateRe matches the YYYY-MM-DD shape we accept for due_date; we also
 // validate the date is real (e.g., rejects 2025-02-31) below via time.Parse.
 var isoDateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
-// patchMeBody is the request body for PATCH /me.
-//
-// due_date: nullable. When present it must be an ISO date (YYYY-MM-DD).
-// Sending {"due_date": null} marks the user as onboarded without a date
-// (the onboarding "아직 정해지지 않았어요" escape hatch).
-//
-// dismiss_stage2_coachmark: set to true from the home screen when the user
-// closes the Stage 2 voice-record coachmark. The backend stamps the
-// dismissal time so the coachmark never re-appears, even after reinstall.
-// This is a separate concern from the onboarding fields and must not be
-// combined with due_date in the same request.
+// patchMeBody is the request body for PATCH /me. Either due_date or
+// dismiss_voice_coachmark is sent — never both in the same call.
 type patchMeBody struct {
-	DueDate                *string `json:"due_date"`
-	DismissStage2Coachmark *bool   `json:"dismiss_stage2_coachmark"`
+	DueDate               *string `json:"due_date"`
+	DismissVoiceCoachmark *bool   `json:"dismiss_voice_coachmark"`
 }
 
 // PatchMe updates the authenticated user's onboarding fields. It accepts
@@ -73,14 +77,21 @@ func (h *Handlers) PatchMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Stage 2 coachmark dismissal is a distinct action and is not combined
-	// with onboarding fields in the same call.
-	if body.DismissStage2Coachmark != nil && *body.DismissStage2Coachmark {
+	if body.DismissVoiceCoachmark != nil && *body.DismissVoiceCoachmark {
 		if body.DueDate != nil {
 			httpx.WriteError(w, http.StatusBadRequest, "invalid body")
 			return
 		}
-		if err := h.Store.DismissStage2Coachmark(r.Context(), id); err != nil {
+		if err := h.Onboarding.DismissVoiceCoachmark(r.Context(), id); err != nil {
+			if isOnboardingNotFound(err, h.OnboardingErrNotFound) {
+				httpx.WriteError(w, http.StatusNotFound, "user not found")
+				return
+			}
+			httpx.WriteError(w, http.StatusInternalServerError, "internal")
+			return
+		}
+		p, err := h.Store.GetProfile(r.Context(), id)
+		if err != nil {
 			if errors.Is(err, ErrNotFound) {
 				httpx.WriteError(w, http.StatusNotFound, "user not found")
 				return
@@ -88,12 +99,7 @@ func (h *Handlers) PatchMe(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusInternalServerError, "internal")
 			return
 		}
-		u, err := h.Store.GetByID(r.Context(), id)
-		if err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "internal")
-			return
-		}
-		httpx.WriteJSON(w, http.StatusOK, u)
+		httpx.WriteJSON(w, http.StatusOK, p)
 		return
 	}
 
@@ -109,7 +115,9 @@ func (h *Handlers) PatchMe(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.Store.UpdateOnboarding(r.Context(), id, body.DueDate); err != nil {
+	// Validate user exists before writing to onboarding — keeps 404
+	// semantics consistent when the onboarding row is created lazily.
+	if _, err := h.Store.GetByID(r.Context(), id); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			httpx.WriteError(w, http.StatusNotFound, "user not found")
 			return
@@ -118,10 +126,26 @@ func (h *Handlers) PatchMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := h.Store.GetByID(r.Context(), id)
+	if err := h.Onboarding.UpdateDueDateAndOnboardedAt(r.Context(), id, body.DueDate); err != nil {
+		if isOnboardingNotFound(err, h.OnboardingErrNotFound) {
+			httpx.WriteError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		httpx.WriteError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+
+	p, err := h.Store.GetProfile(r.Context(), id)
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "internal")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, u)
+	httpx.WriteJSON(w, http.StatusOK, p)
+}
+
+func isOnboardingNotFound(err error, sentinel error) bool {
+	if sentinel != nil && errors.Is(err, sentinel) {
+		return true
+	}
+	return errors.Is(err, sql.ErrNoRows)
 }

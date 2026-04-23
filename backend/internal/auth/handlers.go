@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -17,10 +18,19 @@ import (
 const testProvider = "test"
 
 
+// OnboardingOps is the subset of onboarding.Store used by the auth
+// handlers. Declared as an interface so this package does not import the
+// onboarding package directly.
+type OnboardingOps interface {
+	Reset(ctx context.Context, userID string) error
+	UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error
+}
+
 // Handlers exposes the auth HTTP endpoints.
 type Handlers struct {
-	Cfg     *config.Config
-	Service *Service
+	Cfg        *config.Config
+	Service    *Service
+	Onboarding OnboardingOps
 }
 
 type googleSignInRequest struct {
@@ -28,9 +38,9 @@ type googleSignInRequest struct {
 }
 
 type sessionResponse struct {
-	AccessToken  string      `json:"access_token"`
-	RefreshToken string      `json:"refresh_token"`
-	User         *users.User `json:"user"`
+	AccessToken  string         `json:"access_token"`
+	RefreshToken string         `json:"refresh_token"`
+	User         *users.Profile `json:"user"`
 }
 
 // Google handles POST /auth/google.
@@ -117,35 +127,24 @@ func (h *Handlers) TestLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	u, err := h.Service.Users.UpsertByOAuth(ctx, testProvider, email, email, name, "")
+	u, err := h.Service.Users.UpsertByOAuth(ctx, h.Service.Onboarding, testProvider, email, email, name, "")
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "upsert failed")
 		return
 	}
-	// Align the user's onboarding state with the request so the same
-	// email can be reused across E2E flows that test both paths.
-	if req.Onboarded && u.OnboardedAt == nil {
-		if err := h.Service.Users.UpdateOnboarding(ctx, u.ID, nil); err != nil {
+	// Align the onboarding state with the request so the same email can be
+	// reused across E2E flows that test both paths.
+	if req.Onboarded {
+		if err := h.Onboarding.UpdateDueDateAndOnboardedAt(ctx, u.ID, nil); err != nil {
 			httpx.WriteError(w, http.StatusInternalServerError, "onboarding failed")
 			return
 		}
-		u, err = h.Service.Users.GetByID(ctx, u.ID)
-		if err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "reload failed")
-			return
-		}
-	} else if !req.Onboarded {
+	} else {
 		// Reset unconditionally so repeated E2E runs start from the same
-		// blank state (onboarded_at / due_date / stage2 coachmark all NULL),
-		// even when the previous run only dismissed the coachmark but did
-		// not complete Stage 1.
-		if err := h.Service.Users.ResetOnboarding(ctx, u.ID); err != nil {
+		// blank slate even when the previous run only dismissed the
+		// coachmark but did not complete Stage 1.
+		if err := h.Onboarding.Reset(ctx, u.ID); err != nil {
 			httpx.WriteError(w, http.StatusInternalServerError, "reset onboarding failed")
-			return
-		}
-		u, err = h.Service.Users.GetByID(ctx, u.ID)
-		if err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "reload failed")
 			return
 		}
 	}
