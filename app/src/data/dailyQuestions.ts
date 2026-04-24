@@ -2,10 +2,10 @@
 // the warm/emotional tone from docs/design-system/onboarding.md — no
 // functional phrasing.
 //
-// When the real backend question service lands, swap `pickDailyQuestion`
-// for a fetched value. Keeping a deterministic client-side pick for now
-// means the same user sees the same question all day, which matches the
-// "오늘의 질문" intent.
+// Placeholder only: pregnancy-week-aware selection (PRD-002 AC-002-02) is
+// deferred until the question prompt engineering is finalized. See
+// docs/engineering/weekly-questions-plan.md. When the real backend question
+// service lands, swap `pickDailyQuestion` for a fetched value.
 
 export const DAILY_QUESTIONS: readonly string[] = [
   '오늘 아기에게 가장 해주고 싶은 말은?',
