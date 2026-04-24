@@ -62,8 +62,6 @@ export async function handle(
       { elapsedMs: Date.now() - started, previewLength: preview.length },
       'openrouter returned',
     );
-    await deps.backend.saveAIPreview(user_id, preview);
-    log.debug('saved preview via internal API');
     await deps.redis.publish(
       resultChannel('ai_preview', user_id),
       JSON.stringify({ status: 'ok', preview }),
@@ -72,8 +70,9 @@ export async function handle(
   } catch (err) {
     const msg = errMessage(err);
     log.error({ err: msg }, 'preview generation failed');
-    // Do NOT write to the DB on failure — leaving ai_preview null keeps
-    // the next sync() + client retry viable.
+    // Persistence is the backend's job (it runs the hub processor that
+    // writes on status=ok), so there is nothing to undo on failure —
+    // just surface the error so the UI can offer a retry.
     try {
       await deps.redis.publish(
         resultChannel('ai_preview', user_id),

@@ -22,8 +22,7 @@ jobs:
           cache-from: type=gha
 
       # OPENROUTER_API_KEY gates the end-to-end AI preview test below.
-      # The plumbing tests (Redis wiring, internal API auth) run either
-      # way.
+      # Plumbing tests (Redis wiring, route mounting) run either way.
       - name: Check OPENROUTER_API_KEY
         id: has_openrouter_key
         env:
@@ -76,15 +75,13 @@ jobs:
         if: steps.has_openrouter_key.outputs.value == 'true'
         run: kind load docker-image ghcr.io/dlddu/dear-baby-worker:ci --name dear-baby-integration
 
-      # Seed the split secrets the backend reads from before applying the
-      # Deployment — with these in place the AI-preview routes come online,
+      # Seed the auth secret the backend reads from before applying the
+      # Deployment — with this in place the AI-preview routes come online,
       # which the checks below exercise end-to-end.
-      - name: Create auth + internal-auth secrets
+      - name: Create auth secret
         run: |
           kubectl create secret generic auth-secret \
             --from-literal=JWT_SECRET=integration-jwt-secret
-          kubectl create secret generic internal-auth-secret \
-            --from-literal=INTERNAL_API_TOKEN=integration-token
 
       - name: Create OpenRouter secret
         if: steps.has_openrouter_key.outputs.value == 'true'
@@ -221,59 +218,6 @@ jobs:
           fi
           echo "backend Redis wiring OK"
 
-      - name: Internal API rejects missing token
-        run: |
-          set -euo pipefail
-          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
-            http://127.0.0.1:18080/internal/tasks/ai-preview/pending)
-          if [ "$code" != "401" ]; then
-            echo "expected 401 without token, got $code, body=$(cat /tmp/body.txt)"
-            exit 1
-          fi
-          echo "unauth → 401 OK"
-
-      - name: Internal API rejects wrong token
-        run: |
-          set -euo pipefail
-          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
-            -H 'X-Internal-Token: definitely-not-the-token' \
-            http://127.0.0.1:18080/internal/tasks/ai-preview/pending)
-          if [ "$code" != "401" ]; then
-            echo "expected 401 with wrong token, got $code, body=$(cat /tmp/body.txt)"
-            exit 1
-          fi
-          echo "wrong token → 401 OK"
-
-      - name: Internal API happy path — pending list is empty
-        # With a correct token and no users seeded, the pending list
-        # must be an empty JSON array. Proves the Redis-backed routes
-        # mounted and that the token we seeded matches the backend's.
-        run: |
-          set -euo pipefail
-          body=$(curl -fsS \
-            -H 'X-Internal-Token: integration-token' \
-            http://127.0.0.1:18080/internal/tasks/ai-preview/pending)
-          echo "pending response: $body"
-          if [ "$body" != "[]" ]; then
-            echo "expected [], got $body"
-            exit 1
-          fi
-
-      - name: Internal API 404s on unknown user
-        run: |
-          set -euo pipefail
-          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
-            -X POST \
-            -H 'X-Internal-Token: integration-token' \
-            -H 'Content-Type: application/json' \
-            -d '{"user_id":"does-not-exist","preview":"hello"}' \
-            http://127.0.0.1:18080/internal/onboarding/ai-preview)
-          if [ "$code" != "404" ]; then
-            echo "expected 404 for unknown user, got $code, body=$(cat /tmp/body.txt)"
-            exit 1
-          fi
-          echo "unknown user → 404 OK"
-
       - name: AI preview enqueue path is gated on Redis
         # POST /onboarding/ai-preview requires a valid access token from
         # the auth pipeline. Assert that the route exists (401) rather
@@ -292,9 +236,10 @@ jobs:
       # ─── End-to-end: real OpenRouter call via the worker ─────────────
       #
       # Goes all the way through: test-login → record save → AI preview
-      # enqueue → worker reads queue → OpenRouter call → save via
-      # internal API → /me reflects ai_preview. Prints the generated
-      # preview to the job log for visual inspection of each CI run.
+      # enqueue → worker reads queue → OpenRouter call → publishes result
+      # → backend hub processor persists → /me reflects ai_preview.
+      # Prints the generated preview to the job log for visual
+      # inspection of each CI run.
 
       - name: AI preview end-to-end (test-login → record → worker → /me)
         if: steps.has_openrouter_key.outputs.value == 'true'

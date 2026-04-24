@@ -5,15 +5,14 @@ import { handle } from '../tasks/ai-preview/handle';
 import { resultChannel } from '../protocol';
 
 // buildDeps stands up a minimal TaskDeps with every external collaborator
-// replaced by a controllable mock.
+// replaced by a controllable mock. The worker no longer talks to the
+// backend directly — it only calls OpenRouter and publishes on Redis.
 function buildDeps(options: {
   completionResponse?: unknown;
   completionError?: unknown;
-  saveError?: unknown;
   publishError?: unknown;
 }) {
   const publishes: Array<{ channel: string; message: string }> = [];
-  const saves: Array<{ userID: string; preview: string }> = [];
 
   const openrouter = {
     chat: {
@@ -38,33 +37,23 @@ function buildDeps(options: {
     }),
   } as unknown as import('ioredis').default;
 
-  const backend = {
-    listPendingAIPreviews: vi.fn(),
-    saveAIPreview: vi.fn().mockImplementation(async (userID: string, preview: string) => {
-      if (options.saveError) throw options.saveError;
-      saves.push({ userID, preview });
-    }),
-  };
-
   const logger = pino({ level: 'silent' });
 
   return {
-    deps: { redis, openrouter, model: 'test-model', backend, logger, tracing: null },
+    deps: { redis, openrouter, model: 'test-model', logger, tracing: null },
     publishes,
-    saves,
-    mocks: { openrouter, redis, backend },
+    mocks: { openrouter, redis },
   };
 }
 
 describe('ai-preview handle', () => {
-  it('generates, saves, and publishes ok', async () => {
-    const { deps, publishes, saves, mocks } = buildDeps({});
+  it('generates and publishes ok', async () => {
+    const { deps, publishes, mocks } = buildDeps({});
     await handle(
       { user_id: 'u1', record_id: 'r1', content: '오늘 너의 움직임을 처음 느꼈어.' },
       deps,
     );
 
-    expect(saves).toEqual([{ userID: 'u1', preview: '정리된 미리보기 ✨' }]);
     expect(publishes).toHaveLength(1);
     expect(publishes[0].channel).toBe(resultChannel('ai_preview', 'u1'));
     const payload = JSON.parse(publishes[0].message);
@@ -81,8 +70,8 @@ describe('ai-preview handle', () => {
     expect(args.messages[1].content).toContain('움직임');
   });
 
-  it('publishes error + skips saveAIPreview on OpenRouter failure', async () => {
-    const { deps, publishes, saves, mocks } = buildDeps({
+  it('publishes error on OpenRouter failure', async () => {
+    const { deps, publishes } = buildDeps({
       completionError: new Error('openrouter down'),
     });
     await handle(
@@ -90,10 +79,6 @@ describe('ai-preview handle', () => {
       deps,
     );
 
-    expect(saves).toHaveLength(0);
-    expect(
-      (mocks.backend.saveAIPreview as ReturnType<typeof vi.fn>).mock.calls,
-    ).toHaveLength(0);
     expect(publishes).toHaveLength(1);
     const payload = JSON.parse(publishes[0].message);
     expect(payload.status).toBe('error');

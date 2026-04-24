@@ -12,10 +12,6 @@ function buildDeps(): TaskDeps {
     redis: {} as TaskDeps['redis'],
     openrouter: {} as TaskDeps['openrouter'],
     model: 'm',
-    backend: {
-      listPendingAIPreviews: vi.fn(),
-      saveAIPreview: vi.fn(),
-    },
     logger,
     tracing: null,
   };
@@ -25,12 +21,10 @@ describe('TaskRegistry', () => {
   it('dispatches to the task matching envelope.type', async () => {
     const registry = new TaskRegistry();
     const handle = vi.fn();
-    const sync = vi.fn();
     const task: Task<{ foo: string }> = {
       type: 't',
       schema: z.object({ foo: z.string() }),
       handle,
-      sync,
     };
     registry.register(task);
 
@@ -60,7 +54,6 @@ describe('TaskRegistry', () => {
       type: 't',
       schema: z.object({ foo: z.string() }),
       handle,
-      sync: vi.fn(),
     });
 
     await expect(
@@ -78,14 +71,12 @@ describe('TaskRegistry', () => {
       type: 't',
       schema: z.object({}),
       handle: vi.fn(),
-      sync: vi.fn(),
     });
     expect(() =>
       registry.register({
         type: 't',
         schema: z.object({}),
         handle: vi.fn(),
-        sync: vi.fn(),
       }),
     ).toThrow(/duplicate/);
   });

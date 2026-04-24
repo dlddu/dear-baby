@@ -12,7 +12,6 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/auth"
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
-	"github.com/dlddu/dear-baby/backend/internal/internalapi"
 	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 	"github.com/dlddu/dear-baby/backend/internal/records"
 	"github.com/dlddu/dear-baby/backend/internal/tasks"
@@ -109,17 +108,6 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		r.Group(func(pr chi.Router) {
 			pr.Use(auth.RequireAuthWithQueryFallback(issuer))
 			pr.Get("/onboarding/ai-preview/events", onbHandlers.AIPreviewEvents)
-		})
-
-		// Internal API: token-guarded, cluster-local.
-		intHandlers := &internalapi.Handlers{
-			Onboarding: onboardingStore,
-			Token:      cfg.InternalAPIToken,
-		}
-		r.Group(func(pr chi.Router) {
-			pr.Use(intHandlers.RequireToken)
-			pr.Get("/internal/tasks/ai-preview/pending", intHandlers.ListPendingAIPreviews)
-			pr.Post("/internal/onboarding/ai-preview", intHandlers.SaveAIPreview)
 		})
 	}
 

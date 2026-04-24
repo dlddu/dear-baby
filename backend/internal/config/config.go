@@ -28,9 +28,6 @@ type Config struct {
 	// AI-preview features entirely; the router skips wiring Redis-backed
 	// routes so /health and auth still work without Redis.
 	RedisURL string
-	// InternalAPIToken guards requests under /internal/. Shared with the
-	// worker via the internal-auth-secret k8s Secret.
-	InternalAPIToken string
 }
 
 // Load reads the environment and returns a populated Config. It never fails
@@ -67,7 +64,6 @@ func Load() (*Config, error) {
 	}
 
 	cfg.RedisURL = os.Getenv("REDIS_URL")
-	cfg.InternalAPIToken = os.Getenv("INTERNAL_API_TOKEN")
 
 	return cfg, nil
 }

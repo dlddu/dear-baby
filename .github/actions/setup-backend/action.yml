@@ -10,10 +10,6 @@ inputs:
     description: REDIS_URL to export. Empty disables the AI-preview routes.
     required: false
     default: ""
-  internal-api-token:
-    description: INTERNAL_API_TOKEN — shared secret with the worker.
-    required: false
-    default: ""
 
 runs:
   using: composite
@@ -33,7 +29,6 @@ runs:
       shell: bash
       env:
         REDIS_URL: ${{ inputs.redis-url }}
-        INTERNAL_API_TOKEN: ${{ inputs.internal-api-token }}
       run: |
         nohup ./server > server.log 2>&1 &
         echo $! > server.pid

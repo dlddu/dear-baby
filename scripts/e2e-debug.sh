@@ -19,7 +19,6 @@ mkdir -p "$LOGDIR"
 
 : "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}"
 : "${OPENROUTER_MODEL:=openrouter/free}"
-: "${INTERNAL_API_TOKEN:=local-debug-token}"
 
 cleanup() {
   rc=$?
@@ -62,7 +61,6 @@ echo "=== 2/5: backend ==="
   go build -o /tmp/dear-baby-debug ./cmd/server
   TEST_AUTH_ENABLED=true \
   REDIS_URL=redis://localhost:6379 \
-  INTERNAL_API_TOKEN="$INTERNAL_API_TOKEN" \
   DATABASE_URL="file:$LOGDIR/dear-baby.db?_pragma=foreign_keys(1)" \
   PORT=8080 \
   nohup /tmp/dear-baby-debug >"$LOGDIR/backend.log" 2>&1 &
@@ -82,8 +80,6 @@ echo "=== 3/5: worker ==="
   if [ ! -d node_modules ]; then npm install --no-audit --no-fund; fi
   npm run build >/dev/null
   REDIS_URL=redis://localhost:6379 \
-  INTERNAL_API_URL=http://localhost:8080 \
-  INTERNAL_API_TOKEN="$INTERNAL_API_TOKEN" \
   OPENROUTER_API_KEY="$OPENROUTER_API_KEY" \
   OPENROUTER_MODEL="$OPENROUTER_MODEL" \
   LOG_LEVEL=debug \

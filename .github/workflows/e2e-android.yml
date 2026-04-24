@@ -26,7 +26,6 @@ jobs:
       # Mirrors the app-side flag so the backend mounts /auth/test-login for
       # the Maestro login flow. CI/dev only — never enable in production.
       TEST_AUTH_ENABLED: "true"
-      INTERNAL_API_TOKEN: "ci-internal-token"
       REDIS_URL: "redis://localhost:6379"
 
     steps:
@@ -37,14 +36,11 @@ jobs:
         uses: ./.github/actions/setup-backend
         with:
           redis-url: ${{ env.REDIS_URL }}
-          internal-api-token: ${{ env.INTERNAL_API_TOKEN }}
 
       - name: Setup AI worker
         uses: ./.github/actions/setup-ai-worker
         with:
           redis-url: ${{ env.REDIS_URL }}
-          internal-api-url: "http://localhost:8080"
-          internal-api-token: ${{ env.INTERNAL_API_TOKEN }}
           openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
           langfuse-public-key: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           langfuse-secret-key: ${{ secrets.LANGFUSE_SECRET_KEY }}

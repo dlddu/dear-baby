@@ -14,6 +14,7 @@ import (
 
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
+	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 	"github.com/dlddu/dear-baby/backend/internal/tasks"
 )
 
@@ -58,12 +59,25 @@ func Run() error {
 		cancel()
 
 		hub = &tasks.Hub{Redis: redisClient, Logger: logger}
+		// Register per-task result processors before Start: they run
+		// before fanout, turning the hub from a dumb pubsub relay into
+		// the backend-side orchestrator that owns DB writes.
+		onboardingStore := &onboarding.Store{DB: sqlDB}
+		hub.RegisterProcessor("ai_preview", onboarding.AIPreviewProcessor(onboardingStore))
+
 		hubCtx, cancelHub := context.WithCancel(context.Background())
 		defer cancelHub()
 		if err := hub.Start(hubCtx); err != nil {
 			return err
 		}
 		defer hub.Stop()
+
+		// Boot-time sync: re-enqueue any user whose preview was never
+		// persisted. Covers Redis restarts and missed pub/sub messages
+		// without the worker needing to probe backend state.
+		syncCtx, cancelSync := context.WithTimeout(context.Background(), 10*time.Second)
+		onboarding.SyncPendingAIPreviews(syncCtx, onboardingStore, &tasks.Client{Redis: redisClient}, logger)
+		cancelSync()
 	} else {
 		logger.Warn("REDIS_URL not set — AI-preview routes disabled")
 	}
