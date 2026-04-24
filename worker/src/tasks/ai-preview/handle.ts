@@ -50,8 +50,8 @@ export async function handle(
   payload: AIPreviewPayload,
   deps: TaskDeps,
 ): Promise<void> {
-  const { user_id, content } = payload;
-  const log = deps.logger.child({ task: 'ai_preview', user_id });
+  const { user_id, content, attempt } = payload;
+  const log = deps.logger.child({ task: 'ai_preview', user_id, attempt });
 
   log.debug({ model: deps.model, contentLength: content.length }, 'handle start');
   const started = Date.now();
@@ -62,8 +62,6 @@ export async function handle(
       { elapsedMs: Date.now() - started, previewLength: preview.length },
       'openrouter returned',
     );
-    await deps.backend.saveAIPreview(user_id, preview);
-    log.debug('saved preview via internal API');
     await deps.redis.publish(
       resultChannel('ai_preview', user_id),
       JSON.stringify({ status: 'ok', preview }),
@@ -72,12 +70,13 @@ export async function handle(
   } catch (err) {
     const msg = errMessage(err);
     log.error({ err: msg }, 'preview generation failed');
-    // Do NOT write to the DB on failure — leaving ai_preview null keeps
-    // the next sync() + client retry viable.
+    // Persistence and retry decisions are the backend's job. Echo the
+    // attempt number so the backend processor can cap retries without
+    // tracking state itself.
     try {
       await deps.redis.publish(
         resultChannel('ai_preview', user_id),
-        JSON.stringify({ status: 'error', error: msg }),
+        JSON.stringify({ status: 'error', error: msg, attempt }),
       );
     } catch (pubErr) {
       log.error({ err: errMessage(pubErr) }, 'failed to publish error result');

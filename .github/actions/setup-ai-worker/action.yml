@@ -5,13 +5,6 @@ inputs:
   redis-url:
     description: REDIS_URL to connect to.
     required: true
-  internal-api-url:
-    description: Backend URL the worker should call back into.
-    required: true
-    default: "http://localhost:8080"
-  internal-api-token:
-    description: Shared internal-auth token.
-    required: true
   openrouter-api-key:
     description: OpenRouter API key.
     required: true
@@ -63,8 +56,6 @@ runs:
       shell: bash
       env:
         REDIS_URL: ${{ inputs.redis-url }}
-        INTERNAL_API_URL: ${{ inputs.internal-api-url }}
-        INTERNAL_API_TOKEN: ${{ inputs.internal-api-token }}
         OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
         OPENROUTER_MODEL: ${{ inputs.openrouter-model }}
         LOG_LEVEL: ${{ inputs.log-level }}
@@ -74,7 +65,6 @@ runs:
       run: |
         echo "worker env:"
         echo "  REDIS_URL=$REDIS_URL"
-        echo "  INTERNAL_API_URL=$INTERNAL_API_URL"
         echo "  OPENROUTER_MODEL=$OPENROUTER_MODEL"
         echo "  LOG_LEVEL=$LOG_LEVEL"
         echo "  OPENROUTER_API_KEY=$(printf '%s' "$OPENROUTER_API_KEY" | head -c 6)..."

@@ -31,9 +31,6 @@ spec:
           envFrom:
             - secretRef:
                 name: auth-secret
-            # INTERNAL_API_TOKEN, shared with the worker pod.
-            - secretRef:
-                name: internal-auth-secret
           volumeMounts:
             - name: data
               mountPath: /data

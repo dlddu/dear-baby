@@ -8,13 +8,17 @@ import { QUEUE_KEY, envelopeSchema } from './protocol';
 // - `type`: discriminator that matches the envelope's `type`.
 // - `schema`: runtime validator for the payload.
 // - `handle`: one-shot dispatch.
-// - `sync`: boot-time self-healing — read backend state and replay any
-//   work that Redis may have dropped.
+//
+// Boot-time recovery is the backend's responsibility: it re-enqueues any
+// work Redis may have dropped before the worker comes online, so tasks
+// stay pure compute.
 export interface Task<P> {
   readonly type: string;
-  readonly schema: z.ZodType<P>;
+  // Output type must match P; input type is left wide (`unknown`) so
+  // schemas can use `.default(...)` / transforms where the wire payload
+  // is narrower than the parsed result.
+  readonly schema: z.ZodType<P, z.ZodTypeDef, unknown>;
   handle(payload: P, deps: TaskDeps): Promise<void>;
-  sync(deps: TaskDeps): Promise<void>;
 }
 
 // TaskRegistry tracks registered tasks and dispatches raw envelopes to
@@ -46,10 +50,9 @@ export class TaskRegistry {
   }
 }
 
-// runWorker is the main event loop. On boot it runs every task's sync()
-// in parallel so outages or lost-message scenarios self-heal before the
-// worker starts taking fresh jobs. Then it BRPOPs forever, dispatching
-// envelopes until `stop()` is called.
+// runWorker is the main event loop. It BRPOPs forever, dispatching
+// envelopes until `stop()` is called. Recovery of messages lost across
+// restarts happens on the backend side, not here.
 export interface WorkerOptions {
   registry: TaskRegistry;
   deps: TaskDeps;
@@ -70,22 +73,6 @@ export function runWorker(opts: WorkerOptions): WorkerHandle {
   const { registry, deps, logger, blockTimeoutSec = 5 } = opts;
   let stopping = false;
   let currentLoop: Promise<void> | null = null;
-
-  const sync = async () => {
-    logger.info({ tasks: registry.all().map((t) => t.type) }, 'running sync()');
-    await Promise.all(
-      registry.all().map(async (task) => {
-        try {
-          await task.sync(deps);
-        } catch (err) {
-          logger.error(
-            { task: task.type, err: errMessage(err) },
-            'task sync() failed',
-          );
-        }
-      }),
-    );
-  };
 
   const consume = async () => {
     logger.info({ queue: QUEUE_KEY, blockTimeoutSec }, 'entering consume loop');
@@ -119,10 +106,7 @@ export function runWorker(opts: WorkerOptions): WorkerHandle {
     }
   };
 
-  currentLoop = (async () => {
-    await sync();
-    await consume();
-  })();
+  currentLoop = consume();
 
   return {
     async stop() {

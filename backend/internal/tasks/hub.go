@@ -24,6 +24,21 @@ type ResultMessage struct {
 	Payload  string
 }
 
+// ResultProcessor runs on every inbound result for a task type before
+// fanout. It returns:
+//   - fanout=true, err=nil   → forward payload to subscribers
+//   - fanout=false, err=nil  → silently suppress (processor scheduled
+//     follow-up work like a retry; the UI should stay in its current
+//     state until a subsequent publish arrives)
+//   - fanout=false, err!=nil → drop with a warning log (persistence
+//     failed, malformed payload, etc.)
+//
+// The typical "happy path" use is persisting the outcome (e.g. writing
+// ai_preview to the DB) so a late-arriving SSE client can still read
+// the value from the snapshot. The silent-skip form covers transient
+// retries, where subscribers must not observe the interim failure.
+type ResultProcessor func(ctx context.Context, userID, payload string) (fanout bool, err error)
+
 // Hub fans Redis pub/sub messages out to in-process subscribers. One
 // PSUBSCRIBE in front of N SSE goroutines so a burst of connected
 // clients does not multiply Redis connections.
@@ -33,6 +48,7 @@ type Hub struct {
 
 	mu          sync.Mutex
 	subscribers map[subscriberKey]map[chan ResultMessage]struct{}
+	processors  map[string]ResultProcessor
 	running     bool
 	cancel      context.CancelFunc
 }
@@ -40,6 +56,22 @@ type Hub struct {
 type subscriberKey struct {
 	TaskType string
 	UserID   string
+}
+
+// RegisterProcessor attaches a processor for a given task type. Must be
+// called before Start — the loop reads the map without locking on the
+// hot path. Overwrites any previously registered processor for the same
+// task type.
+func (h *Hub) RegisterProcessor(taskType string, p ResultProcessor) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.running {
+		panic("tasks.Hub: RegisterProcessor called after Start")
+	}
+	if h.processors == nil {
+		h.processors = make(map[string]ResultProcessor)
+	}
+	h.processors[taskType] = p
 }
 
 // Start begins the background PSUBSCRIBE loop. Idempotent: calling twice
@@ -145,17 +177,18 @@ func (h *Hub) loop(ctx context.Context, ps *redis.PubSub) {
 			if !ok {
 				return
 			}
-			h.deliver(msg)
+			h.deliver(ctx, msg)
 		}
 	}
 }
 
-// deliver parses a raw pubsub message and hands it to every registered
-// subscriber for its (task_type, user_id). Full buffers are dropped so a
-// slow SSE client cannot block the hub — clients receive only the latest
+// deliver parses a raw pubsub message, runs any registered processor
+// (e.g. DB persistence), and hands the result to every subscriber for
+// the matching (task_type, user_id). Full buffers are dropped so a slow
+// SSE client cannot block the hub — clients receive only the latest
 // outcome in that case, which matches UX expectations (one status
 // transition per job).
-func (h *Hub) deliver(msg *redis.Message) {
+func (h *Hub) deliver(ctx context.Context, msg *redis.Message) {
 	taskType, userID, ok := parseChannel(msg.Channel)
 	if !ok {
 		if h.Logger != nil {
@@ -163,6 +196,24 @@ func (h *Hub) deliver(msg *redis.Message) {
 		}
 		return
 	}
+
+	// Processors run before fanout so persistence is visible to any
+	// snapshot read that follows the SSE notification. See
+	// ResultProcessor docs for the (fanout, err) semantics.
+	if p := h.processors[taskType]; p != nil {
+		fanout, err := p(ctx, userID, msg.Payload)
+		if err != nil {
+			if h.Logger != nil {
+				h.Logger.Warn("result processor failed; dropping fanout",
+					"task", taskType, "user_id", userID, "err", err)
+			}
+			return
+		}
+		if !fanout {
+			return
+		}
+	}
+
 	rm := ResultMessage{TaskType: taskType, UserID: userID, Payload: msg.Payload}
 
 	h.mu.Lock()

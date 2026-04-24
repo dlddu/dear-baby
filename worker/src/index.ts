@@ -1,7 +1,6 @@
 import IORedis from 'ioredis';
 import pino from 'pino';
 
-import { httpInternalAPI } from './deps';
 import { TaskRegistry, runWorker } from './framework';
 import { openrouterClient } from './openrouter';
 import { aiPreviewTask } from './tasks/ai-preview';
@@ -24,14 +23,10 @@ async function main(): Promise<void> {
   });
 
   let redisURL: string;
-  let internalAPIURL: string;
-  let internalAPIToken: string;
   let openrouterAPIKey: string;
   let model: string;
   try {
     redisURL = requireEnv('REDIS_URL');
-    internalAPIURL = requireEnv('INTERNAL_API_URL');
-    internalAPIToken = requireEnv('INTERNAL_API_TOKEN');
     openrouterAPIKey = requireEnv('OPENROUTER_API_KEY');
     model = requireEnv('OPENROUTER_MODEL');
   } catch (err) {
@@ -53,11 +48,6 @@ async function main(): Promise<void> {
     redis,
     openrouter: openrouterClient(openrouterAPIKey),
     model,
-    backend: httpInternalAPI({
-      baseURL: internalAPIURL,
-      token: internalAPIToken,
-      logger,
-    }),
     logger,
     tracing,
   };

@@ -25,8 +25,6 @@ spec:
             # so dev/integration clusters don't need paid credits.
             - name: OPENROUTER_MODEL
               value: "openrouter/free"
-            - name: INTERNAL_API_URL
-              value: "http://dear-baby:8080"
             # In-cluster Redis is ClusterIP-only with no auth, so the URL
             # carries no secret material — keep it as plain config.
             - name: REDIS_URL
@@ -34,8 +32,6 @@ spec:
           envFrom:
             - secretRef:
                 name: openrouter-secret
-            - secretRef:
-                name: internal-auth-secret
             # Optional: when langfuse-secret is missing, observeOpenAI
             # degrades to a pass-through and the worker still ships.
             - secretRef:

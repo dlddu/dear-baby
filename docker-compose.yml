@@ -16,7 +16,6 @@ services:
       PORT: "8080"
       DATABASE_URL: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"
       REDIS_URL: "redis://redis:6379"
-      INTERNAL_API_TOKEN: "${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN required}"
     ports:
       - "8080:8080"
     volumes:
@@ -29,8 +28,6 @@ services:
       context: ./worker
     environment:
       REDIS_URL: "redis://redis:6379"
-      INTERNAL_API_URL: "http://backend:8080"
-      INTERNAL_API_TOKEN: "${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN required}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY required}"
       OPENROUTER_MODEL: "${OPENROUTER_MODEL:?OPENROUTER_MODEL required}"
       # Langfuse keys are optional locally — without them the span
