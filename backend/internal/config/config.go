@@ -24,6 +24,10 @@ type Config struct {
 	// session for any requested email without OAuth verification. Set via
 	// the TEST_AUTH_ENABLED env var ("1" or "true").
 	TestAuthEnabled bool
+	// RedisURL points at the shared queue/broker. Empty disables
+	// AI-preview features entirely; the router skips wiring Redis-backed
+	// routes so /health and auth still work without Redis.
+	RedisURL string
 }
 
 // Load reads the environment and returns a populated Config. It never fails
@@ -58,6 +62,8 @@ func Load() (*Config, error) {
 	case "1", "true", "yes", "on":
 		cfg.TestAuthEnabled = true
 	}
+
+	cfg.RedisURL = os.Getenv("REDIS_URL")
 
 	return cfg, nil
 }

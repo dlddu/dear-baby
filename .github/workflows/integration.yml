@@ -21,24 +21,134 @@ jobs:
           tags: ghcr.io/dlddu/dear-baby:ci
           cache-from: type=gha
 
+      # OPENROUTER_API_KEY gates the end-to-end AI preview test below.
+      # Plumbing tests (Redis wiring, route mounting) run either way.
+      - name: Check OPENROUTER_API_KEY
+        id: has_openrouter_key
+        env:
+          OR_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -n "$OR_KEY" ]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::OPENROUTER_API_KEY not set — end-to-end AI preview integration skipped"
+          fi
+
+      # LANGFUSE_{PUBLIC,SECRET}_KEY, when present, activate the
+      # observeOpenAI wrapper inside the worker so CI runs ship traces.
+      # Both keys are required together; the worker deployment references
+      # langfuse-secret as optional, so absence is a no-op pass-through.
+      - name: Check Langfuse keys
+        id: has_langfuse_keys
+        env:
+          LF_PUB: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LF_SEC: ${{ secrets.LANGFUSE_SECRET_KEY }}
+        run: |
+          if [ -n "$LF_PUB" ] && [ -n "$LF_SEC" ]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::LANGFUSE_PUBLIC_KEY/LANGFUSE_SECRET_KEY not set — worker will run without Langfuse tracing"
+          fi
+
+      - name: Build worker image (local)
+        if: steps.has_openrouter_key.outputs.value == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: worker
+          file: worker/Dockerfile
+          push: false
+          load: true
+          tags: ghcr.io/dlddu/dear-baby-worker:ci
+          cache-from: type=gha
+
       - name: Create kind cluster
         uses: helm/kind-action@v1
         with:
           cluster_name: dear-baby-integration
 
-      - name: Load image into kind
+      - name: Load backend image into kind
         run: kind load docker-image ghcr.io/dlddu/dear-baby:ci --name dear-baby-integration
 
-      - name: Apply manifests
+      - name: Load worker image into kind
+        if: steps.has_openrouter_key.outputs.value == 'true'
+        run: kind load docker-image ghcr.io/dlddu/dear-baby-worker:ci --name dear-baby-integration
+
+      # Seed the auth secret the backend reads from before applying the
+      # Deployment — with this in place the AI-preview routes come online,
+      # which the checks below exercise end-to-end.
+      - name: Create auth secret
+        run: |
+          kubectl create secret generic auth-secret \
+            --from-literal=JWT_SECRET=integration-jwt-secret
+
+      - name: Create OpenRouter secret
+        if: steps.has_openrouter_key.outputs.value == 'true'
+        env:
+          OR_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          kubectl create secret generic openrouter-secret \
+            --from-literal=OPENROUTER_API_KEY="$OR_KEY"
+
+      # Worker's envFrom references langfuse-secret as optional: true, so
+      # it's safe to skip this when keys aren't configured. Default base
+      # URL is US (our account region); override by setting the
+      # LANGFUSE_BASE_URL GitHub secret.
+      - name: Create Langfuse secret
+        if: steps.has_openrouter_key.outputs.value == 'true' && steps.has_langfuse_keys.outputs.value == 'true'
+        env:
+          LF_PUB: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LF_SEC: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LF_BASE: ${{ secrets.LANGFUSE_BASE_URL }}
+        run: |
+          kubectl create secret generic langfuse-secret \
+            --from-literal=LANGFUSE_PUBLIC_KEY="$LF_PUB" \
+            --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC" \
+            --from-literal=LANGFUSE_BASE_URL="${LF_BASE:-https://us.cloud.langfuse.com}"
+
+      - name: Apply backend + Redis manifests
         run: |
           sed -i \
             -e 's|ghcr.io/dlddu/dear-baby:latest|ghcr.io/dlddu/dear-baby:ci|' \
             -e 's|imagePullPolicy: Always|imagePullPolicy: Never|' \
             k8s/deployment.yaml
-          kubectl apply -f k8s/
+          kubectl apply \
+            -f k8s/deployment.yaml \
+            -f k8s/service.yaml \
+            -f k8s/pvc.yaml \
+            -f k8s/redis-deployment.yaml \
+            -f k8s/redis-service.yaml
 
-      - name: Wait for rollout
+      - name: Apply worker manifest
+        if: steps.has_openrouter_key.outputs.value == 'true'
+        run: |
+          sed -i \
+            -e 's|ghcr.io/dlddu/dear-baby-worker:latest|ghcr.io/dlddu/dear-baby-worker:ci|' \
+            -e 's|imagePullPolicy: Always|imagePullPolicy: Never|' \
+            k8s/worker-deployment.yaml
+          kubectl apply -f k8s/worker-deployment.yaml
+
+      # Enable /auth/test-login so the end-to-end test can mint a
+      # session without going through Google OAuth. Only effective on
+      # this cluster; the production manifests don't carry this env.
+      # Triggers a backend rollout.
+      - name: Enable test auth on backend
+        run: |
+          kubectl set env deployment/dear-baby TEST_AUTH_ENABLED=true
+
+      - name: Wait for Redis rollout
+        run: kubectl rollout status deployment/redis --timeout=120s
+
+      - name: Wait for backend rollout
+        # Backend pings Redis at startup; a failure here means the pod
+        # couldn't reach the Redis service or env vars weren't plumbed
+        # through.
         run: kubectl rollout status deployment/dear-baby --timeout=180s
+
+      - name: Wait for worker rollout
+        if: steps.has_openrouter_key.outputs.value == 'true'
+        run: kubectl rollout status deployment/worker --timeout=120s
 
       - name: Diagnostics on rollout failure
         if: failure()
@@ -49,36 +159,169 @@ jobs:
           echo "::group::kubectl describe deployment/dear-baby"
           kubectl describe deployment/dear-baby || true
           echo "::endgroup::"
+          echo "::group::kubectl describe deployment/redis"
+          kubectl describe deployment/redis || true
+          echo "::endgroup::"
+          echo "::group::kubectl describe deployment/worker"
+          kubectl describe deployment/worker || true
+          echo "::endgroup::"
           echo "::group::kubectl describe pods"
           kubectl describe pods -l app=dear-baby || true
+          kubectl describe pods -l app=redis || true
+          kubectl describe pods -l app=worker || true
           echo "::endgroup::"
           echo "::group::kubectl logs"
           kubectl logs deployment/dear-baby --tail=200 --all-containers=true || true
           kubectl logs deployment/dear-baby --tail=200 --all-containers=true --previous || true
+          kubectl logs deployment/redis --tail=200 --all-containers=true || true
+          kubectl logs deployment/worker --tail=200 --all-containers=true || true
           echo "::endgroup::"
           echo "::group::kubectl get events"
           kubectl get events --sort-by=.lastTimestamp || true
           echo "::endgroup::"
 
-      - name: Integration test /health via Service
+      - name: Port-forward backend
         run: |
-          set -euo pipefail
           kubectl port-forward svc/dear-baby 18080:8080 >/tmp/pf.log 2>&1 &
-          PF_PID=$!
-          trap "kill $PF_PID 2>/dev/null || true" EXIT
-
+          echo $! > /tmp/pf.pid
+          # Wait for the forward to accept.
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:18080/health >/tmp/resp.json 2>/dev/null; then
-              echo "response: $(cat /tmp/resp.json)"
-              grep -q '"status":"ok"' /tmp/resp.json
-              echo "integration test passed"
+            if curl -fsS http://127.0.0.1:18080/health >/dev/null 2>&1; then
+              echo "port-forward ready"
               exit 0
             fi
             sleep 1
           done
-
-          echo "integration test failed; diagnostics:"
-          kubectl get pods,svc,endpoints -o wide
-          kubectl describe deployment/dear-baby
-          kubectl logs deployment/dear-baby --tail=200 || true
+          echo "port-forward never came up"
+          cat /tmp/pf.log
           exit 1
+
+      - name: Integration test /health via Service
+        run: |
+          set -euo pipefail
+          curl -fsS http://127.0.0.1:18080/health >/tmp/resp.json
+          echo "response: $(cat /tmp/resp.json)"
+          grep -q '"status":"ok"' /tmp/resp.json
+          echo "health check passed"
+
+      - name: Backend connected to Redis
+        # REDIS_URL is wired as a plain env var on the deployment; if
+        # the backend failed to ping Redis on boot, the rollout above
+        # would have timed out. Belt-and-braces: confirm the "disabled"
+        # warning is not in the logs.
+        run: |
+          set -euo pipefail
+          if kubectl logs deployment/dear-baby --tail=500 | grep -q 'REDIS_URL not set'; then
+            echo "backend logs claim REDIS_URL is unset — secret wiring broken"
+            kubectl logs deployment/dear-baby --tail=500
+            exit 1
+          fi
+          echo "backend Redis wiring OK"
+
+      - name: AI preview enqueue path is gated on Redis
+        # POST /onboarding/ai-preview requires a valid access token from
+        # the auth pipeline. Assert that the route exists (401) rather
+        # than 404 — a 404 would mean the Redis-dependent route group
+        # didn't mount.
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
+            -X POST http://127.0.0.1:18080/onboarding/ai-preview)
+          if [ "$code" != "401" ]; then
+            echo "expected 401 (route exists, auth missing), got $code, body=$(cat /tmp/body.txt)"
+            exit 1
+          fi
+          echo "AI preview route mounted (401 on unauth) OK"
+
+      # ─── End-to-end: real OpenRouter call via the worker ─────────────
+      #
+      # Goes all the way through: test-login → record save → AI preview
+      # enqueue → worker reads queue → OpenRouter call → publishes result
+      # → backend hub processor persists → /me reflects ai_preview.
+      # Prints the generated preview to the job log for visual
+      # inspection of each CI run.
+
+      - name: AI preview end-to-end (test-login → record → worker → /me)
+        if: steps.has_openrouter_key.outputs.value == 'true'
+        run: |
+          set -euo pipefail
+
+          echo "::group::test-login"
+          session=$(curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"integration@dear-baby.test","onboarded":true}' \
+            http://127.0.0.1:18080/auth/test-login)
+          echo "$session" | head -c 200
+          echo
+          access_token=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          user_id=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["user"]["id"])')
+          echo "user_id=$user_id"
+          echo "::endgroup::"
+
+          echo "::group::create record"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"content":"today i felt you move for the first time"}' \
+            http://127.0.0.1:18080/records >/tmp/record.json
+          cat /tmp/record.json | head -c 400
+          echo
+          echo "::endgroup::"
+
+          echo "::group::request AI preview"
+          code=$(curl -s -o /tmp/req.txt -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $access_token" \
+            http://127.0.0.1:18080/onboarding/ai-preview)
+          if [ "$code" != "202" ]; then
+            echo "expected 202, got $code body=$(cat /tmp/req.txt)"
+            exit 1
+          fi
+          echo "enqueue accepted (202)"
+          echo "::endgroup::"
+
+          echo "::group::poll /me for ai_preview (up to 45s)"
+          preview=""
+          for i in $(seq 1 45); do
+            preview=$(curl -fsS \
+              -H "Authorization: Bearer $access_token" \
+              http://127.0.0.1:18080/me \
+              | python3 -c 'import json,sys; v=json.load(sys.stdin).get("ai_preview") or ""; print(v)')
+            if [ -n "$preview" ]; then
+              break
+            fi
+            sleep 1
+          done
+          if [ -z "$preview" ]; then
+            echo "ai_preview did not arrive within 45s"
+            echo "--- worker logs ---"
+            kubectl logs deployment/worker --tail=300 --all-containers=true || true
+            echo "--- backend logs ---"
+            kubectl logs deployment/dear-baby --tail=300 --all-containers=true || true
+            exit 1
+          fi
+          echo "ai_preview received:"
+          echo "---"
+          echo "$preview"
+          echo "---"
+          echo "::endgroup::"
+
+          echo "::group::worker logs (preview_ready entry)"
+          # The handler logs {preview, msg: "preview ready"} — grep it
+          # so the exact model output is visible in the job log too.
+          kubectl logs deployment/worker --tail=500 --all-containers=true \
+            | grep -E 'preview ready|preview generation failed' \
+            || { echo "no preview log line found"; kubectl logs deployment/worker --tail=500 --all-containers=true; exit 1; }
+          echo "::endgroup::"
+
+      - name: Full worker logs (debug)
+        if: always() && steps.has_openrouter_key.outputs.value == 'true'
+        run: |
+          kubectl logs deployment/worker --tail=500 --all-containers=true || true
+
+      - name: Stop port-forward
+        if: always()
+        run: |
+          if [ -f /tmp/pf.pid ]; then
+            kill "$(cat /tmp/pf.pid)" || true
+          fi

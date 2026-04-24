@@ -103,3 +103,13 @@ func (s *statusWriter) WriteHeader(code int) {
 	s.status = code
 	s.ResponseWriter.WriteHeader(code)
 }
+
+// Flush forwards to the wrapped writer's Flusher implementation when
+// present. Required for SSE handlers — without this, the type assertion
+// `w.(http.Flusher)` inside the handler fails because Go does not
+// auto-promote interface methods from the embedded ResponseWriter.
+func (s *statusWriter) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}

@@ -1,0 +1,45 @@
+services:
+  # Volatile Redis — no PVC, no AOF, no RDB. AI-preview jobs recover from
+  # the onboarding table on worker boot, so losing the queue on a restart
+  # is acceptable. See k8s/redis-deployment.yaml for the mirroring prod
+  # configuration.
+  redis:
+    image: redis:7-alpine
+    command: ["--appendonly", "no", "--save", ""]
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"
+      REDIS_URL: "redis://redis:6379"
+    ports:
+      - "8080:8080"
+    volumes:
+      - backend-data:/data
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: ./worker
+    environment:
+      REDIS_URL: "redis://redis:6379"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY required}"
+      OPENROUTER_MODEL: "${OPENROUTER_MODEL:?OPENROUTER_MODEL required}"
+      # Langfuse keys are optional locally — without them the span
+      # processor is never installed and observeOpenAI spans go nowhere.
+      # LANGFUSE_BASE_URL defaults to US (our account region); set it
+      # explicitly if you switch projects.
+      LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY:-}"
+      LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY:-}"
+      LANGFUSE_BASE_URL: "${LANGFUSE_BASE_URL:-https://us.cloud.langfuse.com}"
+    depends_on:
+      - redis
+      - backend
+
+volumes:
+  backend-data: {}

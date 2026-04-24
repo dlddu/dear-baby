@@ -10,8 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
+	"github.com/dlddu/dear-baby/backend/internal/onboarding"
+	"github.com/dlddu/dear-baby/backend/internal/tasks"
 )
 
 // Run loads config, opens the DB, applies migrations, starts the HTTP server,
@@ -35,7 +39,52 @@ func Run() error {
 		return err
 	}
 
-	r := newRouter(cfg, sqlDB, logger)
+	// Redis + pubsub hub are optional: local dev without Redis skips
+	// wiring the AI-preview routes so /health and auth still work.
+	var redisClient *redis.Client
+	var hub *tasks.Hub
+	if cfg.RedisURL != "" {
+		opt, err := redis.ParseURL(cfg.RedisURL)
+		if err != nil {
+			return err
+		}
+		redisClient = redis.NewClient(opt)
+		defer redisClient.Close()
+
+		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := redisClient.Ping(pingCtx).Err(); err != nil {
+			cancel()
+			return err
+		}
+		cancel()
+
+		hub = &tasks.Hub{Redis: redisClient, Logger: logger}
+		// Register per-task result processors before Start: they run
+		// before fanout, turning the hub from a dumb pubsub relay into
+		// the backend-side orchestrator that owns DB writes and retries.
+		onboardingStore := &onboarding.Store{DB: sqlDB}
+		tasksClient := &tasks.Client{Redis: redisClient}
+		hub.RegisterProcessor("ai_preview",
+			onboarding.AIPreviewProcessor(onboardingStore, tasksClient, logger))
+
+		hubCtx, cancelHub := context.WithCancel(context.Background())
+		defer cancelHub()
+		if err := hub.Start(hubCtx); err != nil {
+			return err
+		}
+		defer hub.Stop()
+
+		// Boot-time sync: re-enqueue any user whose preview was never
+		// persisted. Covers Redis restarts and missed pub/sub messages
+		// without the worker needing to probe backend state.
+		syncCtx, cancelSync := context.WithTimeout(context.Background(), 10*time.Second)
+		onboarding.SyncPendingAIPreviews(syncCtx, onboardingStore, tasksClient, logger)
+		cancelSync()
+	} else {
+		logger.Warn("REDIS_URL not set — AI-preview routes disabled")
+	}
+
+	r := newRouter(cfg, sqlDB, logger, redisClient, hub)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

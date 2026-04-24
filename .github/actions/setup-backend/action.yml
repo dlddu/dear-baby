@@ -6,6 +6,10 @@ inputs:
     description: Go version to install
     required: false
     default: "1.22"
+  redis-url:
+    description: REDIS_URL to export. Empty disables the AI-preview routes.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -23,6 +27,8 @@ runs:
     - name: Start backend
       working-directory: backend
       shell: bash
+      env:
+        REDIS_URL: ${{ inputs.redis-url }}
       run: |
         nohup ./server > server.log 2>&1 &
         echo $! > server.pid

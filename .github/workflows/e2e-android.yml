@@ -9,12 +9,24 @@ jobs:
     # x86_64 Linux runner with KVM enabled for hardware-accelerated emulation.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    services:
+      # Redis service container — backend/worker connect on localhost.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     env:
       EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
       EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
       # Mirrors the app-side flag so the backend mounts /auth/test-login for
       # the Maestro login flow. CI/dev only — never enable in production.
       TEST_AUTH_ENABLED: "true"
+      REDIS_URL: "redis://localhost:6379"
 
     steps:
       - name: Checkout
@@ -22,6 +34,17 @@ jobs:
 
       - name: Setup backend
         uses: ./.github/actions/setup-backend
+        with:
+          redis-url: ${{ env.REDIS_URL }}
+
+      - name: Setup AI worker
+        uses: ./.github/actions/setup-ai-worker
+        with:
+          redis-url: ${{ env.REDIS_URL }}
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+          langfuse-public-key: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          langfuse-secret-key: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          langfuse-baseurl: ${{ secrets.LANGFUSE_BASEURL }}
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -107,6 +130,7 @@ jobs:
           maestro test .maestro/health.yaml
           maestro test .maestro/login.yaml
           maestro test .maestro/onboarding-stage1.yaml
+          maestro test .maestro/onboarding-stage2.yaml
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 
@@ -133,6 +157,20 @@ jobs:
         uses: ./.github/actions/upload-maestro-artifacts
         with:
           name: maestro-android-output
+
+      - name: Upload backend + worker logs
+        if: always()
+        uses: ./.github/actions/upload-service-logs
+        with:
+          name: e2e-android
+
+      - name: Stop worker
+        if: always()
+        working-directory: worker
+        run: |
+          if [ -f worker.pid ]; then
+            kill "$(cat worker.pid)" || true
+          fi
 
       - name: Stop backend
         if: always()
