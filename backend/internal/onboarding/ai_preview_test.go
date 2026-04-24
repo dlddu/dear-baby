@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -43,17 +44,37 @@ func seedUser(t *testing.T, db *sql.DB, userID string) {
 	}
 }
 
-func TestAIPreviewProcessor_OkPersists(t *testing.T) {
+func newTestClient(t *testing.T) (*tasks.Client, *miniredis.Miniredis, func()) {
+	t.Helper()
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	cleanup := func() {
+		_ = rc.Close()
+		mr.Close()
+	}
+	return &tasks.Client{Redis: rc}, mr, cleanup
+}
+
+func TestAIPreviewProcessor_OkPersistsAndFanouts(t *testing.T) {
 	db := newProcessorDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1")
 
 	store := &Store{DB: db}
-	p := AIPreviewProcessor(store)
+	client, _, cleanup := newTestClient(t)
+	defer cleanup()
+	p := AIPreviewProcessor(store, client, slog.Default())
 
-	payload, _ := json.Marshal(map[string]string{"status": "ok", "preview": "hello there"})
-	if err := p(context.Background(), "u1", string(payload)); err != nil {
+	payload, _ := json.Marshal(map[string]any{"status": "ok", "preview": "hello there"})
+	fanout, err := p(context.Background(), "u1", string(payload))
+	if err != nil {
 		t.Fatalf("processor: %v", err)
+	}
+	if !fanout {
+		t.Error("expected fanout=true on ok")
 	}
 
 	var got sql.NullString
@@ -65,19 +86,30 @@ func TestAIPreviewProcessor_OkPersists(t *testing.T) {
 	}
 }
 
-func TestAIPreviewProcessor_ErrorSkipsPersistence(t *testing.T) {
+func TestAIPreviewProcessor_ErrorBelowCap_SchedulesRetry(t *testing.T) {
 	db := newProcessorDB(t)
 	defer db.Close()
 	seedUser(t, db, "u1")
+	// Seed a record so the retry path can look up GetOldestRecord.
+	if _, err := db.Exec(`INSERT INTO records (id, user_id, content) VALUES ('r1', 'u1', 'hi')`); err != nil {
+		t.Fatalf("seed record: %v", err)
+	}
 
 	store := &Store{DB: db}
-	p := AIPreviewProcessor(store)
+	client, mr, cleanup := newTestClient(t)
+	defer cleanup()
+	p := AIPreviewProcessor(store, client, slog.Default())
 
-	payload, _ := json.Marshal(map[string]string{"status": "error", "error": "openrouter timeout"})
-	// Returns nil so fanout still happens — the UI surfaces the error.
-	if err := p(context.Background(), "u1", string(payload)); err != nil {
+	payload, _ := json.Marshal(map[string]any{"status": "error", "error": "openrouter timeout", "attempt": 1})
+	fanout, err := p(context.Background(), "u1", string(payload))
+	if err != nil {
 		t.Fatalf("processor: %v", err)
 	}
+	if fanout {
+		t.Error("expected fanout=false (silent skip during retry)")
+	}
+
+	// DB must remain null — we don't persist error states.
 	var got sql.NullString
 	if err := db.QueryRow(`SELECT ai_preview FROM onboarding WHERE user_id='u1'`).Scan(&got); err != nil {
 		t.Fatalf("query: %v", err)
@@ -85,15 +117,126 @@ func TestAIPreviewProcessor_ErrorSkipsPersistence(t *testing.T) {
 	if got.Valid {
 		t.Errorf("expected null ai_preview, got %q", got.String)
 	}
+
+	// Retry is scheduled on a goroutine with a 500ms backoff. Poll the
+	// queue until it shows up — if we hit the deadline the retry never
+	// got enqueued.
+	deadline := time.Now().Add(2 * time.Second)
+	var items []string
+	for time.Now().Before(deadline) {
+		items, _ = mr.DB(0).List("tasks:queue")
+		if len(items) > 0 {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if len(items) != 1 {
+		t.Fatalf("queue: %d want 1", len(items))
+	}
+	var env struct {
+		Type    string `json:"type"`
+		Payload struct {
+			UserID  string `json:"user_id"`
+			Attempt int    `json:"attempt"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal([]byte(items[0]), &env); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if env.Type != "ai_preview" || env.Payload.UserID != "u1" || env.Payload.Attempt != 2 {
+		t.Errorf("envelope: %+v", env)
+	}
+}
+
+func TestAIPreviewProcessor_ErrorAtCap_FanoutsFinal(t *testing.T) {
+	db := newProcessorDB(t)
+	defer db.Close()
+	seedUser(t, db, "u1")
+
+	store := &Store{DB: db}
+	client, mr, cleanup := newTestClient(t)
+	defer cleanup()
+	p := AIPreviewProcessor(store, client, slog.Default())
+
+	// attempt == maxAIPreviewAttempts → no more retries; fanout so the
+	// UI can show the final error.
+	payload, _ := json.Marshal(map[string]any{"status": "error", "error": "openrouter timeout", "attempt": maxAIPreviewAttempts})
+	fanout, err := p(context.Background(), "u1", string(payload))
+	if err != nil {
+		t.Fatalf("processor: %v", err)
+	}
+	if !fanout {
+		t.Error("expected fanout=true on final error")
+	}
+
+	// Give the goroutine a moment — if it fired it would add to the
+	// queue, which we don't want.
+	time.Sleep(50 * time.Millisecond)
+	items, _ := mr.DB(0).List("tasks:queue")
+	if len(items) != 0 {
+		t.Errorf("expected no retry, got %d queue items", len(items))
+	}
+}
+
+func TestAIPreviewProcessor_ErrorWithZeroAttemptDefaultsToOne(t *testing.T) {
+	// A payload missing `attempt` should be treated as attempt=1 so we
+	// still get retries. Guards against drift with older worker versions.
+	db := newProcessorDB(t)
+	defer db.Close()
+	seedUser(t, db, "u1")
+	if _, err := db.Exec(`INSERT INTO records (id, user_id, content) VALUES ('r1', 'u1', 'hi')`); err != nil {
+		t.Fatalf("seed record: %v", err)
+	}
+
+	store := &Store{DB: db}
+	client, mr, cleanup := newTestClient(t)
+	defer cleanup()
+	p := AIPreviewProcessor(store, client, slog.Default())
+
+	payload, _ := json.Marshal(map[string]any{"status": "error", "error": "boom"})
+	fanout, err := p(context.Background(), "u1", string(payload))
+	if err != nil {
+		t.Fatalf("processor: %v", err)
+	}
+	if fanout {
+		t.Error("expected fanout=false (retry scheduled)")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	var items []string
+	for time.Now().Before(deadline) {
+		items, _ = mr.DB(0).List("tasks:queue")
+		if len(items) > 0 {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 retry, got %d", len(items))
+	}
+	var env struct {
+		Payload struct {
+			Attempt int `json:"attempt"`
+		} `json:"payload"`
+	}
+	_ = json.Unmarshal([]byte(items[0]), &env)
+	if env.Payload.Attempt != 2 {
+		t.Errorf("attempt: %d want 2", env.Payload.Attempt)
+	}
 }
 
 func TestAIPreviewProcessor_MalformedReturnsError(t *testing.T) {
 	db := newProcessorDB(t)
 	defer db.Close()
 	store := &Store{DB: db}
-	p := AIPreviewProcessor(store)
-	if err := p(context.Background(), "u1", "not-json"); err == nil {
+	client, _, cleanup := newTestClient(t)
+	defer cleanup()
+	p := AIPreviewProcessor(store, client, slog.Default())
+	fanout, err := p(context.Background(), "u1", "not-json")
+	if err == nil {
 		t.Fatal("expected error")
+	}
+	if fanout {
+		t.Error("expected fanout=false on malformed")
 	}
 }
 
@@ -102,18 +245,19 @@ func TestAIPreviewProcessor_OkWithoutPreviewIsError(t *testing.T) {
 	defer db.Close()
 	seedUser(t, db, "u1")
 	store := &Store{DB: db}
-	p := AIPreviewProcessor(store)
+	client, _, cleanup := newTestClient(t)
+	defer cleanup()
+	p := AIPreviewProcessor(store, client, slog.Default())
 
 	payload, _ := json.Marshal(map[string]string{"status": "ok"})
-	if err := p(context.Background(), "u1", string(payload)); err == nil {
+	if _, err := p(context.Background(), "u1", string(payload)); err == nil {
 		t.Fatal("expected error for ok without preview")
 	}
 }
 
-func TestSyncPendingAIPreviews_EnqueuesEachPending(t *testing.T) {
+func TestSyncPendingAIPreviews_EnqueuesEachPendingAtAttempt1(t *testing.T) {
 	db := newProcessorDB(t)
 	defer db.Close()
-	// Two pending users + one already-done user that must not be re-enqueued.
 	for _, uid := range []string{"u1", "u2", "done"} {
 		seedUser(t, db, uid)
 	}
@@ -127,15 +271,10 @@ func TestSyncPendingAIPreviews_EnqueuesEachPending(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis: %v", err)
-	}
-	defer mr.Close()
-	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer rc.Close()
+	client, mr, cleanup := newTestClient(t)
+	defer cleanup()
 
-	SyncPendingAIPreviews(context.Background(), &Store{DB: db}, &tasks.Client{Redis: rc}, slog.Default())
+	SyncPendingAIPreviews(context.Background(), &Store{DB: db}, client, slog.Default())
 
 	items, err := mr.DB(0).List("tasks:queue")
 	if err != nil {
@@ -144,13 +283,13 @@ func TestSyncPendingAIPreviews_EnqueuesEachPending(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("queue: %d want 2", len(items))
 	}
-	seen := map[string]bool{}
+	seen := map[string]int{}
 	for _, raw := range items {
 		var env struct {
 			Type    string `json:"type"`
 			Payload struct {
-				UserID   string `json:"user_id"`
-				RecordID string `json:"record_id"`
+				UserID  string `json:"user_id"`
+				Attempt int    `json:"attempt"`
 			} `json:"payload"`
 		}
 		if err := json.Unmarshal([]byte(raw), &env); err != nil {
@@ -159,9 +298,26 @@ func TestSyncPendingAIPreviews_EnqueuesEachPending(t *testing.T) {
 		if env.Type != "ai_preview" {
 			t.Errorf("type: %q", env.Type)
 		}
-		seen[env.Payload.UserID] = true
+		seen[env.Payload.UserID] = env.Payload.Attempt
 	}
-	if !seen["u1"] || !seen["u2"] || seen["done"] {
+	if seen["u1"] != 1 || seen["u2"] != 1 || seen["done"] != 0 {
 		t.Errorf("seen: %+v", seen)
+	}
+}
+
+func TestAIPreviewRetryBackoff(t *testing.T) {
+	cases := []struct {
+		in   int
+		want time.Duration
+	}{
+		{0, 500 * time.Millisecond},
+		{1, 500 * time.Millisecond},
+		{2, 1000 * time.Millisecond},
+		{3, 2000 * time.Millisecond},
+	}
+	for _, c := range cases {
+		if got := aiPreviewRetryBackoff(c.in); got != c.want {
+			t.Errorf("backoff(%d)=%v want %v", c.in, got, c.want)
+		}
 	}
 }

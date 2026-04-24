@@ -25,12 +25,19 @@ type ResultMessage struct {
 }
 
 // ResultProcessor runs on every inbound result for a task type before
-// fanout. Returning a non-nil error cancels fanout: the typical use is
-// persisting the outcome (e.g. writing ai_preview to the DB) so that a
-// late-arriving SSE client can still read the value from the snapshot.
-// If persistence fails, dropping the fanout keeps the UI consistent —
-// the client will re-subscribe / retry and hit the still-null snapshot.
-type ResultProcessor func(ctx context.Context, userID, payload string) error
+// fanout. It returns:
+//   - fanout=true, err=nil   → forward payload to subscribers
+//   - fanout=false, err=nil  → silently suppress (processor scheduled
+//     follow-up work like a retry; the UI should stay in its current
+//     state until a subsequent publish arrives)
+//   - fanout=false, err!=nil → drop with a warning log (persistence
+//     failed, malformed payload, etc.)
+//
+// The typical "happy path" use is persisting the outcome (e.g. writing
+// ai_preview to the DB) so a late-arriving SSE client can still read
+// the value from the snapshot. The silent-skip form covers transient
+// retries, where subscribers must not observe the interim failure.
+type ResultProcessor func(ctx context.Context, userID, payload string) (fanout bool, err error)
 
 // Hub fans Redis pub/sub messages out to in-process subscribers. One
 // PSUBSCRIBE in front of N SSE goroutines so a burst of connected
@@ -191,14 +198,18 @@ func (h *Hub) deliver(ctx context.Context, msg *redis.Message) {
 	}
 
 	// Processors run before fanout so persistence is visible to any
-	// snapshot read that follows the SSE notification. A processor error
-	// drops fanout entirely — see ResultProcessor docs for rationale.
+	// snapshot read that follows the SSE notification. See
+	// ResultProcessor docs for the (fanout, err) semantics.
 	if p := h.processors[taskType]; p != nil {
-		if err := p(ctx, userID, msg.Payload); err != nil {
+		fanout, err := p(ctx, userID, msg.Payload)
+		if err != nil {
 			if h.Logger != nil {
 				h.Logger.Warn("result processor failed; dropping fanout",
 					"task", taskType, "user_id", userID, "err", err)
 			}
+			return
+		}
+		if !fanout {
 			return
 		}
 	}

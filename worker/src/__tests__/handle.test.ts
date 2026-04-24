@@ -50,7 +50,7 @@ describe('ai-preview handle', () => {
   it('generates and publishes ok', async () => {
     const { deps, publishes, mocks } = buildDeps({});
     await handle(
-      { user_id: 'u1', record_id: 'r1', content: '오늘 너의 움직임을 처음 느꼈어.' },
+      { user_id: 'u1', record_id: 'r1', content: '오늘 너의 움직임을 처음 느꼈어.', attempt: 1 },
       deps,
     );
 
@@ -70,12 +70,12 @@ describe('ai-preview handle', () => {
     expect(args.messages[1].content).toContain('움직임');
   });
 
-  it('publishes error on OpenRouter failure', async () => {
+  it('publishes error with attempt echoed on OpenRouter failure', async () => {
     const { deps, publishes } = buildDeps({
       completionError: new Error('openrouter down'),
     });
     await handle(
-      { user_id: 'u9', record_id: 'r9', content: 'x' },
+      { user_id: 'u9', record_id: 'r9', content: 'x', attempt: 2 },
       deps,
     );
 
@@ -83,6 +83,8 @@ describe('ai-preview handle', () => {
     const payload = JSON.parse(publishes[0].message);
     expect(payload.status).toBe('error');
     expect(payload.error).toContain('openrouter down');
+    // Backend retry policy reads this to decide whether to re-enqueue.
+    expect(payload.attempt).toBe(2);
   });
 
   it('publishes error on empty model output', async () => {
@@ -90,12 +92,13 @@ describe('ai-preview handle', () => {
       completionResponse: { choices: [{ message: { content: '   ' } }] },
     });
     await handle(
-      { user_id: 'u2', record_id: 'r2', content: 'x' },
+      { user_id: 'u2', record_id: 'r2', content: 'x', attempt: 1 },
       deps,
     );
     const payload = JSON.parse(publishes[0].message);
     expect(payload.status).toBe('error');
     expect(payload.error).toContain('empty preview');
+    expect(payload.attempt).toBe(1);
   });
 
   it('survives a publish failure without throwing', async () => {
@@ -106,7 +109,7 @@ describe('ai-preview handle', () => {
     // Should not reject — the error path swallows publish failures after
     // logging so the worker can take the next job.
     await expect(
-      handle({ user_id: 'u3', record_id: 'r3', content: 'x' }, deps),
+      handle({ user_id: 'u3', record_id: 'r3', content: 'x', attempt: 1 }, deps),
     ).resolves.toBeUndefined();
   });
 });

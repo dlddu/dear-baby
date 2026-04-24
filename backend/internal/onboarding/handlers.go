@@ -33,6 +33,9 @@ type aiPreviewEnqueuePayload struct {
 	UserID   string `json:"user_id"`
 	RecordID string `json:"record_id"`
 	Content  string `json:"content"`
+	// Attempt starts at 1 on the initial enqueue. The worker echoes it
+	// back in the error result so AIPreviewProcessor can cap retries.
+	Attempt int `json:"attempt"`
 }
 
 // RequestAIPreview enqueues a job for the user's first/oldest record.
@@ -74,6 +77,7 @@ func (h *Handlers) RequestAIPreview(w http.ResponseWriter, r *http.Request) {
 		UserID:   userID,
 		RecordID: recordID,
 		Content:  content,
+		Attempt:  1,
 	}); err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "enqueue failed")
 		return

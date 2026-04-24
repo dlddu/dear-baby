@@ -68,9 +68,9 @@ func TestHubDeliver_ProcessorRunsBeforeFanout(t *testing.T) {
 
 	var processed atomic.Bool
 	var seenBySubscriberBefore atomic.Bool
-	h.RegisterProcessor("ai_preview", func(ctx context.Context, userID, payload string) error {
+	h.RegisterProcessor("ai_preview", func(ctx context.Context, userID, payload string) (bool, error) {
 		processed.Store(true)
-		return nil
+		return true, nil
 	})
 
 	ch, unsub := h.Subscribe("ai_preview", "u1")
@@ -106,8 +106,8 @@ func TestHubDeliver_ProcessorRunsBeforeFanout(t *testing.T) {
 // still-null snapshot and can retry cleanly.
 func TestHubDeliver_ProcessorErrorDropsFanout(t *testing.T) {
 	h := &Hub{}
-	h.RegisterProcessor("ai_preview", func(ctx context.Context, userID, payload string) error {
-		return errors.New("save failed")
+	h.RegisterProcessor("ai_preview", func(ctx context.Context, userID, payload string) (bool, error) {
+		return false, errors.New("save failed")
 	})
 
 	ch, unsub := h.Subscribe("ai_preview", "u1")
@@ -125,6 +125,34 @@ func TestHubDeliver_ProcessorErrorDropsFanout(t *testing.T) {
 		}
 	default:
 		// good — nothing delivered
+	}
+}
+
+// TestHubDeliver_ProcessorSilentSkip verifies that a processor returning
+// (false, nil) suppresses fanout without a warning — the path used when
+// a retry has been scheduled and subscribers must stay in their current
+// (loading) state until the next publish arrives.
+func TestHubDeliver_ProcessorSilentSkip(t *testing.T) {
+	h := &Hub{}
+	h.RegisterProcessor("ai_preview", func(ctx context.Context, userID, payload string) (bool, error) {
+		return false, nil
+	})
+
+	ch, unsub := h.Subscribe("ai_preview", "u1")
+	defer unsub()
+
+	h.deliver(context.Background(), &redis.Message{
+		Channel: "tasks:result:ai_preview:u1",
+		Payload: `{"status":"error","error":"transient","attempt":1}`,
+	})
+
+	select {
+	case msg, ok := <-ch:
+		if ok {
+			t.Errorf("expected no fanout, got %+v", msg)
+		}
+	default:
+		// good
 	}
 }
 

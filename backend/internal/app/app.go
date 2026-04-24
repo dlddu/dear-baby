@@ -61,9 +61,11 @@ func Run() error {
 		hub = &tasks.Hub{Redis: redisClient, Logger: logger}
 		// Register per-task result processors before Start: they run
 		// before fanout, turning the hub from a dumb pubsub relay into
-		// the backend-side orchestrator that owns DB writes.
+		// the backend-side orchestrator that owns DB writes and retries.
 		onboardingStore := &onboarding.Store{DB: sqlDB}
-		hub.RegisterProcessor("ai_preview", onboarding.AIPreviewProcessor(onboardingStore))
+		tasksClient := &tasks.Client{Redis: redisClient}
+		hub.RegisterProcessor("ai_preview",
+			onboarding.AIPreviewProcessor(onboardingStore, tasksClient, logger))
 
 		hubCtx, cancelHub := context.WithCancel(context.Background())
 		defer cancelHub()
@@ -76,7 +78,7 @@ func Run() error {
 		// persisted. Covers Redis restarts and missed pub/sub messages
 		// without the worker needing to probe backend state.
 		syncCtx, cancelSync := context.WithTimeout(context.Background(), 10*time.Second)
-		onboarding.SyncPendingAIPreviews(syncCtx, onboardingStore, &tasks.Client{Redis: redisClient}, logger)
+		onboarding.SyncPendingAIPreviews(syncCtx, onboardingStore, tasksClient, logger)
 		cancelSync()
 	} else {
 		logger.Warn("REDIS_URL not set — AI-preview routes disabled")

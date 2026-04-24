@@ -14,7 +14,10 @@ import { QUEUE_KEY, envelopeSchema } from './protocol';
 // stay pure compute.
 export interface Task<P> {
   readonly type: string;
-  readonly schema: z.ZodType<P>;
+  // Output type must match P; input type is left wide (`unknown`) so
+  // schemas can use `.default(...)` / transforms where the wire payload
+  // is narrower than the parsed result.
+  readonly schema: z.ZodType<P, z.ZodTypeDef, unknown>;
   handle(payload: P, deps: TaskDeps): Promise<void>;
 }
 

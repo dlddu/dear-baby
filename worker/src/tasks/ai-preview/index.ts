@@ -7,6 +7,10 @@ export const aiPreviewPayloadSchema = z.object({
   user_id: z.string().min(1),
   record_id: z.string().min(1),
   content: z.string().min(1),
+  // attempt is echoed back in the result so the backend can decide
+  // whether to schedule another retry or surface a final error. Default
+  // 1 keeps the wire compatible with older producers that never set it.
+  attempt: z.number().int().min(1).default(1),
 });
 
 export type AIPreviewPayload = z.infer<typeof aiPreviewPayloadSchema>;
