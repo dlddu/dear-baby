@@ -28,13 +28,46 @@ Stage 2 음성 기록(PRD-001)에서 발생하는 **원본 m4a 오디오**를 AW
 | 키 | 필수 | 예시 | 비고 |
 |---|------|------|------|
 | `AWS_REGION` | 필수 | `ap-northeast-2` | bucket과 동일 region |
-| `AWS_ASSUME_ROLE_ARN` | 선택 | `arn:aws:iam::123456789012:role/dear-baby-records-writer` | 비우면 default credential chain (로컬/IRSA용) |
+| `AWS_ASSUME_ROLE_ARN` | 선택 | `arn:aws:iam::123456789012:role/dear-baby-records-writer` | 비우면 default credential chain (로컬/IRSA용). MinIO에서는 무시됨 |
 | `AWS_S3_BUCKET` | 필수 | `dear-baby-records-prod` | 환경별로 다른 bucket |
 | `AWS_S3_KEY_PREFIX` | 선택 | `prod`, `staging`, `dev/alice` | 끝 슬래시는 백엔드에서 정규화. 빈값 = bucket 루트 |
+| `AWS_S3_ENDPOINT` | 선택 | `http://minio:9000` | S3 호환 서비스(MinIO/LocalStack)용 endpoint 오버라이드. AWS 운영에서는 비움 |
+| `AWS_S3_USE_PATH_STYLE` | 선택 | `true` | path-style URL 강제 (`endpoint/bucket/key`). MinIO에서 필수, AWS는 둘 다 가능 |
 
 `AWS_S3_BUCKET` 또는 `AWS_REGION`이 비어 있으면 `Config.AudioUploadsEnabled()`가
 false가 되고 라우터가 audio 엔드포인트를 503으로 응답한다 (라우트 자체는
 mount되어 있어 미설정 사실이 클라이언트 로그에 분명하게 드러난다).
+
+k8s `aws-assume-role-secret`은 **필수**다 (deployment의 `envFrom`에서
+`optional` 마커 없음). S3를 사용하지 않는 환경(로컬/CI)에서는 빈 값으로
+secret을 생성한다 — 그러면 위 가드에 걸려 audio 라우트만 503이 되고 그
+외 기능은 정상 동작한다. 누락 시 pod가 시작하지 못하므로 운영 사고를
+silent failure가 아닌 rollout failure로 surface 시킬 수 있다.
+
+## 로컬 개발 (MinIO)
+
+`docker-compose up`은 minio 서비스를 띄우고 `dear-baby-records-dev`
+bucket을 자동 생성한다. backend는 위 5개 env로 minio를 가리키도록
+이미 wired되어 있어, 별도 AWS 계정 없이 audio 엔드포인트를 실제로 호출해볼 수 있다.
+
+콘솔 (object 확인용): `http://localhost:9001` (id/pw `minioadmin`).
+
+## 통합 테스트
+
+`backend/internal/storage/integration_test.go`는 실제 S3 호환 서비스에
+대해 presign → PUT → HEAD 라운드트립을 검증한다.
+
+- 로컬: `docker-compose up minio minio-bootstrap` 후
+  ```
+  MINIO_ENDPOINT=http://127.0.0.1:9000 \
+  MINIO_ACCESS_KEY=minioadmin \
+  MINIO_SECRET_KEY=minioadmin \
+  MINIO_BUCKET=dear-baby-records-dev \
+    go test -v -run TestIntegration ./internal/storage/...
+  ```
+- CI: `.github/workflows/integration.yml`이 minio 컨테이너를 띄우고
+  bucket을 만든 뒤 위 명령을 실행한다.
+- env가 미설정이면 `t.Skip()` — 일반 `go test ./...`은 영향 없음.
 
 ## 키 컨벤션
 

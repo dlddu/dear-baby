@@ -41,14 +41,25 @@ import (
 // "objects live at users/{user}/records/{record}.m4a from the bucket
 // root." NormalizePrefix() folds away any user-supplied trailing slash so
 // downstream key building does not double-slash.
+//
+// Endpoint + UsePathStyle are escape hatches for S3-compatible services:
+// MinIO in tests, LocalStack in CI, etc. They have no effect when
+// pointed at AWS proper.
 type S3Config struct {
 	Region        string
 	AssumeRoleARN string
 	Bucket        string
 	Prefix        string
+	// Endpoint overrides the SDK's default endpoint resolution. Non-empty
+	// values are used verbatim (e.g. "http://minio:9000").
+	Endpoint string
+	// UsePathStyle forces `https://endpoint/bucket/key` URLs instead of
+	// `https://bucket.endpoint/key`. MinIO needs this; AWS works either
+	// way but virtual-host style is the default.
+	UsePathStyle bool
 }
 
-// LoadS3ConfigFromEnv reads the four AWS_* env vars. It returns the raw
+// LoadS3ConfigFromEnv reads the AWS_* env vars. It returns the raw
 // values without validating them — Validate() is the explicit step the
 // server's main wires in so missing values surface as a startup failure
 // rather than as silent runtime breakage on the first upload.
@@ -58,7 +69,17 @@ func LoadS3ConfigFromEnv() S3Config {
 		AssumeRoleARN: os.Getenv("AWS_ASSUME_ROLE_ARN"),
 		Bucket:        os.Getenv("AWS_S3_BUCKET"),
 		Prefix:        NormalizePrefix(os.Getenv("AWS_S3_KEY_PREFIX")),
+		Endpoint:      os.Getenv("AWS_S3_ENDPOINT"),
+		UsePathStyle:  isTrue(os.Getenv("AWS_S3_USE_PATH_STYLE")),
 	}
+}
+
+func isTrue(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 // Validate enforces that bucket + region are present. Role ARN is
@@ -106,6 +127,11 @@ type Client struct {
 // NewClient assumes the configured role (when set) and constructs an S3
 // client. AssumeRoleProvider auto-refreshes near expiry, so callers can
 // reuse this client for the lifetime of the process.
+//
+// When cfg.Endpoint is non-empty (MinIO/LocalStack), AssumeRole is
+// skipped — those services don't speak STS, and the static credentials
+// from the default chain (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY env
+// vars) are what they expect.
 func NewClient(ctx context.Context, cfg S3Config) (*Client, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -114,14 +140,21 @@ func NewClient(ctx context.Context, cfg S3Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load aws config: %w", err)
 	}
-	if cfg.AssumeRoleARN != "" {
+	if cfg.Endpoint == "" && cfg.AssumeRoleARN != "" {
 		stsClient := sts.NewFromConfig(awsCfg)
 		provider := stscreds.NewAssumeRoleProvider(stsClient, cfg.AssumeRoleARN, func(o *stscreds.AssumeRoleOptions) {
 			o.RoleSessionName = "dear-baby-backend"
 		})
 		awsCfg.Credentials = aws.NewCredentialsCache(provider)
 	}
-	s3c := s3.NewFromConfig(awsCfg)
+	s3c := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		if cfg.Endpoint != "" {
+			o.BaseEndpoint = aws.String(cfg.Endpoint)
+		}
+		if cfg.UsePathStyle {
+			o.UsePathStyle = true
+		}
+	})
 	return &Client{cfg: cfg, s3: s3c, presign: s3.NewPresignClient(s3c)}, nil
 }
 
