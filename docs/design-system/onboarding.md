@@ -109,6 +109,8 @@
 
 > 구현 범위: Stage 2의 AI 미리보기는 **첫 기록 1건**을 1~2문장으로 다듬어 `onboarding.ai_preview`에 저장합니다. Stage 3의 서사체 AI(다수 기록 합본)와는 별도 피처입니다. 상세 경계는 [docs/engineering/ai-preview-scopes.md](../engineering/ai-preview-scopes.md) 참고.
 
+> 주차별 질문: 현재 Stage 2 질문 카드는 주차 무관한 고정 풀에서 뽑는 **플레이스홀더**이며, 주차별 맞춤 질문 본 구현은 프롬프트 엔지니어링이 끝난 뒤 별도로 진행합니다. 상세 계획은 [docs/engineering/weekly-questions-plan.md](../engineering/weekly-questions-plan.md) 참고.
+
 ### 코치마크 규칙
 
 - 한 화면에 **1개만** 표시
