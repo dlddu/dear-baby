@@ -26,12 +26,26 @@ export type User = {
 };
 
 // Record mirrors the backend `records` row returned by POST /records.
-// Today only text records exist; voice is a separate PRD.
+// `source` distinguishes text vs voice authorship; `audio_s3_key` is
+// non-null only when the user chose to upload the original audio.
+export type RecordSource = 'text' | 'voice';
+
 export type Record = {
   id: string;
   user_id: string;
   content: string;
+  source: RecordSource;
+  audio_s3_key?: string | null;
   created_at: string;
+};
+
+// PresignAudioUploadResponse is the body of POST
+// /records/{id}/audio/upload-url. The client never assembles
+// `audio_s3_key` itself — it echoes this value back on PATCH.
+export type PresignAudioUploadResponse = {
+  upload_url: string;
+  audio_s3_key: string;
+  expires_at: string;
 };
 
 // CreateRecordResponse is the POST /records body: the new record plus the

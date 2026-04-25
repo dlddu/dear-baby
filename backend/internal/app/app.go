@@ -15,6 +15,7 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
 	"github.com/dlddu/dear-baby/backend/internal/onboarding"
+	"github.com/dlddu/dear-baby/backend/internal/storage"
 	"github.com/dlddu/dear-baby/backend/internal/tasks"
 )
 
@@ -84,7 +85,34 @@ func Run() error {
 		logger.Warn("REDIS_URL not set — AI-preview routes disabled")
 	}
 
-	r := newRouter(cfg, sqlDB, logger, redisClient, hub)
+	// S3 audio storage is optional. When unset (local dev / tests), the
+	// audio upload routes return 503 and the rest of the API works
+	// unchanged. We log the bucket + masked role on success so misrouted
+	// secrets surface in logs without leaking the prefix.
+	var s3Client *storage.Client
+	if cfg.AudioUploadsEnabled() {
+		s3cfg := storage.S3Config{
+			Region:        cfg.AWSRegion,
+			AssumeRoleARN: cfg.AWSAssumeRoleARN,
+			Bucket:        cfg.AWSS3Bucket,
+			Prefix:        storage.NormalizePrefix(cfg.AWSS3KeyPrefix),
+		}
+		s3Ctx, cancelS3 := context.WithTimeout(context.Background(), 10*time.Second)
+		client, err := storage.NewClient(s3Ctx, s3cfg)
+		cancelS3()
+		if err != nil {
+			return err
+		}
+		s3Client = client
+		logger.Info("audio uploads enabled",
+			"bucket", cfg.AWSS3Bucket,
+			"prefix", cfg.AWSS3KeyPrefix,
+			"assume_role", cfg.AWSAssumeRoleARN != "")
+	} else {
+		logger.Warn("AWS_S3_BUCKET not set — audio upload routes disabled")
+	}
+
+	r := newRouter(cfg, sqlDB, logger, redisClient, hub, s3Client)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

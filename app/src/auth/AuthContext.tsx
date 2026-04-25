@@ -36,6 +36,11 @@ type AuthContextValue = {
   completeOnboarding: (dueDate: string | null) => Promise<void>;
   dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string) => Promise<void>;
+  // applyUserFromRecord lets non-text save flows (e.g. voice records,
+  // which need the returned record_id and therefore call the records
+  // API directly rather than through createTextRecord) hand the new
+  // user payload back so AuthContext can refresh state once.
+  applyUserFromRecord: (u: User) => void;
   applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -137,6 +142,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(updated);
   }, []);
 
+  const applyUserFromRecord = useCallback((u: User) => {
+    setUser(u);
+    void cacheFromUser(u);
+  }, []);
+
   // applyAiPreview is called by the home screen when the SSE stream
   // delivers a `ready` event. It merges the new preview text into the
   // current user without hitting /me again.
@@ -168,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       completeOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
+      applyUserFromRecord,
       applyAiPreview,
       signOut,
     }),
@@ -178,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       completeOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
+      applyUserFromRecord,
       applyAiPreview,
       signOut,
     ],

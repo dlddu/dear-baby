@@ -31,6 +31,14 @@ spec:
           envFrom:
             - secretRef:
                 name: auth-secret
+            # Optional: when AWS_S3_BUCKET is set in this secret the
+            # backend exposes record-audio upload endpoints. The secret
+            # is created from k8s/secrets/aws-assume-role-secret.example
+            # and may legitimately not exist in dev — `optional: true`
+            # keeps the pod schedulable in that case.
+            - secretRef:
+                name: aws-assume-role-secret
+                optional: true
           volumeMounts:
             - name: data
               mountPath: /data

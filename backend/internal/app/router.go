@@ -14,6 +14,7 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
 	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 	"github.com/dlddu/dear-baby/backend/internal/records"
+	"github.com/dlddu/dear-baby/backend/internal/storage"
 	"github.com/dlddu/dear-baby/backend/internal/tasks"
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
@@ -22,7 +23,7 @@ import (
 // returns an http.Handler ready for the http.Server. redisClient + hub
 // are optional — when nil, AI-preview routes are skipped so /health and
 // auth continue to work without Redis (local dev / smoke tests).
-func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub) http.Handler {
+func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub, s3Client *storage.Client) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -61,6 +62,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	recordsHandlers := &records.Handlers{
 		Store:           recordsStore,
 		Users:           usersStore,
+		S3:              s3Client,
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
 
@@ -87,6 +89,8 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		pr.Get("/me", usersHandlers.Me)
 		pr.Patch("/me", usersHandlers.PatchMe)
 		pr.Post("/records", recordsHandlers.Create)
+		pr.Patch("/records/{id}", recordsHandlers.AttachAudio)
+		pr.Post("/records/{id}/audio/upload-url", recordsHandlers.PresignAudioUpload)
 	})
 
 	if redisClient != nil && hub != nil {

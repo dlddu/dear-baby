@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { Button } from '../../src/components/Button';
@@ -7,6 +8,7 @@ import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 
 export default function SettingsTab() {
+  const router = useRouter();
   const { user, signOut } = useAuth();
   return (
     <View style={styles.container} testID="settings-tab">
@@ -18,6 +20,14 @@ export default function SettingsTab() {
           {user.email}
         </Text>
       )}
+      <Button
+        title="녹음 보관함"
+        leading="🎙"
+        variant="secondary"
+        onPress={() => router.push('/drafts')}
+        testID="drafts-entry"
+        fullWidth
+      />
       <Button
         title="Sign out"
         variant="secondary"

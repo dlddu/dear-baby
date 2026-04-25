@@ -23,6 +23,10 @@ jobs:
     env:
       EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
       EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
+      # Voice-record fixture mode: skips microphone access, returns a
+      # canned transcript, and short-circuits the S3 PUT so CI does
+      # not need a real bucket. App-only flag.
+      EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
       # Mirrors the app-side flag so the backend mounts /auth/test-login for
       # the Maestro login flow. CI/dev only — never enable in production.
       TEST_AUTH_ENABLED: "true"
@@ -92,9 +96,11 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
           EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
+          EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
         run: |
           echo "EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL"
           echo "EXPO_PUBLIC_TEST_AUTH_ENABLED=$EXPO_PUBLIC_TEST_AUTH_ENABLED"
+          echo "EXPO_PUBLIC_E2E_AUDIO_FIXTURE=$EXPO_PUBLIC_E2E_AUDIO_FIXTURE"
           ./gradlew assembleRelease --no-daemon
 
       # reactivecircus/android-emulator-runner splits `script:` on newlines and
@@ -131,6 +137,7 @@ jobs:
           maestro test .maestro/login.yaml
           maestro test .maestro/onboarding-stage1.yaml
           maestro test .maestro/onboarding-stage2.yaml
+          maestro test .maestro/onboarding-stage2-voice.yaml
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 

@@ -5,7 +5,7 @@ inputs:
   go-version:
     description: Go version to install
     required: false
-    default: "1.22"
+    default: "1.24"
   redis-url:
     description: REDIS_URL to export. Empty disables the AI-preview routes.
     required: false

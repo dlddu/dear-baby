@@ -122,14 +122,19 @@ appId: com.dlddu.dearbaby
 - assertNotVisible:
     id: "stage2-week-badge"
 
-# ─── Path 3: voice is still "coming soon"; text flow saves + AI preview ──
+# ─── Path 3: voice tap routes to the recording screen + text flow saves ──
 
+# Voice CTA now routes to the on-device recording screen. Tapping it
+# also dismisses the coachmark even when we immediately go back, so the
+# coachmark assertions still hold for the text path below.
 - tapOn:
     id: "stage2-voice-cta"
-- assertVisible: "곧 추가됩니다"
-- tapOn: "OK"
-
-# Voice tap also engages with the coachmark target → coachmark closes.
+- assertVisible:
+    id: "record-audio-screen"
+- tapOn:
+    id: "record-audio-cancel"
+- assertVisible:
+    id: "home-tab"
 - assertNotVisible:
     id: "stage2-coachmark"
 

@@ -28,6 +28,13 @@ type Config struct {
 	// AI-preview features entirely; the router skips wiring Redis-backed
 	// routes so /health and auth still work without Redis.
 	RedisURL string
+	// AWS_* fields drive the optional record-audio S3 storage. When the
+	// bucket is unset the audio upload routes return 503; the rest of
+	// the API keeps working so local dev does not require AWS creds.
+	AWSRegion        string
+	AWSAssumeRoleARN string
+	AWSS3Bucket      string
+	AWSS3KeyPrefix   string
 }
 
 // Load reads the environment and returns a populated Config. It never fails
@@ -65,7 +72,20 @@ func Load() (*Config, error) {
 
 	cfg.RedisURL = os.Getenv("REDIS_URL")
 
+	cfg.AWSRegion = os.Getenv("AWS_REGION")
+	cfg.AWSAssumeRoleARN = os.Getenv("AWS_ASSUME_ROLE_ARN")
+	cfg.AWSS3Bucket = os.Getenv("AWS_S3_BUCKET")
+	cfg.AWSS3KeyPrefix = strings.TrimRight(os.Getenv("AWS_S3_KEY_PREFIX"), "/")
+
 	return cfg, nil
+}
+
+// AudioUploadsEnabled is true when the bucket is configured. The router
+// uses this as a feature flag — when false, the audio upload routes are
+// still mounted (so missing config surfaces as a 503, not a 404) but the
+// records handler short-circuits to a service-unavailable error.
+func (c *Config) AudioUploadsEnabled() bool {
+	return c.AWSS3Bucket != "" && c.AWSRegion != ""
 }
 
 // RequireAuthEnv returns an error if the config is missing values that are

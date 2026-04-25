@@ -1,0 +1,200 @@
+appId: com.dlddu.dearbaby
+---
+# Stage 2 — Voice recording E2E
+# Verifies the on-device record → STT → save flow plus the local audio
+# drafts ("녹음 보관함") interactions. Requires:
+#   EXPO_PUBLIC_E2E_AUDIO_FIXTURE=true   (app — fakes mic + STT + S3)
+#   EXPO_PUBLIC_TEST_AUTH_ENABLED=true   (app — test-login button)
+#   TEST_AUTH_ENABLED=true               (backend — bypass OAuth)
+# When the fixture flag is set, the recorder skips microphone access and
+# the review screen receives a canned transcript; the upload orchestrator
+# also short-circuits the S3 PUT so the test does not need a real bucket.
+
+# ─── Scenario A: 저장만 → 보관함에 1건 → 거기서 업로드 ─────────────
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- assertVisible:
+    id: "test-login-button"
+- tapOn:
+    id: "test-login-button"
+- assertVisible:
+    id: "onboarding-welcome"
+- tapOn:
+    id: "onboarding-skip-button"
+- assertVisible:
+    id: "home-tab"
+
+- tapOn:
+    id: "stage2-voice-cta"
+- assertVisible:
+    id: "record-audio-screen"
+
+# Fixture mode shows "다음" instead of a real recording toggle.
+- tapOn:
+    id: "record-audio-next"
+- assertVisible:
+    id: "record-audio-review-screen"
+
+# Wait for the canned transcript to populate the input, then save.
+- extendedWaitUntil:
+    visible: "오늘 너의 작은 움직임"
+    timeout: 10000
+- tapOn:
+    id: "record-audio-review-save"
+- assertVisible:
+    id: "home-tab"
+
+# AI preview ready footer confirms the transcript reached the server
+# and the AI worker finished editing.
+- extendedWaitUntil:
+    visible: "AI가 당신의 기록을 이렇게 정리했어요"
+    timeout: 30000
+
+# Drafts entry lives in the settings tab.
+- tapOn: "마이"
+- assertVisible:
+    id: "settings-tab"
+- tapOn:
+    id: "drafts-entry"
+- assertVisible:
+    id: "drafts-screen"
+
+# Exactly one draft row should be present. Upload removes it.
+- tapOn:
+    text: "업로드"
+    index: 0
+- extendedWaitUntil:
+    visible: "보관 중인 음성 원본이 없어요"
+    timeout: 10000
+
+# ─── Scenario B: 저장 후 음성 원본 업로드 (한 흐름에 끝) ───────────
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- tapOn:
+    id: "test-login-button"
+- tapOn:
+    id: "onboarding-skip-button"
+- assertVisible:
+    id: "home-tab"
+
+- tapOn:
+    id: "stage2-voice-cta"
+- tapOn:
+    id: "record-audio-next"
+- extendedWaitUntil:
+    visible: "오늘 너의 작은 움직임"
+    timeout: 10000
+- tapOn:
+    id: "record-audio-review-save-and-upload"
+- assertVisible:
+    id: "home-tab"
+- extendedWaitUntil:
+    visible: "AI가 당신의 기록을 이렇게 정리했어요"
+    timeout: 30000
+
+# Boundary check: drafts list should be empty because the upload ran
+# inline as part of the save action.
+- tapOn: "마이"
+- tapOn:
+    id: "drafts-entry"
+- assertVisible: "보관 중인 음성 원본이 없어요"
+
+# ─── Scenario C: 저장 → 보관함에서 삭제 (로컬 음성만 폐기) ────────
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- tapOn:
+    id: "test-login-button"
+- tapOn:
+    id: "onboarding-skip-button"
+- assertVisible:
+    id: "home-tab"
+
+- tapOn:
+    id: "stage2-voice-cta"
+- tapOn:
+    id: "record-audio-next"
+- extendedWaitUntil:
+    visible: "오늘 너의 작은 움직임"
+    timeout: 10000
+- tapOn:
+    id: "record-audio-review-save"
+- assertVisible:
+    id: "home-tab"
+
+- tapOn: "마이"
+- tapOn:
+    id: "drafts-entry"
+- tapOn:
+    text: "삭제"
+    index: 0
+# Confirm the destructive dialog.
+- tapOn: "삭제"
+- assertVisible: "보관 중인 음성 원본이 없어요"
+
+# ─── Scenario D: 앱 재시작 후 보관함 항목 복원 ─────────────────────
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- tapOn:
+    id: "test-login-button"
+- tapOn:
+    id: "onboarding-skip-button"
+- assertVisible:
+    id: "home-tab"
+
+- tapOn:
+    id: "stage2-voice-cta"
+- tapOn:
+    id: "record-audio-next"
+- extendedWaitUntil:
+    visible: "오늘 너의 작은 움직임"
+    timeout: 10000
+- tapOn:
+    id: "record-audio-review-save"
+- assertVisible:
+    id: "home-tab"
+
+# Relaunch without wiping state. The draft must still be there.
+- launchApp
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+- assertVisible:
+    id: "home-tab"
+- tapOn: "마이"
+- tapOn:
+    id: "drafts-entry"
+- assertVisible: "이 기기에만 있음"

@@ -44,10 +44,12 @@ CREATE TABLE onboarding (
   updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (
-  id         TEXT PRIMARY KEY,
-  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  content    TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content      TEXT NOT NULL,
+  source       TEXT NOT NULL DEFAULT 'text' CHECK (source IN ('text','voice')),
+  audio_s3_key TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `
 	if _, err := db.Exec(schema); err != nil {

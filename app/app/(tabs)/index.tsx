@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { openAiPreviewStream, requestAiPreview } from '../../src/api/ai';
 import {
@@ -19,9 +19,10 @@ import { calcPregnancy } from '../../src/utils/pregnancy';
 
 // HomeTab renders Stage 2 of onboarding — voice-record coachmark + daily
 // question card + dual CTAs + AI preview card. See docs/design-system/
-// onboarding.md for the spec. Voice recording itself is still out of
-// scope (PRD-001); the voice CTA surfaces a "coming soon" alert until the
-// audio pipeline lands.
+// onboarding.md for the spec. The voice CTA routes to the on-device
+// recording screen (`/record-audio`); the text CTA opens the text
+// modal. Both paths converge on POST /records, which stamps
+// `first_record_at` and unblurs the AI preview.
 //
 // AI preview flow: when `first_record_at` flips from null → set (first
 // save), the home kicks off a `requestAiPreview()` and opens an SSE
@@ -120,8 +121,8 @@ export default function HomeTab() {
 
   const handleVoicePress = useCallback(() => {
     if (showCoachmark) handleDismissCoachmark();
-    Alert.alert('곧 추가됩니다', '음성 기록 기능은 준비 중이에요.');
-  }, [showCoachmark, handleDismissCoachmark]);
+    router.push('/record-audio');
+  }, [router, showCoachmark, handleDismissCoachmark]);
 
   const handleTextPress = useCallback(() => {
     if (showCoachmark) handleDismissCoachmark();

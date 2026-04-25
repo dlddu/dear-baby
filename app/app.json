@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.dlddu.dearbaby",
       "supportsTablet": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "음성으로 기록을 남기기 위해 마이크를 사용해요."
       }
     },
     "android": {
@@ -27,7 +28,8 @@
         "backgroundColor": "#FAF6F1"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["RECORD_AUDIO"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -37,6 +39,7 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-font",
+      "expo-audio",
       "@react-native-community/datetimepicker"
     ]
   }
