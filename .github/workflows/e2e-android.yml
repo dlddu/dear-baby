@@ -56,7 +56,7 @@ jobs:
       # via `docker run` instead.
       - name: Start MinIO
         run: |
-          docker run -d --rm --name minio \
+          docker run -d --name minio \
             -p 9000:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
@@ -68,9 +68,21 @@ jobs:
             fi
             sleep 1
           done
+          # Surface the MinIO startup banner so any "default credentials
+          # rejected" / version warnings are visible in the workflow log.
+          echo "::group::minio startup log"
+          docker logs minio 2>&1 | head -40
+          echo "::endgroup::"
+          # Create the bucket. Use --debug + fail loud — `--ignore-existing`
+          # swallows the BucketAlreadyOwnedByYou error but other errors
+          # (auth, network) propagate and exit non-zero.
           docker run --rm --network host \
             -e MC_HOST_local=http://minioadmin:minioadmin@127.0.0.1:9000 \
-            minio/mc:latest mb --ignore-existing local/${AWS_S3_BUCKET}
+            minio/mc:latest mb --ignore-existing "local/${AWS_S3_BUCKET}"
+          # Verify auth by listing the bucket (forces an authed call).
+          docker run --rm --network host \
+            -e MC_HOST_local=http://minioadmin:minioadmin@127.0.0.1:9000 \
+            minio/mc:latest ls "local/${AWS_S3_BUCKET}"
 
       - name: Setup backend
         uses: ./.github/actions/setup-backend

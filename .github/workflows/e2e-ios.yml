@@ -73,7 +73,14 @@ jobs:
             sleep 1
           done
           mc alias set local http://127.0.0.1:9000 minioadmin minioadmin
-          mc mb --ignore-existing local/${AWS_S3_BUCKET}
+          mc mb --ignore-existing "local/${AWS_S3_BUCKET}"
+          # Verify MinIO accepted these credentials by listing the bucket.
+          mc ls "local/${AWS_S3_BUCKET}"
+          # Surface the startup banner so any "default credentials
+          # rejected" / version warnings are visible in the workflow log.
+          echo "::group::minio startup log"
+          head -40 /tmp/minio.log
+          echo "::endgroup::"
 
       - name: Setup backend
         uses: ./.github/actions/setup-backend
