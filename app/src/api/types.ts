@@ -26,11 +26,16 @@ export type User = {
 };
 
 // Record mirrors the backend `records` row returned by POST /records.
-// Today only text records exist; voice is a separate PRD.
+// `source` and `audio_s3_key` are the Stage 2 voice-record additions:
+// `source` is "text" | "voice"; `audio_s3_key` is null until the
+// device finishes uploading the audio blob (and may stay null forever
+// when the user opts out of audio upload).
 export type Record = {
   id: string;
   user_id: string;
+  source: 'text' | 'voice';
   content: string;
+  audio_s3_key: string | null;
   created_at: string;
 };
 

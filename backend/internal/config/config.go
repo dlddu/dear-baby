@@ -27,6 +27,28 @@ type Config struct {
 	// RedisURL points at the shared queue/broker. Required: app boot
 	// fails if unset.
 	RedisURL string
+
+	// AWS holds the S3 settings used by the records-audio pipeline.
+	// Empty Region or Bucket disables the audio routes entirely; the
+	// app continues to function for text records, and the device
+	// surfaces "audio storage not configured" on attempted upload.
+	AWS AWSConfig
+}
+
+// AWSConfig groups the S3 settings the records-audio pipeline reads.
+// Mirrors storage.Config so app/router.go can pass it through verbatim.
+type AWSConfig struct {
+	Region        string
+	AssumeRoleARN string
+	Bucket        string
+	KeyPrefix     string
+}
+
+// AudioEnabled reports whether the records-audio routes should be
+// mounted. The AssumeRoleARN is intentionally optional — local dev hits
+// the path without one (static creds via the ambient chain).
+func (a AWSConfig) AudioEnabled() bool {
+	return a.Region != "" && a.Bucket != ""
 }
 
 // Load reads the environment and returns a populated Config. It never fails
@@ -63,6 +85,13 @@ func Load() (*Config, error) {
 	}
 
 	cfg.RedisURL = os.Getenv("REDIS_URL")
+
+	cfg.AWS = AWSConfig{
+		Region:        os.Getenv("AWS_REGION"),
+		AssumeRoleARN: os.Getenv("AWS_ASSUME_ROLE_ARN"),
+		Bucket:        os.Getenv("AWS_S3_BUCKET"),
+		KeyPrefix:     os.Getenv("AWS_S3_KEY_PREFIX"),
+	}
 
 	return cfg, nil
 }

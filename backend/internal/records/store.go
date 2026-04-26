@@ -22,7 +22,7 @@ type Store struct {
 	DB *sql.DB
 }
 
-// CreateResult is the outcome of CreateText. WasFirst is true when this
+// CreateResult is the outcome of Create. WasFirst is true when this
 // INSERT flipped onboarding.first_record_at from null to non-null, i.e.
 // the user has just completed their first record. Callers use it to
 // decide whether side effects like AI-preview enqueue should fire — today
@@ -35,17 +35,33 @@ type CreateResult struct {
 	WasFirst bool
 }
 
-// CreateText inserts a text record for the given user and re-derives
-// onboarding.first_record_at from the oldest existing record (including
-// the one just inserted). The result: first_record_at always reflects the
-// user's earliest record's created_at — even after an onboarding reset,
-// where first_record_at is nulled but prior records are preserved. The
-// next new record then re-stamps first_record_at to the oldest existing
-// record's time rather than 'now'.
+// ErrNotFound is returned when a record lookup misses or PATCH targets a
+// row owned by another user. We collapse "not found" and "not yours" so
+// the API never leaks the existence of a record across users.
+var ErrNotFound = errors.New("record not found")
+
+// ErrAudioAlreadyAttached is returned by AttachAudio when the row already
+// has a non-null audio_s3_key. It maps to HTTP 409 in the handler. This
+// guards against two devices racing PATCH calls — the first one wins,
+// the second cleans up its local copy.
+var ErrAudioAlreadyAttached = errors.New("audio already attached")
+
+// Create inserts a record (text or voice) for the given user. For voice
+// records, audio_s3_key starts as null; the device attaches the audio
+// later via PATCH /records/{id}.
 //
-// Both writes happen in a single transaction. Returns the new record plus
-// the updated flat profile so callers can skip a /me round-trip.
-func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, content string) (*CreateResult, error) {
+// In a single transaction it: (1) ensures the onboarding row exists,
+// (2) inserts the row, (3) re-derives onboarding.first_record_at from
+// the oldest record. Step 3 makes first_record_at always reflect the
+// earliest record's created_at — even after an onboarding reset, where
+// first_record_at is nulled but prior records are preserved.
+//
+// Returns the new record plus the updated flat profile so callers can
+// skip a /me round-trip.
+func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, content string, source Source) (*CreateResult, error) {
+	if !source.Valid() {
+		return nil, fmt.Errorf("%w: source", ErrInvalidContent)
+	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin: %w", err)
@@ -76,8 +92,8 @@ func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, 
 
 	id := uuid.NewString()
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO records (id, user_id, content) VALUES (?, ?, ?)
-	`, id, userID, content); err != nil {
+		INSERT INTO records (id, user_id, content, source) VALUES (?, ?, ?, ?)
+	`, id, userID, content, string(source)); err != nil {
 		return nil, fmt.Errorf("insert record: %w", err)
 	}
 
@@ -92,7 +108,7 @@ func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, 
 		return nil, fmt.Errorf("stamp first_record_at: %w", err)
 	}
 
-	rec := &Record{ID: id, UserID: userID, Content: content}
+	rec := &Record{ID: id, UserID: userID, Content: content, Source: source}
 	var createdAt string
 	if err := tx.QueryRowContext(ctx, `
 		SELECT created_at FROM records WHERE id = ?
@@ -116,6 +132,108 @@ func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, 
 		Profile:  profile,
 		WasFirst: !prevFirstRecordAt.Valid,
 	}, nil
+}
+
+// CreateText is preserved as a convenience for the legacy text-only
+// callers and tests. New code paths should use Create with an explicit
+// source so the intent is visible at the call site.
+func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, content string) (*CreateResult, error) {
+	return s.Create(ctx, userStore, userID, content, SourceText)
+}
+
+// GetByIDForUser returns the record only if it belongs to userID. The
+// "for user" suffix is intentional — every audio-related write needs the
+// caller's id, and folding ownership into the lookup means handlers
+// can't accidentally skip the check.
+func (s *Store) GetByIDForUser(ctx context.Context, userID, recordID string) (*Record, error) {
+	var (
+		audioKey  sql.NullString
+		createdAt string
+		rec       Record
+	)
+	err := s.DB.QueryRowContext(ctx, `
+		SELECT id, user_id, source, content, audio_s3_key, created_at
+		FROM records
+		WHERE id = ? AND user_id = ?
+	`, recordID, userID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &audioKey, &createdAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("fetch record: %w", err)
+	}
+	if audioKey.Valid {
+		v := audioKey.String
+		rec.AudioS3Key = &v
+	}
+	if t, err := time.Parse(sqliteTimeLayout, createdAt); err == nil {
+		rec.CreatedAt = t
+	}
+	return &rec, nil
+}
+
+// AttachAudio sets records.audio_s3_key for a record owned by userID,
+// but only if it is currently null. Concurrent PATCH calls from two
+// devices both trying to attach different keys: the first wins,
+// subsequent attempts get ErrAudioAlreadyAttached. The losing client
+// is then expected to clean up its local audio rather than overwrite.
+func (s *Store) AttachAudio(ctx context.Context, userID, recordID, audioS3Key string) (*Record, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `
+		UPDATE records
+		SET audio_s3_key = ?
+		WHERE id = ? AND user_id = ? AND audio_s3_key IS NULL
+	`, audioS3Key, recordID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("update audio_s3_key: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		// Distinguish "row doesn't exist / not yours" from "row exists,
+		// already attached" so the handler can return 404 vs 409.
+		var exists bool
+		err := tx.QueryRowContext(ctx, `
+			SELECT 1 FROM records WHERE id = ? AND user_id = ?
+		`, recordID, userID).Scan(&exists)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		if err != nil {
+			return nil, fmt.Errorf("recheck record: %w", err)
+		}
+		return nil, ErrAudioAlreadyAttached
+	}
+
+	var (
+		audioKey  sql.NullString
+		createdAt string
+		rec       Record
+	)
+	if err := tx.QueryRowContext(ctx, `
+		SELECT id, user_id, source, content, audio_s3_key, created_at
+		FROM records WHERE id = ?
+	`, recordID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &audioKey, &createdAt); err != nil {
+		return nil, fmt.Errorf("fetch record: %w", err)
+	}
+	if audioKey.Valid {
+		v := audioKey.String
+		rec.AudioS3Key = &v
+	}
+	if t, err := time.Parse(sqliteTimeLayout, createdAt); err == nil {
+		rec.CreatedAt = t
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return &rec, nil
 }
 
 // sentinel errors surfaced to handlers.
