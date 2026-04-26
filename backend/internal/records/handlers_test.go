@@ -332,21 +332,50 @@ func routeWithChi(h *Handlers) http.Handler {
 	return r
 }
 
+// seedVoiceRecord inserts a row directly so each PATCH/upload-url
+// test starts from a known state without going through Create.
+func seedVoiceRecord(t *testing.T, db *sql.DB, recordID, userID, content string, audioKey *string) {
+	t.Helper()
+	if audioKey == nil {
+		_, err := db.Exec(`INSERT INTO records (id, user_id, content, source) VALUES (?,?,?,?)`,
+			recordID, userID, content, "voice")
+		if err != nil {
+			t.Fatalf("seed record: %v", err)
+		}
+		return
+	}
+	_, err := db.Exec(`INSERT INTO records (id, user_id, content, source, audio_s3_key) VALUES (?,?,?,?,?)`,
+		recordID, userID, content, "voice", *audioKey)
+	if err != nil {
+		t.Fatalf("seed record: %v", err)
+	}
+}
+
+// runReq routes one request through the chi handler and returns the
+// recorder. It centralises the "build request → inject user → record"
+// boilerplate that every PATCH / upload-url test was repeating.
+func runReq(t *testing.T, h *Handlers, method, path, uid, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	var r *http.Request
+	if body == "" {
+		r = httptest.NewRequest(method, path, nil)
+	} else {
+		r = httptest.NewRequest(method, path, strings.NewReader(body))
+	}
+	if uid != "" {
+		r = withUser(r, uid)
+	}
+	rec := httptest.NewRecorder()
+	routeWithChi(h).ServeHTTP(rec, r)
+	return rec
+}
+
 func TestUploadURL_HappyPath(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
+	seedVoiceRecord(t, db, "rec-1", "u1", "transcript", nil)
 
-	// Seed a voice record.
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content, source) VALUES (?,?,?,?)`,
-		"rec-1", "u1", "transcript", "voice"); err != nil {
-		t.Fatalf("seed record: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/records/rec-1/audio/upload-url", nil)
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
-
+	rec := runReq(t, h, http.MethodPost, "/records/rec-1/audio/upload-url", "u1", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -376,16 +405,9 @@ func TestUploadURL_AnotherUsersRecord_404(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 	seedUser(t, db, "u2", "u2@b.com")
-	// Record belongs to u2, but u1 tries to presign.
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content, source) VALUES (?,?,?,?)`,
-		"rec-1", "u2", "x", "voice"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
+	seedVoiceRecord(t, db, "rec-1", "u2", "x", nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/records/rec-1/audio/upload-url", nil)
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
+	rec := runReq(t, h, http.MethodPost, "/records/rec-1/audio/upload-url", "u1", "")
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status: got %d want 404", rec.Code)
 	}
@@ -394,14 +416,10 @@ func TestUploadURL_AnotherUsersRecord_404(t *testing.T) {
 func TestUploadURL_AlreadyAttached_409(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content, source, audio_s3_key) VALUES (?,?,?,?,?)`,
-		"rec-1", "u1", "x", "voice", "test/users/u1/records/rec-1.m4a"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	req := httptest.NewRequest(http.MethodPost, "/records/rec-1/audio/upload-url", nil)
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
+	key := "test/users/u1/records/rec-1.m4a"
+	seedVoiceRecord(t, db, "rec-1", "u1", "x", &key)
+
+	rec := runReq(t, h, http.MethodPost, "/records/rec-1/audio/upload-url", "u1", "")
 	if rec.Code != http.StatusConflict {
 		t.Errorf("status: got %d want 409", rec.Code)
 	}
@@ -411,10 +429,8 @@ func TestUploadURL_NoAudioConfig_503(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 	h.Audio = nil
-	req := httptest.NewRequest(http.MethodPost, "/records/rec-1/audio/upload-url", nil)
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
+
+	rec := runReq(t, h, http.MethodPost, "/records/rec-1/audio/upload-url", "u1", "")
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Errorf("status: got %d want 503", rec.Code)
 	}
@@ -422,26 +438,21 @@ func TestUploadURL_NoAudioConfig_503(t *testing.T) {
 
 // -- PATCH /records/{id} ----------------------------------------------------
 
+func attachBody(key string) string {
+	return fmt.Sprintf(`{"audio_s3_key":%q}`, key)
+}
+
 func TestPatch_HappyPath_AttachesAudio(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content, source) VALUES (?,?,?,?)`,
-		"rec-1", "u1", "transcript", "voice"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
+	seedVoiceRecord(t, db, "rec-1", "u1", "transcript", nil)
 	key := audio.BuildRecordAudioKey("u1", "rec-1")
-	audio.objects[key] = true // pretend the device finished uploading
+	audio.objects[key] = true
 
-	body := fmt.Sprintf(`{"audio_s3_key":%q}`, key)
-	req := httptest.NewRequest(http.MethodPatch, "/records/rec-1", strings.NewReader(body))
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
-
+	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
-	// Verify DB row was actually updated.
 	var stored sql.NullString
 	if err := db.QueryRow(`SELECT audio_s3_key FROM records WHERE id=?`, "rec-1").Scan(&stored); err != nil {
 		t.Fatalf("requery: %v", err)
@@ -455,18 +466,10 @@ func TestPatch_KeyOutsideUserNamespace_400(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
 	seedUser(t, db, "u2", "u2@b.com")
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content, source) VALUES (?,?,?,?)`,
-		"rec-1", "u1", "x", "voice"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	// Build a key for a different user — should be rejected by
-	// IsValidRecordAudioKey before we even hit S3.
+	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
 	wrong := audio.BuildRecordAudioKey("u2", "rec-1")
-	body := fmt.Sprintf(`{"audio_s3_key":%q}`, wrong)
-	req := httptest.NewRequest(http.MethodPatch, "/records/rec-1", strings.NewReader(body))
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
+
+	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(wrong))
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
 	}
@@ -475,17 +478,10 @@ func TestPatch_KeyOutsideUserNamespace_400(t *testing.T) {
 func TestPatch_MissingS3Object_400(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content, source) VALUES (?,?,?,?)`,
-		"rec-1", "u1", "x", "voice"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
+	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
 	key := audio.BuildRecordAudioKey("u1", "rec-1")
-	// Don't add the object — HEAD will say "not found".
-	body := fmt.Sprintf(`{"audio_s3_key":%q}`, key)
-	req := httptest.NewRequest(http.MethodPatch, "/records/rec-1", strings.NewReader(body))
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
+
+	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
 	}
@@ -495,17 +491,10 @@ func TestPatch_AlreadyAttached_409(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
 	key := audio.BuildRecordAudioKey("u1", "rec-1")
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content, source, audio_s3_key) VALUES (?,?,?,?,?)`,
-		"rec-1", "u1", "x", "voice", key); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
+	seedVoiceRecord(t, db, "rec-1", "u1", "x", &key)
 	audio.objects[key] = true
 
-	body := fmt.Sprintf(`{"audio_s3_key":%q}`, key)
-	req := httptest.NewRequest(http.MethodPatch, "/records/rec-1", strings.NewReader(body))
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
+	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
 	if rec.Code != http.StatusConflict {
 		t.Errorf("status: got %d want 409", rec.Code)
 	}
@@ -514,18 +503,11 @@ func TestPatch_AlreadyAttached_409(t *testing.T) {
 func TestPatch_HeadObjectError_500(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content, source) VALUES (?,?,?,?)`,
-		"rec-1", "u1", "x", "voice"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
+	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
 	key := audio.BuildRecordAudioKey("u1", "rec-1")
 	audio.headErr = errors.New("network down")
 
-	body := fmt.Sprintf(`{"audio_s3_key":%q}`, key)
-	req := httptest.NewRequest(http.MethodPatch, "/records/rec-1", strings.NewReader(body))
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
+	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status: got %d want 500", rec.Code)
 	}
@@ -534,14 +516,9 @@ func TestPatch_HeadObjectError_500(t *testing.T) {
 func TestPatch_MissingKey_400(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content, source) VALUES (?,?,?,?)`,
-		"rec-1", "u1", "x", "voice"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	req := httptest.NewRequest(http.MethodPatch, "/records/rec-1", strings.NewReader(`{}`))
-	req = withUser(req, "u1")
-	rec := httptest.NewRecorder()
-	routeWithChi(h).ServeHTTP(rec, req)
+	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
+
+	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", `{}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
 	}
