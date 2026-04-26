@@ -24,9 +24,8 @@ type Config struct {
 	// session for any requested email without OAuth verification. Set via
 	// the TEST_AUTH_ENABLED env var ("1" or "true").
 	TestAuthEnabled bool
-	// RedisURL points at the shared queue/broker. Empty disables
-	// AI-preview features entirely; the router skips wiring Redis-backed
-	// routes so /health and auth still work without Redis.
+	// RedisURL points at the shared queue/broker. Required — the
+	// backend refuses to start without it.
 	RedisURL string
 }
 
