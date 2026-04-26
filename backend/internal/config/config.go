@@ -37,19 +37,15 @@ type Config struct {
 
 // AWSConfig groups the S3 settings the records-audio pipeline reads.
 // Mirrors storage.Config so app/router.go can pass it through verbatim.
+// Empty Region or Bucket disables the audio routes; storage.NewClient
+// returns the same validation error that storage.LoadConfig would, and
+// router.go logs + skips wiring on error.
 type AWSConfig struct {
 	Region         string
 	AssumeRoleARN  string
 	Bucket         string
 	KeyPrefix      string
 	ForcePathStyle bool
-}
-
-// AudioEnabled reports whether the records-audio routes should be
-// mounted. The AssumeRoleARN is intentionally optional — local dev hits
-// the path without one (static creds via the ambient chain).
-func (a AWSConfig) AudioEnabled() bool {
-	return a.Region != "" && a.Bucket != ""
 }
 
 // Load reads the environment and returns a populated Config. It never fails

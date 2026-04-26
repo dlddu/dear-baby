@@ -47,18 +47,28 @@ If the user picks "save without audio", steps 2–4 are skipped and the row simp
 
 ## Credentials: AssumeRole
 
-The backend never holds long-lived AWS credentials in plaintext. Instead it assumes a single role at startup, scoped to the records-audio key prefix.
+Production uses an explicit AssumeRole pattern (NOT IRSA, instance profile, or other SDK-native role assumption). Two IAM principals are involved:
+
+1. **Bootstrap IAM user** — long-lived `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` shipped to the pod via the `aws-credentials` Kubernetes Secret (`envFrom` on the Deployment). Its only permission is `sts:AssumeRole` on the role below; it cannot touch S3 directly.
+
+2. **Records-audio writer role** — the `AWS_ASSUME_ROLE_ARN` the backend assumes at startup. Its trust policy lets the bootstrap user assume it; its permissions policy is scoped to one bucket prefix (see the IAM block below). The short-lived assumed credentials are what actually sign presigned URLs and HEAD requests.
+
+Splitting like this keeps the long-lived secret minimal — losing it gives an attacker only the ability to call STS, not S3 — and the assumed credentials auto-rotate.
 
 | Var | Required | Example | Notes |
 |---|---|---|---|
+| `AWS_ACCESS_KEY_ID` | yes (prod + CI) | `AKIA…` / `ci-minio-access-key` | Bootstrap. Comes from the `aws-credentials` Secret. |
+| `AWS_SECRET_ACCESS_KEY` | yes (prod + CI) | `…` | Pair with above. |
 | `AWS_REGION` | yes | `ap-northeast-2` | Bucket region; STS endpoint inferred. |
-| `AWS_ASSUME_ROLE_ARN` | optional | `arn:aws:iam::123456789012:role/dear-baby-records-writer` | When set, ambient creds → AssumeRole → assumed creds. When unset, ambient creds are used directly (local dev with static keys). |
+| `AWS_ASSUME_ROLE_ARN` | yes in prod, unset in CI/dev | `arn:aws:iam::123456789012:role/dear-baby-records-writer` | When set, ambient creds → AssumeRole → assumed creds. When unset, ambient creds are used directly (CI against MinIO has no STS endpoint; local dev hits the bucket directly). |
 | `AWS_S3_BUCKET` | yes | `dear-baby-records-prod` | Different per environment. |
 | `AWS_S3_KEY_PREFIX` | optional | `prod/`, `dev/alice/`, `""` | Trailing slash auto-normalised. Empty means objects live at the bucket root. |
+| `AWS_S3_FORCE_PATH_STYLE` | optional | `1` for MinIO/LocalStack, unset for AWS | Forces `https://endpoint/{bucket}/{key}` URLs instead of `https://{bucket}.endpoint/{key}`. Required against in-cluster MinIO; AWS itself supports both styles. |
+| `AWS_ENDPOINT_URL_S3` | optional | `http://minio:9000` (CI) | SDK-recognised override. Unset in prod to hit public AWS. |
 
 `AWS_REGION` or `AWS_S3_BUCKET` missing → the records-audio routes are not mounted, but text records and `/health` keep working. This is the smoke-test / minimal-deploy path.
 
-The IAM role's policy should restrict to:
+The records-audio writer role's permissions policy should restrict to:
 
 ```
 arn:aws:s3:::${AWS_S3_BUCKET}/${AWS_S3_KEY_PREFIX}users/*

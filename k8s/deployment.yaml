@@ -31,6 +31,21 @@ spec:
           envFrom:
             - secretRef:
                 name: auth-secret
+            # Bootstrap AWS credentials for the records-audio pipeline.
+            # The backend uses these only to call sts:AssumeRole — the
+            # role then grants the S3 permissions for the bucket. Both
+            # CI (MinIO root) and prod (an IAM user scoped to a single
+            # AssumeRole call) carry the secret; the deployment will
+            # not start without it.
+            - secretRef:
+                name: aws-credentials
+            # Records-audio configuration: AWS_REGION, AWS_S3_BUCKET,
+            # AWS_S3_KEY_PREFIX, AWS_ASSUME_ROLE_ARN. Prod ships the
+            # writer-role ARN here; CI ships MinIO endpoint overrides
+            # (AWS_ENDPOINT_URL_S3, AWS_S3_FORCE_PATH_STYLE) and omits
+            # the role ARN so the SDK uses ambient creds directly.
+            - secretRef:
+                name: aws-records-audio
           volumeMounts:
             - name: data
               mountPath: /data

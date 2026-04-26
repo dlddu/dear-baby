@@ -8,13 +8,15 @@
 //
 //   AWS_ASSUME_ROLE_ARN set
 //     → STS AssumeRole via stscreds.AssumeRoleProvider on top of the
-//       ambient credential chain (IRSA / instance profile / static env).
-//       Production target.
+//       ambient credential chain. Production target: the pod ships
+//       static bootstrap credentials (an IAM user scoped to a single
+//       sts:AssumeRole call) and the assumed role then carries the
+//       S3 permissions.
 //
 //   AWS_ASSUME_ROLE_ARN unset
 //     → use the ambient chain directly. Local development / docker-compose
 //       with a static AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY hits this
-//       path, as does test code that injects credentials.
+//       path, as does CI against MinIO (no STS endpoint there).
 //
 // The bucket and key prefix are mandatory env vars; the prefix may be
 // empty but cannot be unset. We normalise its trailing slash so callers

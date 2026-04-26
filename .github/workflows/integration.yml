@@ -110,6 +110,31 @@ jobs:
         run: |
           kubectl apply -f scripts/minio/deployment.yaml
 
+      # The backend pod's envFrom requires the aws-credentials secret
+      # (Deployment is not optional on it). Prod ships an IAM user
+      # scoped to a single sts:AssumeRole call; here we ship MinIO's
+      # root credentials so the backend authenticates to MinIO directly
+      # — without AWS_ASSUME_ROLE_ARN set, the SDK uses the ambient
+      # credential chain unchanged.
+      - name: Create aws-credentials secret (MinIO bootstrap)
+        run: |
+          kubectl create secret generic aws-credentials \
+            --from-literal=AWS_ACCESS_KEY_ID=ci-minio-access-key \
+            --from-literal=AWS_SECRET_ACCESS_KEY=ci-minio-secret-key
+
+      # Records-audio config secret. Prod ships AWS_ASSUME_ROLE_ARN
+      # here; CI omits it and adds the MinIO-only overrides
+      # (AWS_ENDPOINT_URL_S3, AWS_S3_FORCE_PATH_STYLE). AWS_REGION is
+      # arbitrary for SigV4 signing against MinIO.
+      - name: Create aws-records-audio secret (MinIO config)
+        run: |
+          kubectl create secret generic aws-records-audio \
+            --from-literal=AWS_REGION=us-east-1 \
+            --from-literal=AWS_S3_BUCKET=dear-baby-ci \
+            --from-literal=AWS_S3_KEY_PREFIX=ci/ \
+            --from-literal=AWS_S3_FORCE_PATH_STYLE=1 \
+            --from-literal=AWS_ENDPOINT_URL_S3=http://minio:9000
+
       - name: Apply backend + Redis manifests
         run: |
           sed -i \
@@ -145,29 +170,6 @@ jobs:
       - name: Enable test auth on backend
         run: |
           kubectl set env deployment/dear-baby TEST_AUTH_ENABLED=true
-
-      # Point the backend at MinIO. AWS_REGION is only used for SigV4
-      # signing; AWS_ENDPOINT_URL_S3 redirects the AWS SDK off public
-      # AWS and onto the in-cluster Service. AWS_S3_FORCE_PATH_STYLE=1
-      # keeps presigned URLs as http://minio:9000/{bucket}/{key} —
-      # virtual-hosted style needs subdomain DNS, which kind's CoreDNS
-      # doesn't have.
-      #
-      # The static creds are injected via `kubectl set env` here rather
-      # than a Secret + envFrom in the Deployment manifest because
-      # production uses IRSA (or instance profile) and never carries
-      # these as static env. Keeping them out of the manifest avoids a
-      # "what's this for in prod?" question.
-      - name: Point backend at MinIO
-        run: |
-          kubectl set env deployment/dear-baby \
-            AWS_REGION=us-east-1 \
-            AWS_S3_BUCKET=dear-baby-ci \
-            AWS_S3_KEY_PREFIX=ci/ \
-            AWS_S3_FORCE_PATH_STYLE=1 \
-            AWS_ENDPOINT_URL_S3=http://minio:9000 \
-            AWS_ACCESS_KEY_ID=ci-minio-access-key \
-            AWS_SECRET_ACCESS_KEY=ci-minio-secret-key
 
       - name: Wait for MinIO rollout
         run: kubectl rollout status deployment/minio --timeout=120s
