@@ -64,32 +64,29 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
 
-	// Wire S3 only when configured. A failure here logs but does not
-	// kill the binary — text records and /health stay up so partial
-	// outages of AWS don't take the whole app offline.
-	if cfg.AWS.AudioEnabled() {
-		s3Client, err := storage.NewClient(context.Background(), storage.Config{
-			Region:         cfg.AWS.Region,
-			AssumeRoleARN:  cfg.AWS.AssumeRoleARN,
-			Bucket:         cfg.AWS.Bucket,
-			KeyPrefix:      cfg.AWS.KeyPrefix,
-			ForcePathStyle: cfg.AWS.ForcePathStyle,
-		})
-		if err != nil {
-			logger.Error("storage init failed; audio routes disabled", "err", err)
-		} else {
-			recordsHandlers.Audio = s3Client
-			logger.Info("records-audio routes enabled",
-				"region", cfg.AWS.Region,
-				"bucket", cfg.AWS.Bucket,
-				// Prefix masked since some teams encode tenant/user
-				// hints in it. Length is informative enough.
-				"prefix_len", len(cfg.AWS.KeyPrefix),
-				"assume_role", cfg.AWS.AssumeRoleARN != "",
-			)
-		}
+	// Wire S3. NewClient validates required env (region + bucket) and
+	// returns an error if anything is missing or malformed. We log and
+	// proceed without the audio routes — text records and /health stay
+	// up so partial outages of AWS don't take the whole app offline.
+	s3Client, err := storage.NewClient(context.Background(), storage.Config{
+		Region:         cfg.AWS.Region,
+		AssumeRoleARN:  cfg.AWS.AssumeRoleARN,
+		Bucket:         cfg.AWS.Bucket,
+		KeyPrefix:      cfg.AWS.KeyPrefix,
+		ForcePathStyle: cfg.AWS.ForcePathStyle,
+	})
+	if err != nil {
+		logger.Info("records-audio routes disabled", "err", err)
 	} else {
-		logger.Info("records-audio routes disabled (AWS_REGION or AWS_S3_BUCKET unset)")
+		recordsHandlers.Audio = s3Client
+		logger.Info("records-audio routes enabled",
+			"region", cfg.AWS.Region,
+			"bucket", cfg.AWS.Bucket,
+			// Prefix masked since some teams encode tenant/user
+			// hints in it. Length is informative enough.
+			"prefix_len", len(cfg.AWS.KeyPrefix),
+			"assume_role", cfg.AWS.AssumeRoleARN != "",
+		)
 	}
 
 	// Health endpoint — response shape must stay byte-equivalent to the
