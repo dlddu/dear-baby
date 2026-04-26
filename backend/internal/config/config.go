@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -29,23 +30,27 @@ type Config struct {
 	RedisURL string
 
 	// AWS holds the S3 settings used by the records-audio pipeline.
-	// Empty Region or Bucket disables the audio routes entirely; the
-	// app continues to function for text records, and the device
-	// surfaces "audio storage not configured" on attempted upload.
+	// Validated at boot — Load() returns an error if any required field
+	// is missing, so a misconfigured deploy never silently degrades to
+	// "audio routes disabled".
 	AWS AWSConfig
 }
 
 // AWSConfig groups the S3 settings the records-audio pipeline reads.
 // Mirrors storage.Config so app/router.go can pass it through verbatim.
-// Empty Region or Bucket disables the audio routes; storage.NewClient
-// returns the same validation error that storage.LoadConfig would, and
-// router.go logs + skips wiring on error.
+//
+// Bootstrap credentials (whatever the SDK uses to call sts:AssumeRole)
+// are NOT modelled here — the SDK discovers them on its own from the
+// IRSA web-identity token in prod, or from the AWS_ACCESS_KEY_ID /
+// AWS_SECRET_ACCESS_KEY env vars in CI. Either way we don't validate
+// them at boot, only the two fields we know cannot be derived: region
+// and bucket.
 type AWSConfig struct {
 	Region         string
-	AssumeRoleARN  string
+	AssumeRoleARN  string // optional; unset in CI/local dev (no STS endpoint)
 	Bucket         string
-	KeyPrefix      string
-	ForcePathStyle bool
+	KeyPrefix      string // optional
+	ForcePathStyle bool   // optional, only for MinIO/LocalStack
 }
 
 // Load reads the environment and returns a populated Config. It never fails
@@ -90,8 +95,34 @@ func Load() (*Config, error) {
 		KeyPrefix:      os.Getenv("AWS_S3_KEY_PREFIX"),
 		ForcePathStyle: parseBoolean(os.Getenv("AWS_S3_FORCE_PATH_STYLE")),
 	}
+	if err := validateAWSEnv(cfg.AWS); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
+}
+
+// validateAWSEnv enforces that the records-audio pipeline has the env
+// it needs to function. Boot fails fast on missing values so a
+// misconfigured deploy is a deploy-time error, not a 503 the user sees
+// when they tap "음성 기록".
+//
+// Only AWS_REGION and AWS_S3_BUCKET are validated here. Bootstrap
+// credentials are intentionally not checked: in prod the SDK pulls them
+// from the IRSA web-identity token (no env var present), so requiring
+// AWS_ACCESS_KEY_ID would break the prod path.
+func validateAWSEnv(a AWSConfig) error {
+	missing := []string{}
+	if a.Region == "" {
+		missing = append(missing, "AWS_REGION")
+	}
+	if a.Bucket == "" {
+		missing = append(missing, "AWS_S3_BUCKET")
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf("records-audio env missing: %s", strings.Join(missing, ", "))
 }
 
 // RequireAuthEnv returns an error if the config is missing values that are
