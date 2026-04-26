@@ -43,8 +43,8 @@ jobs:
       AWS_S3_KEY_PREFIX: e2e
       AWS_S3_ENDPOINT: http://localhost:9000
       AWS_S3_USE_PATH_STYLE: "true"
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_ACCESS_KEY_ID: dearbabye2e
+      AWS_SECRET_ACCESS_KEY: dearbabye2e
 
     steps:
       - name: Checkout
@@ -58,8 +58,8 @@ jobs:
         run: |
           docker run -d --name minio \
             -p 9000:9000 \
-            -e MINIO_ROOT_USER=minioadmin \
-            -e MINIO_ROOT_PASSWORD=minioadmin \
+            -e MINIO_ROOT_USER=dearbabye2e \
+            -e MINIO_ROOT_PASSWORD=dearbabye2e \
             minio/minio:latest server /data
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null 2>&1; then
@@ -77,11 +77,11 @@ jobs:
           # swallows the BucketAlreadyOwnedByYou error but other errors
           # (auth, network) propagate and exit non-zero.
           docker run --rm --network host \
-            -e MC_HOST_local=http://minioadmin:minioadmin@127.0.0.1:9000 \
+            -e MC_HOST_local=http://dearbabye2e:dearbabye2e@127.0.0.1:9000 \
             minio/mc:latest mb --ignore-existing "local/${AWS_S3_BUCKET}"
           # Verify auth by listing the bucket (forces an authed call).
           docker run --rm --network host \
-            -e MC_HOST_local=http://minioadmin:minioadmin@127.0.0.1:9000 \
+            -e MC_HOST_local=http://dearbabye2e:dearbabye2e@127.0.0.1:9000 \
             minio/mc:latest ls "local/${AWS_S3_BUCKET}"
 
       - name: Setup backend
@@ -240,6 +240,13 @@ jobs:
           if [ -f server.pid ]; then
             kill "$(cat server.pid)" || true
           fi
+
+      - name: Dump MinIO logs
+        if: always()
+        run: |
+          echo "::group::minio logs (full)"
+          docker logs minio 2>&1 || true
+          echo "::endgroup::"
 
       - name: Stop MinIO
         if: always()

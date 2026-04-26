@@ -29,8 +29,8 @@ jobs:
       AWS_S3_KEY_PREFIX: e2e
       AWS_S3_ENDPOINT: http://127.0.0.1:9000
       AWS_S3_USE_PATH_STYLE: "true"
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_ACCESS_KEY_ID: dearbabye2e
+      AWS_SECRET_ACCESS_KEY: dearbabye2e
 
     steps:
       - name: Checkout
@@ -60,8 +60,8 @@ jobs:
         run: |
           brew install minio/stable/minio minio/stable/mc
           mkdir -p /tmp/minio-data
-          MINIO_ROOT_USER=minioadmin \
-          MINIO_ROOT_PASSWORD=minioadmin \
+          MINIO_ROOT_USER=dearbabye2e \
+          MINIO_ROOT_PASSWORD=dearbabye2e \
             nohup minio server /tmp/minio-data --address :9000 \
             > /tmp/minio.log 2>&1 &
           echo $! > /tmp/minio.pid
@@ -72,7 +72,7 @@ jobs:
             fi
             sleep 1
           done
-          mc alias set local http://127.0.0.1:9000 minioadmin minioadmin
+          mc alias set local http://127.0.0.1:9000 dearbabye2e dearbabye2e
           mc mb --ignore-existing "local/${AWS_S3_BUCKET}"
           # Verify MinIO accepted these credentials by listing the bucket.
           mc ls "local/${AWS_S3_BUCKET}"
