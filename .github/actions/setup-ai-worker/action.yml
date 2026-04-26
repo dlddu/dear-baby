@@ -9,11 +9,11 @@ inputs:
     description: OpenRouter API key.
     required: true
   openrouter-model:
-    description: OpenRouter model slug. Defaults to the free-tier
-      auto-router (https://openrouter.ai/openrouter/free) so the E2E
-      run doesn't need paid credits.
+    description: OpenRouter model slug. Defaults to the free tier of
+      gpt-oss-120b (https://openrouter.ai/openai/gpt-oss-120b:free) so
+      the E2E run doesn't need paid credits.
     required: false
-    default: "openrouter/free"
+    default: "openai/gpt-oss-120b:free"
   log-level:
     description: pino log level. CI defaults to debug so AI-preview
       pipeline failures leave a full breadcrumb trail.

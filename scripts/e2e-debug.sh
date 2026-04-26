@@ -6,7 +6,7 @@
 #
 # Usage:
 #   OPENROUTER_API_KEY=sk-or-... ./scripts/e2e-debug.sh
-#   OPENROUTER_API_KEY=sk-or-... OPENROUTER_MODEL=openrouter/free ./scripts/e2e-debug.sh
+#   OPENROUTER_API_KEY=sk-or-... OPENROUTER_MODEL=openai/gpt-oss-120b:free ./scripts/e2e-debug.sh
 #
 # Uses host-native processes (no docker) so breakpoints, log tailing, and
 # fast restarts work out of the box. Requires: go, node 20+, redis-server.
@@ -18,7 +18,7 @@ LOGDIR="$ROOT/tmp/e2e-debug"
 mkdir -p "$LOGDIR"
 
 : "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}"
-: "${OPENROUTER_MODEL:=openrouter/free}"
+: "${OPENROUTER_MODEL:=openai/gpt-oss-120b:free}"
 
 cleanup() {
   rc=$?
