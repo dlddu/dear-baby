@@ -64,6 +64,12 @@ type Config struct {
 	AssumeRoleARN string // optional; empty falls back to ambient chain
 	Bucket        string
 	KeyPrefix     string // already normalised — no leading slash, ends with "/" iff non-empty
+	// ForcePathStyle switches the S3 client off virtual-hosted-style and
+	// onto path-style URLs (https://endpoint/bucket/key). Required when
+	// targeting MinIO or LocalStack from inside a Kubernetes cluster,
+	// since `bucket.minio:9000` doesn't resolve. AWS itself supports
+	// either style.
+	ForcePathStyle bool
 }
 
 // Validate returns an error if required fields are missing. KeyPrefix is
@@ -84,15 +90,24 @@ func (c Config) Validate() error {
 // be empty.
 func LoadConfig() (Config, error) {
 	cfg := Config{
-		Region:        os.Getenv("AWS_REGION"),
-		AssumeRoleARN: os.Getenv("AWS_ASSUME_ROLE_ARN"),
-		Bucket:        os.Getenv("AWS_S3_BUCKET"),
-		KeyPrefix:     normalisePrefix(os.Getenv("AWS_S3_KEY_PREFIX")),
+		Region:         os.Getenv("AWS_REGION"),
+		AssumeRoleARN:  os.Getenv("AWS_ASSUME_ROLE_ARN"),
+		Bucket:         os.Getenv("AWS_S3_BUCKET"),
+		KeyPrefix:      normalisePrefix(os.Getenv("AWS_S3_KEY_PREFIX")),
+		ForcePathStyle: parseBool(os.Getenv("AWS_S3_FORCE_PATH_STYLE")),
 	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+func parseBool(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 // normalisePrefix strips a leading slash (S3 keys are not absolute paths)
@@ -143,7 +158,11 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		awsCfg.Credentials = aws.NewCredentialsCache(provider)
 	}
 
-	s3Client := s3.NewFromConfig(awsCfg)
+	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		if cfg.ForcePathStyle {
+			o.UsePathStyle = true
+		}
+	})
 	return &Client{
 		Config:    cfg,
 		S3:        s3Client,

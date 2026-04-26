@@ -31,6 +31,14 @@ spec:
           envFrom:
             - secretRef:
                 name: auth-secret
+            # AWS credentials for the records-audio pipeline. Optional
+            # in prod when the platform provides credentials by other
+            # means (IRSA / instance profile / AssumeRole bootstrap);
+            # required in CI, where the integration job creates this
+            # secret with MinIO root credentials.
+            - secretRef:
+                name: aws-credentials
+                optional: true
           volumeMounts:
             - name: data
               mountPath: /data

@@ -1,0 +1,73 @@
+# CI-only manifest: stands up a single-node MinIO inside the kind
+# cluster used by the integration workflow. The backend is pointed at
+# this Service via AWS_ENDPOINT_URL_S3, with AWS_S3_FORCE_PATH_STYLE=1
+# so presigned URLs come back as `http://minio:9000/{bucket}/{key}`
+# (virtual-hosted-style would require resolvable subdomain DNS, which
+# kind doesn't have).
+#
+# Static credentials are non-secret: the cluster is ephemeral and
+# never reachable from outside the runner. The bucket is created by a
+# follow-up `mc mb` step in the workflow once MinIO becomes ready.
+#
+# Not applied in prod — production points at real AWS S3 with
+# AssumeRole credentials.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2024-09-13T20-26-02Z
+          args: ["server", "/data", "--address", ":9000"]
+          env:
+            - name: MINIO_ROOT_USER
+              value: "ci-minio-access-key"
+            - name: MINIO_ROOT_PASSWORD
+              value: "ci-minio-secret-key"
+          ports:
+            - containerPort: 9000
+              name: s3
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: 9000

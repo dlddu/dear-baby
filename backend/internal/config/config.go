@@ -38,10 +38,11 @@ type Config struct {
 // AWSConfig groups the S3 settings the records-audio pipeline reads.
 // Mirrors storage.Config so app/router.go can pass it through verbatim.
 type AWSConfig struct {
-	Region        string
-	AssumeRoleARN string
-	Bucket        string
-	KeyPrefix     string
+	Region         string
+	AssumeRoleARN  string
+	Bucket         string
+	KeyPrefix      string
+	ForcePathStyle bool
 }
 
 // AudioEnabled reports whether the records-audio routes should be
@@ -87,10 +88,11 @@ func Load() (*Config, error) {
 	cfg.RedisURL = os.Getenv("REDIS_URL")
 
 	cfg.AWS = AWSConfig{
-		Region:        os.Getenv("AWS_REGION"),
-		AssumeRoleARN: os.Getenv("AWS_ASSUME_ROLE_ARN"),
-		Bucket:        os.Getenv("AWS_S3_BUCKET"),
-		KeyPrefix:     os.Getenv("AWS_S3_KEY_PREFIX"),
+		Region:         os.Getenv("AWS_REGION"),
+		AssumeRoleARN:  os.Getenv("AWS_ASSUME_ROLE_ARN"),
+		Bucket:         os.Getenv("AWS_S3_BUCKET"),
+		KeyPrefix:      os.Getenv("AWS_S3_KEY_PREFIX"),
+		ForcePathStyle: parseBoolean(os.Getenv("AWS_S3_FORCE_PATH_STYLE")),
 	}
 
 	return cfg, nil
@@ -119,4 +121,12 @@ func parseDuration(k string, def time.Duration) time.Duration {
 		}
 	}
 	return def
+}
+
+func parseBoolean(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
