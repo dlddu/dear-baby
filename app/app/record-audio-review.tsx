@@ -61,6 +61,10 @@ export default function RecordAudioReviewScreen() {
   const trimmed = useMemo(() => content.trim(), [content]);
   const canSave = trimmed.length > 0 && phase === 'editing';
 
+  const uploadButtonTitle =
+    phase === 'saving_and_uploading' ? '업로드 중…' : '저장 후 음성 원본 업로드';
+  const saveButtonTitle = phase === 'saving' ? '저장 중…' : '저장';
+
   // STT — runs once on mount. We don't expose a re-run button: if the
   // user wants to re-transcribe they go back and re-record. The
   // transcript is editable so small corrections happen in-place.
@@ -228,11 +232,7 @@ export default function RecordAudioReviewScreen() {
 
         <View style={styles.footer}>
           <Button
-            title={
-              phase === 'saving_and_uploading'
-                ? '업로드 중…'
-                : '저장 후 음성 원본 업로드'
-            }
+            title={uploadButtonTitle}
             leading="☁️"
             variant="primary"
             fullWidth
@@ -242,7 +242,7 @@ export default function RecordAudioReviewScreen() {
           />
           <View style={{ height: spacing[2] }} />
           <Button
-            title={phase === 'saving' ? '저장 중…' : '저장'}
+            title={saveButtonTitle}
             leading="📓"
             variant="secondary"
             fullWidth
