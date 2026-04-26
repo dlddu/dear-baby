@@ -69,10 +69,11 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	// outages of AWS don't take the whole app offline.
 	if cfg.AWS.AudioEnabled() {
 		s3Client, err := storage.NewClient(context.Background(), storage.Config{
-			Region:        cfg.AWS.Region,
-			AssumeRoleARN: cfg.AWS.AssumeRoleARN,
-			Bucket:        cfg.AWS.Bucket,
-			KeyPrefix:     cfg.AWS.KeyPrefix,
+			Region:         cfg.AWS.Region,
+			AssumeRoleARN:  cfg.AWS.AssumeRoleARN,
+			Bucket:         cfg.AWS.Bucket,
+			KeyPrefix:      cfg.AWS.KeyPrefix,
+			ForcePathStyle: cfg.AWS.ForcePathStyle,
 		})
 		if err != nil {
 			logger.Error("storage init failed; audio routes disabled", "err", err)
