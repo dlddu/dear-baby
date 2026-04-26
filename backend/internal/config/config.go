@@ -51,6 +51,7 @@ type AWSConfig struct {
 	Bucket         string
 	KeyPrefix      string // optional
 	ForcePathStyle bool   // optional, only for MinIO/LocalStack
+	EndpointURL    string // optional override; AWS_ENDPOINT_URL_S3 (MinIO/LocalStack)
 }
 
 // Load reads the environment and returns a populated Config. It never fails
@@ -94,6 +95,7 @@ func Load() (*Config, error) {
 		Bucket:         os.Getenv("AWS_S3_BUCKET"),
 		KeyPrefix:      os.Getenv("AWS_S3_KEY_PREFIX"),
 		ForcePathStyle: parseBoolean(os.Getenv("AWS_S3_FORCE_PATH_STYLE")),
+		EndpointURL:    strings.TrimSpace(os.Getenv("AWS_ENDPOINT_URL_S3")),
 	}
 	if err := validateAWSEnv(cfg.AWS); err != nil {
 		return nil, err

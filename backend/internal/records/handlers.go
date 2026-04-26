@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"unicode/utf8"
@@ -162,6 +163,7 @@ func (h *Handlers) CreateAudioUploadURL(w http.ResponseWriter, r *http.Request) 
 	key := h.Audio.BuildRecordAudioKey(uid, recordID)
 	put, err := h.Audio.PresignPut(r.Context(), key)
 	if err != nil {
+		slog.Error("presign put failed", "err", err, "user_id", uid, "record_id", recordID)
 		httpx.WriteError(w, http.StatusInternalServerError, "presign failed")
 		return
 	}
@@ -224,6 +226,7 @@ func (h *Handlers) Patch(w http.ResponseWriter, r *http.Request) {
 
 	exists, err := h.Audio.HeadObject(r.Context(), key)
 	if err != nil {
+		slog.Error("head object failed", "err", err, "user_id", uid, "record_id", recordID, "key", key)
 		httpx.WriteError(w, http.StatusInternalServerError, "head object failed")
 		return
 	}

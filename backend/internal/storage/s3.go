@@ -72,6 +72,12 @@ type Config struct {
 	// since `bucket.minio:9000` doesn't resolve. AWS itself supports
 	// either style.
 	ForcePathStyle bool
+	// EndpointURL overrides the SDK's default S3 endpoint. The SDK
+	// honours AWS_ENDPOINT_URL_S3 automatically only when configured
+	// to use the new endpoint resolver in profile-loaded paths; we
+	// pass it explicitly via s3.Options.BaseEndpoint so MinIO works
+	// regardless of how the SDK was constructed.
+	EndpointURL string
 }
 
 // Validate returns an error if required fields are missing. KeyPrefix is
@@ -97,6 +103,7 @@ func LoadConfig() (Config, error) {
 		Bucket:         os.Getenv("AWS_S3_BUCKET"),
 		KeyPrefix:      normalisePrefix(os.Getenv("AWS_S3_KEY_PREFIX")),
 		ForcePathStyle: parseBool(os.Getenv("AWS_S3_FORCE_PATH_STYLE")),
+		EndpointURL:    strings.TrimSpace(os.Getenv("AWS_ENDPOINT_URL_S3")),
 	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
@@ -164,6 +171,9 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		if cfg.ForcePathStyle {
 			o.UsePathStyle = true
 		}
+		if cfg.EndpointURL != "" {
+			o.BaseEndpoint = aws.String(cfg.EndpointURL)
+		}
 	})
 	return &Client{
 		Config:    cfg,
@@ -201,7 +211,7 @@ func (c *Client) PresignPut(ctx context.Context, key string) (PresignedPut, erro
 		Bucket:        aws.String(c.Config.Bucket),
 		Key:           aws.String(key),
 		ContentType:   aws.String(AudioContentType),
-		ContentLength: MaxAudioBytes,
+		ContentLength: aws.Int64(MaxAudioBytes),
 	}, func(o *s3.PresignOptions) {
 		o.Expires = DefaultPresignTTL
 	})

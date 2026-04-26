@@ -81,18 +81,19 @@ appId: com.dlddu.dearbaby
     visible: "AI가 당신의 기록을 이렇게 정리했어요"
     timeout: 30000
 
-# Drafts contains exactly one row that we can act on.
+# Drafts contains exactly one row that we can act on. Buttons carry
+# per-record testIDs (drafts-upload-{uuid} / drafts-delete-{uuid});
+# match by testID prefix via regex so we don't have to know the UUID.
 - tapOn:
     id: "drafts-banner"
 - assertVisible:
     id: "drafts-screen"
-# Upload (fixture path: succeeds without hitting S3); afterwards the
-# archive should be empty.
-- tapOn: "업로드"
+- tapOn:
+    id: "drafts-upload-.+"
 - extendedWaitUntil:
     visible:
       id: "drafts-empty"
-    timeout: 10000
+    timeout: 15000
 - tapOn:
     id: "drafts-back"
 - assertVisible:
@@ -149,9 +150,11 @@ appId: com.dlddu.dearbaby
     id: "drafts-banner"
 - assertVisible:
     id: "drafts-screen"
-- tapOn: "삭제"
-# Native confirm dialog. Both platforms render "삭제" on the destructive
-# button; tapping it removes the local copy without touching the server.
+- tapOn:
+    id: "drafts-delete-.+"
+# Native confirm dialog from RN's Alert.alert — its destructive button
+# is rendered by the OS, not the app, so the text "삭제" surfaces in
+# Maestro's tree as expected.
 - tapOn: "삭제"
 - extendedWaitUntil:
     visible:
