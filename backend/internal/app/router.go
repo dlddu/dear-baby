@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -22,7 +23,11 @@ import (
 
 // newRouter builds the chi router, wires middleware and handlers, and
 // returns an http.Handler ready for the http.Server.
-func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub) http.Handler {
+//
+// Returns an error if S3 wiring fails — the records-audio pipeline is
+// a first-class feature, so a misconfigured AWS env should kill the
+// boot rather than silently disabling the routes.
+func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub) (http.Handler, error) {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -64,10 +69,9 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
 
-	// Wire S3. NewClient validates required env (region + bucket) and
-	// returns an error if anything is missing or malformed. We log and
-	// proceed without the audio routes — text records and /health stay
-	// up so partial outages of AWS don't take the whole app offline.
+	// Wire S3. config.Load() already validated the required env vars,
+	// so a failure here is a real AWS-SDK problem (bad endpoint URL,
+	// AssumeRole-on-boot rejected, etc.) and we let it bubble up.
 	s3Client, err := storage.NewClient(context.Background(), storage.Config{
 		Region:         cfg.AWS.Region,
 		AssumeRoleARN:  cfg.AWS.AssumeRoleARN,
@@ -76,18 +80,17 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		ForcePathStyle: cfg.AWS.ForcePathStyle,
 	})
 	if err != nil {
-		logger.Info("records-audio routes disabled", "err", err)
-	} else {
-		recordsHandlers.Audio = s3Client
-		logger.Info("records-audio routes enabled",
-			"region", cfg.AWS.Region,
-			"bucket", cfg.AWS.Bucket,
-			// Prefix masked since some teams encode tenant/user
-			// hints in it. Length is informative enough.
-			"prefix_len", len(cfg.AWS.KeyPrefix),
-			"assume_role", cfg.AWS.AssumeRoleARN != "",
-		)
+		return nil, fmt.Errorf("storage init: %w", err)
 	}
+	recordsHandlers.Audio = s3Client
+	logger.Info("records-audio routes enabled",
+		"region", cfg.AWS.Region,
+		"bucket", cfg.AWS.Bucket,
+		// Prefix masked since some teams encode tenant/user
+		// hints in it. Length is informative enough.
+		"prefix_len", len(cfg.AWS.KeyPrefix),
+		"assume_role", cfg.AWS.AssumeRoleARN != "",
+	)
 
 	// Health endpoint — response shape must stay byte-equivalent to the
 	// pre-scaffold backend/main.go so the existing Maestro E2E flow and the
@@ -139,5 +142,5 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		pr.Get("/onboarding/ai-preview/events", onbHandlers.AIPreviewEvents)
 	})
 
-	return r
+	return r, nil
 }

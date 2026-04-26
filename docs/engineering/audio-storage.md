@@ -45,28 +45,29 @@ The trade-off is that the backend can't reject corrupt audio mid-stream. We catc
 
 If the user picks "save without audio", steps 2–4 are skipped and the row simply stays with `audio_s3_key = NULL`. That row may stay text-only forever, or the user may attach audio later via the local drafts screen.
 
-## Credentials: AssumeRole
+## Credentials: IRSA bootstrap + explicit AssumeRole
 
-Production uses an explicit AssumeRole pattern (NOT IRSA, instance profile, or other SDK-native role assumption). Two IAM principals are involved:
+Production uses two IAM principals layered on top of each other:
 
-1. **Bootstrap IAM user** — long-lived `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` shipped to the pod via the `aws-credentials` Kubernetes Secret (`envFrom` on the Deployment). Its only permission is `sts:AssumeRole` on the role below; it cannot touch S3 directly.
+1. **Bootstrap = IRSA.** The pod's ServiceAccount carries an `eks.amazonaws.com/role-arn` annotation. EKS projects an OIDC token into the pod (`AWS_WEB_IDENTITY_TOKEN_FILE` + `AWS_ROLE_ARN` env vars) and the AWS SDK uses that token to call `sts:AssumeRoleWithWebIdentity` automatically. **No static credentials live anywhere in the cluster.** The IRSA role's only permission is `sts:AssumeRole` on the writer role below.
 
-2. **Records-audio writer role** — the `AWS_ASSUME_ROLE_ARN` the backend assumes at startup. Its trust policy lets the bootstrap user assume it; its permissions policy is scoped to one bucket prefix (see the IAM block below). The short-lived assumed credentials are what actually sign presigned URLs and HEAD requests.
+2. **Records-audio writer role.** `AWS_ASSUME_ROLE_ARN` points at this role. The backend wraps the IRSA-bootstrapped credentials in `stscreds.AssumeRoleProvider`, hops once more, and uses the resulting short-lived credentials to sign presigned URLs and HEAD requests. The role's permissions are narrowly scoped (see the IAM block below).
 
-Splitting like this keeps the long-lived secret minimal — losing it gives an attacker only the ability to call STS, not S3 — and the assumed credentials auto-rotate.
+Why two hops? IRSA gives a stable, audit-friendly identity to the pod; the explicit AssumeRole keeps the bucket-write role's trust policy small (it trusts a single role, not "any pod with this OIDC issuer"). Compromise of the IRSA role gives an attacker only `sts:AssumeRole`, not S3.
 
-| Var | Required | Example | Notes |
+CI doesn't have IRSA — kind doesn't run an OIDC issuer — so the integration job ships static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` for MinIO root in the same `aws-records-audio` Secret. `AWS_ASSUME_ROLE_ARN` is left unset in CI (MinIO has no STS endpoint), so the SDK uses the static creds directly against MinIO.
+
+| Var | Required at boot | Example | Notes |
 |---|---|---|---|
-| `AWS_ACCESS_KEY_ID` | yes (prod + CI) | `AKIA…` / `ci-minio-access-key` | Bootstrap. Comes from the `aws-credentials` Secret. |
-| `AWS_SECRET_ACCESS_KEY` | yes (prod + CI) | `…` | Pair with above. |
-| `AWS_REGION` | yes | `ap-northeast-2` | Bucket region; STS endpoint inferred. |
-| `AWS_ASSUME_ROLE_ARN` | yes in prod, unset in CI/dev | `arn:aws:iam::123456789012:role/dear-baby-records-writer` | When set, ambient creds → AssumeRole → assumed creds. When unset, ambient creds are used directly (CI against MinIO has no STS endpoint; local dev hits the bucket directly). |
-| `AWS_S3_BUCKET` | yes | `dear-baby-records-prod` | Different per environment. |
-| `AWS_S3_KEY_PREFIX` | optional | `prod/`, `dev/alice/`, `""` | Trailing slash auto-normalised. Empty means objects live at the bucket root. |
-| `AWS_S3_FORCE_PATH_STYLE` | optional | `1` for MinIO/LocalStack, unset for AWS | Forces `https://endpoint/{bucket}/{key}` URLs instead of `https://{bucket}.endpoint/{key}`. Required against in-cluster MinIO; AWS itself supports both styles. |
-| `AWS_ENDPOINT_URL_S3` | optional | `http://minio:9000` (CI) | SDK-recognised override. Unset in prod to hit public AWS. |
+| `AWS_REGION` | **yes** | `ap-northeast-2` | Validated by `config.Load`; missing → boot fails. |
+| `AWS_S3_BUCKET` | **yes** | `dear-baby-records-prod` | Validated by `config.Load`; missing → boot fails. |
+| `AWS_ASSUME_ROLE_ARN` | no, but operationally required in prod | `arn:aws:iam::123456789012:role/dear-baby-records-writer` | When set: IRSA bootstrap → AssumeRole → writer creds. When unset: SDK uses bootstrap chain directly (CI against MinIO; local dev). |
+| `AWS_S3_KEY_PREFIX` | no | `prod/`, `dev/alice/`, `""` | Trailing slash auto-normalised. Empty means objects live at the bucket root. |
+| `AWS_S3_FORCE_PATH_STYLE` | no | `1` for MinIO/LocalStack, unset for AWS | Forces `https://endpoint/{bucket}/{key}` URLs instead of `https://{bucket}.endpoint/{key}`. Required against in-cluster MinIO; AWS itself supports both styles. |
+| `AWS_ENDPOINT_URL_S3` | no | `http://minio:9000` (CI) | SDK-recognised override. Unset in prod to hit public AWS. |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | no (prod uses IRSA), required in CI | `AKIA…` | Not validated by `config.Load` because IRSA prod does not set them — the SDK reads `AWS_WEB_IDENTITY_TOKEN_FILE` instead. |
 
-`AWS_REGION` or `AWS_S3_BUCKET` missing → the records-audio routes are not mounted, but text records and `/health` keep working. This is the smoke-test / minimal-deploy path.
+A misconfigured deploy that's missing `AWS_REGION` or `AWS_S3_BUCKET` fails fast at `config.Load`; the binary refuses to start rather than serving text records with the audio routes silently 503'ing. Other failures (bad endpoint URL, IRSA token rejected, AssumeRole denied) surface at `storage.NewClient` time and also kill the boot.
 
 The records-audio writer role's permissions policy should restrict to:
 
