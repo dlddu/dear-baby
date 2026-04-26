@@ -1,3 +1,5 @@
+import * as FileSystem from 'expo-file-system/legacy';
+
 import { apiFetch } from './client';
 import type {
   CreateRecordResponse,
@@ -57,21 +59,27 @@ export async function requestAudioUploadUrl(
 }
 
 // uploadAudioToS3 PUTs the local audio file directly to S3 using the
-// presigned URL. Returns true on 2xx, throws otherwise. Note: this
-// bypasses apiFetch on purpose — the URL is signed for S3, not for our
-// backend, and adding our Authorization header would be rejected.
+// presigned URL. Throws on non-2xx. Bypasses apiFetch on purpose — the
+// URL is signed for S3, not for our backend, and adding our
+// Authorization header would invalidate the signature.
+//
+// Why FileSystem.uploadAsync (not fetch + blob): RN's fetch on a
+// file:// URI followed by a PUT of the resulting blob silently mutates
+// the request shape (extra headers, chunked encoding, charset on
+// Content-Type) which trips MinIO/S3's SigV4 verification with a 403.
+// uploadAsync delegates to NSURLSession / OkHttp which honor the exact
+// headers we set and stream the file unchanged.
 export async function uploadAudioToS3(
   url: string,
   fileUri: string,
 ): Promise<void> {
-  const blob = await (await fetch(fileUri)).blob();
-  const res = await fetch(url, {
-    method: 'PUT',
+  const res = await FileSystem.uploadAsync(url, fileUri, {
+    httpMethod: 'PUT',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
     headers: { 'Content-Type': 'audio/m4a' },
-    body: blob,
   });
-  if (!res.ok) {
-    throw new Error(`uploadAudioToS3 failed: ${res.status}`);
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`uploadAudioToS3 failed: ${res.status} ${res.body}`);
   }
 }
 
