@@ -78,6 +78,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		Bucket:         cfg.AWS.Bucket,
 		KeyPrefix:      cfg.AWS.KeyPrefix,
 		ForcePathStyle: cfg.AWS.ForcePathStyle,
+		EndpointURL:    cfg.AWS.EndpointURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("storage init: %w", err)
