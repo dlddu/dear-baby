@@ -43,9 +43,15 @@ appId: com.dlddu.dearbaby
 - assertVisible:
     id: "record-audio-review-screen"
 
-# Wait for the canned transcript to populate the input, then save.
+# Wait for STT to populate the input. Maestro can't reliably read a
+# React Native TextInput's value as visible text, so we instead wait
+# for the "transcribing" placeholder to disappear — the placeholder
+# only renders while `transcribing === true` (see
+# app/record-audio-review.tsx). Once the fixture transcribe returns,
+# transcribing flips to false and content is set in the same render,
+# so this signal is equivalent to "transcript is in the input".
 - extendedWaitUntil:
-    visible: "오늘 너의 작은 움직임"
+    notVisible: "음성을 텍스트로 바꾸고 있어요"
     timeout: 10000
 - tapOn:
     id: "record-audio-review-save"
@@ -98,7 +104,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "record-audio-next"
 - extendedWaitUntil:
-    visible: "오늘 너의 작은 움직임"
+    notVisible: "음성을 텍스트로 바꾸고 있어요"
     timeout: 10000
 - tapOn:
     id: "record-audio-review-save-and-upload"
@@ -138,7 +144,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "record-audio-next"
 - extendedWaitUntil:
-    visible: "오늘 너의 작은 움직임"
+    notVisible: "음성을 텍스트로 바꾸고 있어요"
     timeout: 10000
 - tapOn:
     id: "record-audio-review-save"
@@ -178,7 +184,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "record-audio-next"
 - extendedWaitUntil:
-    visible: "오늘 너의 작은 움직임"
+    notVisible: "음성을 텍스트로 바꾸고 있어요"
     timeout: 10000
 - tapOn:
     id: "record-audio-review-save"
