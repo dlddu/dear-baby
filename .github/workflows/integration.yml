@@ -110,17 +110,6 @@ jobs:
         run: |
           kubectl apply -f scripts/minio/deployment.yaml
 
-      # The CI MinIO uses static root credentials (non-secret — the
-      # cluster is ephemeral). Backend reads AWS_ACCESS_KEY_ID /
-      # AWS_SECRET_ACCESS_KEY from this secret via envFrom on the
-      # Deployment, mirroring how production injects assume-role
-      # bootstrap credentials.
-      - name: Create AWS credentials secret (MinIO)
-        run: |
-          kubectl create secret generic aws-credentials \
-            --from-literal=AWS_ACCESS_KEY_ID=ci-minio-access-key \
-            --from-literal=AWS_SECRET_ACCESS_KEY=ci-minio-secret-key
-
       - name: Apply backend + Redis manifests
         run: |
           sed -i \
@@ -157,12 +146,18 @@ jobs:
         run: |
           kubectl set env deployment/dear-baby TEST_AUTH_ENABLED=true
 
-      # Point the backend at MinIO. AWS_REGION can be anything sensible
-      # for SigV4 signing; AWS_ENDPOINT_URL_S3 redirects the AWS SDK
-      # off public AWS and onto the in-cluster Service.
-      # AWS_S3_FORCE_PATH_STYLE=1 keeps presigned URLs as
-      # http://minio:9000/{bucket}/{key} instead of using subdomain
-      # virtual-hosted style, which kind's CoreDNS doesn't support.
+      # Point the backend at MinIO. AWS_REGION is only used for SigV4
+      # signing; AWS_ENDPOINT_URL_S3 redirects the AWS SDK off public
+      # AWS and onto the in-cluster Service. AWS_S3_FORCE_PATH_STYLE=1
+      # keeps presigned URLs as http://minio:9000/{bucket}/{key} —
+      # virtual-hosted style needs subdomain DNS, which kind's CoreDNS
+      # doesn't have.
+      #
+      # The static creds are injected via `kubectl set env` here rather
+      # than a Secret + envFrom in the Deployment manifest because
+      # production uses IRSA (or instance profile) and never carries
+      # these as static env. Keeping them out of the manifest avoids a
+      # "what's this for in prod?" question.
       - name: Point backend at MinIO
         run: |
           kubectl set env deployment/dear-baby \
@@ -170,7 +165,9 @@ jobs:
             AWS_S3_BUCKET=dear-baby-ci \
             AWS_S3_KEY_PREFIX=ci/ \
             AWS_S3_FORCE_PATH_STYLE=1 \
-            AWS_ENDPOINT_URL_S3=http://minio:9000
+            AWS_ENDPOINT_URL_S3=http://minio:9000 \
+            AWS_ACCESS_KEY_ID=ci-minio-access-key \
+            AWS_SECRET_ACCESS_KEY=ci-minio-secret-key
 
       - name: Wait for MinIO rollout
         run: kubectl rollout status deployment/minio --timeout=120s
