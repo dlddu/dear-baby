@@ -3,9 +3,11 @@ description: Setup Go, build the backend binary, and start it with a health chec
 
 inputs:
   go-version:
-    description: Go version to install
+    description: Go version to install. Must match (or exceed) the
+      `go` directive in backend/go.mod — the AWS SDK pulled in for
+      records-audio requires Go 1.24+.
     required: false
-    default: "1.22"
+    default: "1.24"
   redis-url:
     description: REDIS_URL to export. Empty disables the AI-preview routes.
     required: false
