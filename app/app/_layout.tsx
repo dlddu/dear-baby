@@ -31,7 +31,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // signed-in UX, so AuthGate treats them as equivalent to `(tabs)` — we
     // must not redirect back to the home tab or the modal would close
     // immediately after `router.push`.
-    const inAuthedModal = root === 'record-text';
+    const inAuthedModal =
+      root === 'record-text' ||
+      root === 'record-audio' ||
+      root === 'record-audio-review' ||
+      root === 'drafts';
     if (status === 'authenticated' && !inTabs && !inAuthedModal) {
       router.replace('/(tabs)');
     } else if (status === 'onboarding' && !inOnboarding) {
