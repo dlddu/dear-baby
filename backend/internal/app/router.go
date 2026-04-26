@@ -19,9 +19,7 @@ import (
 )
 
 // newRouter builds the chi router, wires middleware and handlers, and
-// returns an http.Handler ready for the http.Server. redisClient + hub
-// are optional — when nil, AI-preview routes are skipped so /health and
-// auth continue to work without Redis (local dev / smoke tests).
+// returns an http.Handler ready for the http.Server.
 func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
@@ -89,27 +87,25 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		pr.Post("/records", recordsHandlers.Create)
 	})
 
-	if redisClient != nil && hub != nil {
-		tasksClient := &tasks.Client{Redis: redisClient}
-		onbHandlers := &onboarding.Handlers{
-			Store:           onboardingStore,
-			Tasks:           tasksClient,
-			Hub:             hub,
-			UserIDFromCtxFn: auth.UserIDFromRequest,
-		}
-
-		// Authenticated onboarding routes. The SSE route permits query
-		// token fallback because some RN EventSource shims cannot set
-		// headers reliably.
-		r.Group(func(pr chi.Router) {
-			pr.Use(auth.RequireAuth(issuer))
-			pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
-		})
-		r.Group(func(pr chi.Router) {
-			pr.Use(auth.RequireAuthWithQueryFallback(issuer))
-			pr.Get("/onboarding/ai-preview/events", onbHandlers.AIPreviewEvents)
-		})
+	tasksClient := &tasks.Client{Redis: redisClient}
+	onbHandlers := &onboarding.Handlers{
+		Store:           onboardingStore,
+		Tasks:           tasksClient,
+		Hub:             hub,
+		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
+
+	// Authenticated onboarding routes. The SSE route permits query
+	// token fallback because some RN EventSource shims cannot set
+	// headers reliably.
+	r.Group(func(pr chi.Router) {
+		pr.Use(auth.RequireAuth(issuer))
+		pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
+	})
+	r.Group(func(pr chi.Router) {
+		pr.Use(auth.RequireAuthWithQueryFallback(issuer))
+		pr.Get("/onboarding/ai-preview/events", onbHandlers.AIPreviewEvents)
+	})
 
 	return r
 }
