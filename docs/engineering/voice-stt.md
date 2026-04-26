@@ -57,14 +57,25 @@ Stage 2 음성 기록(PRD-001 AC-001-02)의 음성 → 텍스트 변환을 **디
 
 ## E2E fixture
 
-`EXPO_PUBLIC_E2E_AUDIO_FIXTURE=1` 일 때:
-- `modelManager.ensureModel()`은 다운로드 없이 더미 경로 반환
+`EXPO_PUBLIC_E2E_AUDIO_FIXTURE=1` 일 때 다음 3가지만 단축된다:
+- `record-audio` 화면은 마이크 권한 요청을 건너뛰고 [다음] 버튼 노출.
+  대신 cache 디렉터리에 dummy m4a 바이트를 실제로 써둔다.
 - `whisperEngine.transcribe()`는 캔드 한국어 transcript 반환
-- `record-audio` 화면은 마이크 권한 요청을 건너뛰고 [다음] 버튼 노출
-- `uploadAudio()` 오케스트레이터는 S3 PUT을 건너뛰고 즉시 성공
+  (mic 입력이 없으니 STT를 돌릴 게 없음).
+- `modelManager.ensureModel()`은 다운로드 없이 더미 경로 반환.
 
-이 4가지가 합쳐져서 Maestro가 마이크 입력 없이도 전체 음성 흐름
-(녹음 → STT → 편집 → 저장 → 업로드)을 행위 단위로 검증할 수 있다.
+**업로드 오케스트레이터(`uploadAudio`)와 백엔드는 fixture 분기가
+없다.** 즉 e2e에서 [저장 후 음성 원본 업로드] 또는 보관함의 [업로드]를
+누르면 실제로 backend의 presign → MinIO PUT → backend PATCH가 모두
+일어난다. 이렇게 두면 시뮬레이터 한계로 어쩔 수 없이 가짜인 mic·STT를
+제외한 모든 path가 e2e에서 검증된다.
+
+CI 환경 변수:
+- `EXPO_PUBLIC_E2E_AUDIO_FIXTURE=1` (앱 빌드 시 inline)
+- 백엔드: `AWS_S3_ENDPOINT=http://127.0.0.1:9000` (iOS) /
+  `http://localhost:9000` (Android, `adb reverse tcp:9000 tcp:9000` 와 함께)
+- `AWS_S3_USE_PATH_STYLE=true`
+- `AWS_ACCESS_KEY_ID=minioadmin`, `AWS_SECRET_ACCESS_KEY=minioadmin`
 
 ## 한계와 향후 작업
 

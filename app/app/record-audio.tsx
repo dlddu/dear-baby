@@ -16,6 +16,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
@@ -28,7 +29,13 @@ import { colors } from '../src/theme/colors';
 import { spacing } from '../src/theme/spacing';
 
 const FIXTURE = process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === '1';
-const FIXTURE_PATH = 'fixture://audio.m4a';
+// Fixture mode still writes a real file: downstream draftStore.create
+// runs FileSystem.moveAsync, the upload orchestrator runs a real
+// presign + S3 PUT (against MinIO in CI), and the backend HEADs the
+// object before persisting audio_s3_key. The bytes aren't valid m4a
+// but MinIO doesn't care, and STT is short-circuited separately.
+const FIXTURE_PATH = `${FileSystem.cacheDirectory ?? ''}fixture-audio.m4a`;
+const FIXTURE_BODY = 'dear-baby-e2e-fixture-audio';
 const FIXTURE_DURATION_MS = 4500;
 
 function formatDuration(ms: number): string {
@@ -75,6 +82,12 @@ export default function RecordAudioScreen() {
 
   const handleStop = useCallback(async () => {
     if (FIXTURE) {
+      // Materialize the fixture bytes on disk so moveAsync + S3 PUT in
+      // the downstream save flow operate on a real file. Idempotent —
+      // overwriting is fine since each test run picks a fresh record_id.
+      await FileSystem.writeAsStringAsync(FIXTURE_PATH, FIXTURE_BODY, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
       router.replace({
         pathname: '/record-audio-review',
         params: {

@@ -18,8 +18,6 @@ import {
   uploadAudioToS3,
 } from '../api/records';
 
-const FIXTURE = process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === '1';
-
 export type UploadAudioResult =
   | { status: 'ok' }
   | { status: 'already-attached' }
@@ -33,14 +31,6 @@ export async function uploadAudio(recordID: string): Promise<UploadAudioResult> 
   }
 
   await draftStore.markUploading(recordID);
-
-  // Fixture short-circuit: CI does not bring up S3, so the user-facing
-  // outcome is what we verify. Skip the network round-trip and converge
-  // on the same end state — local audio removed, no failure surfaced.
-  if (FIXTURE) {
-    await draftStore.remove(recordID);
-    return { status: 'ok' };
-  }
 
   try {
     // Single retry on URL expiry — covers a slow PUT that ran past the

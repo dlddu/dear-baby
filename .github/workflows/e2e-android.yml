@@ -23,18 +23,54 @@ jobs:
     env:
       EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
       EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
-      # Voice-record fixture mode: skips microphone access, returns a
-      # canned transcript, and short-circuits the S3 PUT so CI does
-      # not need a real bucket. App-only flag.
+      # Audio fixture covers the mic + STT only — those can't run in an
+      # emulator. The upload orchestrator runs for real against the
+      # MinIO instance below, so the e2e flow exercises presign + S3
+      # PUT + PATCH end-to-end.
       EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
       # Mirrors the app-side flag so the backend mounts /auth/test-login for
       # the Maestro login flow. CI/dev only — never enable in production.
       TEST_AUTH_ENABLED: "true"
       REDIS_URL: "redis://localhost:6379"
+      # Audio storage. Backend points at host's localhost:9000; the
+      # presigned URL it returns to the app also has localhost:9000.
+      # The emulator's localhost is itself, so we adb-reverse 9000 to
+      # the host below — that way the same signed URL works for both
+      # the backend's HEAD and the app's PUT, and the signature host
+      # matches the request host.
+      AWS_REGION: us-east-1
+      AWS_S3_BUCKET: dear-baby-records-e2e
+      AWS_S3_KEY_PREFIX: e2e
+      AWS_S3_ENDPOINT: http://localhost:9000
+      AWS_S3_USE_PATH_STYLE: "true"
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # MinIO acts as an S3 substitute for the audio upload flow. The
+      # GitHub `services:` block can't override the container CMD, and
+      # minio needs `server /data` to actually start — so we launch it
+      # via `docker run` instead.
+      - name: Start MinIO
+        run: |
+          docker run -d --rm --name minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null 2>&1; then
+              echo "minio is up"
+              break
+            fi
+            sleep 1
+          done
+          docker run --rm --network host \
+            -e MC_HOST_local=http://minioadmin:minioadmin@127.0.0.1:9000 \
+            minio/mc:latest mb --ignore-existing local/${AWS_S3_BUCKET}
 
       - name: Setup backend
         uses: ./.github/actions/setup-backend
@@ -127,6 +163,12 @@ jobs:
             fi
           done
 
+          # Forward the emulator's localhost:9000 to the host's 9000
+          # (where MinIO is listening). The backend's presigned URLs
+          # have host=localhost; this mapping makes them resolvable
+          # from inside the emulator without re-signing.
+          adb reverse tcp:9000 tcp:9000
+
           cd "$GITHUB_WORKSPACE/app"
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
           echo "Installing $APK"
@@ -186,3 +228,7 @@ jobs:
           if [ -f server.pid ]; then
             kill "$(cat server.pid)" || true
           fi
+
+      - name: Stop MinIO
+        if: always()
+        run: docker rm -f minio || true

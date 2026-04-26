@@ -69,6 +69,25 @@ bucket을 자동 생성한다. backend는 위 5개 env로 minio를 가리키도�
   bucket을 만든 뒤 위 명령을 실행한다.
 - env가 미설정이면 `t.Skip()` — 일반 `go test ./...`은 영향 없음.
 
+## E2E (Maestro)
+
+`e2e-ios.yml`/`e2e-android.yml` 도 MinIO를 띄우고 백엔드에 AWS env를
+주입한다 — fixture 모드는 mic·STT만 단축하고, 업로드 오케스트레이터와
+백엔드 audio 라우트는 **실제로** 동작한다. 즉 [저장 후 음성 원본
+업로드]나 보관함 [업로드] 버튼을 누르면 진짜 presign → S3 PUT →
+PATCH가 일어나야 e2e가 통과한다.
+
+네트워크 토폴로지:
+
+| 플랫폼 | MinIO 위치 | `AWS_S3_ENDPOINT` | 시뮬레이터 → MinIO 경로 |
+|---|---|---|---|
+| iOS | host (brew install) | `http://127.0.0.1:9000` | 시뮬레이터의 localhost = host |
+| Android | host (docker run) | `http://localhost:9000` | `adb reverse tcp:9000 tcp:9000` |
+
+`adb reverse`가 핵심 — 백엔드가 signed URL의 host를 `localhost`로 박아두면,
+emulator의 localhost가 host의 9000으로 매핑돼 signed Host와 request Host가
+일치한다(SigV4가 Host 헤더를 canonical request에 포함하므로).
+
 ## 키 컨벤션
 
 ```
