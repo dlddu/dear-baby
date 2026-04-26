@@ -25,6 +25,9 @@ async function main(): Promise<void> {
   let redisURL: string;
   let openrouterAPIKey: string;
   let model: string;
+  // Optional: when set, overrides the OpenAI client baseURL so CI can
+  // point the worker at a local mock instead of the real OpenRouter API.
+  const openrouterBaseURL = process.env.OPENROUTER_BASE_URL;
   try {
     redisURL = requireEnv('REDIS_URL');
     openrouterAPIKey = requireEnv('OPENROUTER_API_KEY');
@@ -46,11 +49,15 @@ async function main(): Promise<void> {
 
   const deps = {
     redis,
-    openrouter: openrouterClient(openrouterAPIKey),
+    openrouter: openrouterClient(openrouterAPIKey, openrouterBaseURL),
     model,
     logger,
     tracing,
   };
+
+  if (openrouterBaseURL) {
+    logger.info({ openrouterBaseURL }, 'OPENROUTER_BASE_URL override active');
+  }
 
   const registry = new TaskRegistry();
   registry.register(aiPreviewTask);

@@ -21,20 +21,6 @@ jobs:
           tags: ghcr.io/dlddu/dear-baby:ci
           cache-from: type=gha
 
-      # OPENROUTER_API_KEY gates the end-to-end AI preview test below.
-      # Plumbing tests (Redis wiring, route mounting) run either way.
-      - name: Check OPENROUTER_API_KEY
-        id: has_openrouter_key
-        env:
-          OR_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: |
-          if [ -n "$OR_KEY" ]; then
-            echo "value=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::OPENROUTER_API_KEY not set — end-to-end AI preview integration skipped"
-          fi
-
       # LANGFUSE_{PUBLIC,SECRET}_KEY, when present, activate the
       # observeOpenAI wrapper inside the worker so CI runs ship traces.
       # Both keys are required together; the worker deployment references
@@ -53,7 +39,6 @@ jobs:
           fi
 
       - name: Build worker image (local)
-        if: steps.has_openrouter_key.outputs.value == 'true'
         uses: docker/build-push-action@v6
         with:
           context: worker
@@ -72,7 +57,6 @@ jobs:
         run: kind load docker-image ghcr.io/dlddu/dear-baby:ci --name dear-baby-integration
 
       - name: Load worker image into kind
-        if: steps.has_openrouter_key.outputs.value == 'true'
         run: kind load docker-image ghcr.io/dlddu/dear-baby-worker:ci --name dear-baby-integration
 
       # Seed the auth secret the backend reads from before applying the
@@ -83,20 +67,20 @@ jobs:
           kubectl create secret generic auth-secret \
             --from-literal=JWT_SECRET=integration-jwt-secret
 
-      - name: Create OpenRouter secret
-        if: steps.has_openrouter_key.outputs.value == 'true'
-        env:
-          OR_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      # CI uses an in-cluster mock OpenRouter server (see step below), so
+      # the API key is non-secret and just needs to be non-empty for the
+      # worker's requireEnv check.
+      - name: Create OpenRouter secret (mock)
         run: |
           kubectl create secret generic openrouter-secret \
-            --from-literal=OPENROUTER_API_KEY="$OR_KEY"
+            --from-literal=OPENROUTER_API_KEY=ci-mock-key
 
       # Worker's envFrom references langfuse-secret as optional: true, so
       # it's safe to skip this when keys aren't configured. Default base
       # URL is US (our account region); override by setting the
       # LANGFUSE_BASE_URL GitHub secret.
       - name: Create Langfuse secret
-        if: steps.has_openrouter_key.outputs.value == 'true' && steps.has_langfuse_keys.outputs.value == 'true'
+        if: steps.has_langfuse_keys.outputs.value == 'true'
         env:
           LF_PUB: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LF_SEC: ${{ secrets.LANGFUSE_SECRET_KEY }}
@@ -106,6 +90,15 @@ jobs:
             --from-literal=LANGFUSE_PUBLIC_KEY="$LF_PUB" \
             --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC" \
             --from-literal=LANGFUSE_BASE_URL="${LF_BASE:-https://us.cloud.langfuse.com}"
+
+      # Stand up the mock OpenRouter server in-cluster. The worker's
+      # OPENROUTER_BASE_URL env (set below) points its OpenAI client at
+      # this Service so chat.completions calls never leave the cluster.
+      - name: Deploy openrouter-mock
+        run: |
+          kubectl create configmap openrouter-mock-script \
+            --from-file=server.js=scripts/openrouter-mock/server.js
+          kubectl apply -f scripts/openrouter-mock/deployment.yaml
 
       - name: Apply backend + Redis manifests
         run: |
@@ -121,13 +114,19 @@ jobs:
             -f k8s/redis-service.yaml
 
       - name: Apply worker manifest
-        if: steps.has_openrouter_key.outputs.value == 'true'
         run: |
           sed -i \
             -e 's|ghcr.io/dlddu/dear-baby-worker:latest|ghcr.io/dlddu/dear-baby-worker:ci|' \
             -e 's|imagePullPolicy: Always|imagePullPolicy: Never|' \
             k8s/worker-deployment.yaml
           kubectl apply -f k8s/worker-deployment.yaml
+
+      # Redirect the worker at the in-cluster mock. Triggers a rollout,
+      # which the wait-for-worker step below blocks on.
+      - name: Point worker at openrouter-mock
+        run: |
+          kubectl set env deployment/worker \
+            OPENROUTER_BASE_URL=http://openrouter-mock:8088/v1
 
       # Enable /auth/test-login so the end-to-end test can mint a
       # session without going through Google OAuth. Only effective on
@@ -146,8 +145,10 @@ jobs:
         # through.
         run: kubectl rollout status deployment/dear-baby --timeout=180s
 
+      - name: Wait for openrouter-mock rollout
+        run: kubectl rollout status deployment/openrouter-mock --timeout=120s
+
       - name: Wait for worker rollout
-        if: steps.has_openrouter_key.outputs.value == 'true'
         run: kubectl rollout status deployment/worker --timeout=120s
 
       - name: Diagnostics on rollout failure
@@ -164,17 +165,20 @@ jobs:
           echo "::endgroup::"
           echo "::group::kubectl describe deployment/worker"
           kubectl describe deployment/worker || true
+          kubectl describe deployment/openrouter-mock || true
           echo "::endgroup::"
           echo "::group::kubectl describe pods"
           kubectl describe pods -l app=dear-baby || true
           kubectl describe pods -l app=redis || true
           kubectl describe pods -l app=worker || true
+          kubectl describe pods -l app=openrouter-mock || true
           echo "::endgroup::"
           echo "::group::kubectl logs"
           kubectl logs deployment/dear-baby --tail=200 --all-containers=true || true
           kubectl logs deployment/dear-baby --tail=200 --all-containers=true --previous || true
           kubectl logs deployment/redis --tail=200 --all-containers=true || true
           kubectl logs deployment/worker --tail=200 --all-containers=true || true
+          kubectl logs deployment/openrouter-mock --tail=200 --all-containers=true || true
           echo "::endgroup::"
           echo "::group::kubectl get events"
           kubectl get events --sort-by=.lastTimestamp || true
@@ -233,16 +237,15 @@ jobs:
           fi
           echo "AI preview route mounted (401 on unauth) OK"
 
-      # ─── End-to-end: real OpenRouter call via the worker ─────────────
+      # ─── End-to-end: mock OpenRouter call via the worker ─────────────
       #
       # Goes all the way through: test-login → record save → AI preview
-      # enqueue → worker reads queue → OpenRouter call → publishes result
-      # → backend hub processor persists → /me reflects ai_preview.
-      # Prints the generated preview to the job log for visual
-      # inspection of each CI run.
+      # enqueue → worker reads queue → openrouter-mock chat completion →
+      # publishes result → backend hub processor persists → /me reflects
+      # ai_preview. Prints the generated preview to the job log for
+      # visual inspection of each CI run.
 
       - name: AI preview end-to-end (test-login → record → worker → /me)
-        if: steps.has_openrouter_key.outputs.value == 'true'
         run: |
           set -euo pipefail
 
@@ -315,9 +318,11 @@ jobs:
           echo "::endgroup::"
 
       - name: Full worker logs (debug)
-        if: always() && steps.has_openrouter_key.outputs.value == 'true'
+        if: always()
         run: |
           kubectl logs deployment/worker --tail=500 --all-containers=true || true
+          echo "--- openrouter-mock logs ---"
+          kubectl logs deployment/openrouter-mock --tail=500 --all-containers=true || true
 
       - name: Stop port-forward
         if: always()
