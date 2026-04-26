@@ -19,17 +19,14 @@ spec:
           env:
             - name: LOG_LEVEL
               value: "info"
-            # Model is plain config, not a secret. Override via a
-            # ConfigMap or literal env as needed. Defaults to OpenRouter's
-            # free-tier auto-router (https://openrouter.ai/openrouter/free)
-            # so dev/integration clusters don't need paid credits.
-            - name: OPENROUTER_MODEL
-              value: "openrouter/free"
             # In-cluster Redis is ClusterIP-only with no auth, so the URL
             # carries no secret material — keep it as plain config.
             - name: REDIS_URL
               value: "redis://redis:6379"
           envFrom:
+            # Carries OPENROUTER_API_KEY plus OPENROUTER_MODEL — the model
+            # slug rides the same secret so operators rotate the key/model
+            # pair together without touching the manifest.
             - secretRef:
                 name: openrouter-secret
             # Optional: when langfuse-secret is missing, observeOpenAI

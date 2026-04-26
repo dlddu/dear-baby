@@ -69,11 +69,13 @@ jobs:
 
       # CI uses an in-cluster mock OpenRouter server (see step below), so
       # the API key is non-secret and just needs to be non-empty for the
-      # worker's requireEnv check.
+      # worker's requireEnv check. OPENROUTER_MODEL also ships via this
+      # secret (matches the production worker-deployment wiring).
       - name: Create OpenRouter secret (mock)
         run: |
           kubectl create secret generic openrouter-secret \
-            --from-literal=OPENROUTER_API_KEY=ci-mock-key
+            --from-literal=OPENROUTER_API_KEY=ci-mock-key \
+            --from-literal=OPENROUTER_MODEL=openrouter-mock
 
       # Worker's envFrom references langfuse-secret as optional: true, so
       # it's safe to skip this when keys aren't configured. Default base
