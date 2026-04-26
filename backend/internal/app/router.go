@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
 	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 	"github.com/dlddu/dear-baby/backend/internal/records"
+	"github.com/dlddu/dear-baby/backend/internal/storage"
 	"github.com/dlddu/dear-baby/backend/internal/tasks"
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
@@ -62,6 +64,33 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
 
+	// Wire S3 only when configured. A failure here logs but does not
+	// kill the binary — text records and /health stay up so partial
+	// outages of AWS don't take the whole app offline.
+	if cfg.AWS.AudioEnabled() {
+		s3Client, err := storage.NewClient(context.Background(), storage.Config{
+			Region:        cfg.AWS.Region,
+			AssumeRoleARN: cfg.AWS.AssumeRoleARN,
+			Bucket:        cfg.AWS.Bucket,
+			KeyPrefix:     cfg.AWS.KeyPrefix,
+		})
+		if err != nil {
+			logger.Error("storage init failed; audio routes disabled", "err", err)
+		} else {
+			recordsHandlers.Audio = s3Client
+			logger.Info("records-audio routes enabled",
+				"region", cfg.AWS.Region,
+				"bucket", cfg.AWS.Bucket,
+				// Prefix masked since some teams encode tenant/user
+				// hints in it. Length is informative enough.
+				"prefix_len", len(cfg.AWS.KeyPrefix),
+				"assume_role", cfg.AWS.AssumeRoleARN != "",
+			)
+		}
+	} else {
+		logger.Info("records-audio routes disabled (AWS_REGION or AWS_S3_BUCKET unset)")
+	}
+
 	// Health endpoint — response shape must stay byte-equivalent to the
 	// pre-scaffold backend/main.go so the existing Maestro E2E flow and the
 	// CI curl smoke test keep working.
@@ -85,6 +114,11 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		pr.Get("/me", usersHandlers.Me)
 		pr.Patch("/me", usersHandlers.PatchMe)
 		pr.Post("/records", recordsHandlers.Create)
+		// Audio attachment routes are only meaningful when S3 is
+		// wired, but mounting them unconditionally keeps the URL
+		// surface predictable — handlers return 503 if Audio is nil.
+		pr.Post("/records/{id}/audio/upload-url", recordsHandlers.CreateAudioUploadURL)
+		pr.Patch("/records/{id}", recordsHandlers.Patch)
 	})
 
 	tasksClient := &tasks.Client{Redis: redisClient}

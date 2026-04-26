@@ -122,12 +122,19 @@ appId: com.dlddu.dearbaby
 - assertNotVisible:
     id: "stage2-week-badge"
 
-# ─── Path 3: voice is still "coming soon"; text flow saves + AI preview ──
+# ─── Path 3: voice CTA opens the recorder; text flow saves + AI preview ──
+# Voice happy-path is exercised end-to-end in onboarding-stage2-voice.yaml
+# (under EXPO_PUBLIC_E2E_AUDIO_FIXTURE=1). Here we only verify that the
+# CTA navigates somewhere and dismisses the coachmark, then back out.
 
 - tapOn:
     id: "stage2-voice-cta"
-- assertVisible: "곧 추가됩니다"
-- tapOn: "OK"
+- assertVisible:
+    id: "record-audio-screen"
+- tapOn:
+    id: "record-audio-cancel"
+- assertVisible:
+    id: "home-tab"
 
 # Voice tap also engages with the coachmark target → coachmark closes.
 - assertNotVisible:

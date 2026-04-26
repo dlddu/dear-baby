@@ -1,6 +1,6 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { openAiPreviewStream, requestAiPreview } from '../../src/api/ai';
 import {
@@ -13,15 +13,19 @@ import { QuestionCard } from '../../src/components/QuestionCard';
 import { Text } from '../../src/components/Text';
 import { useAuth } from '../../src/auth/AuthContext';
 import { pickDailyQuestion } from '../../src/data/dailyQuestions';
+import * as draftStore from '../../src/drafts/draftStore';
 import { colors } from '../../src/theme/colors';
+import { radius } from '../../src/theme/radius';
+import { shadows } from '../../src/theme/shadows';
 import { spacing } from '../../src/theme/spacing';
 import { calcPregnancy } from '../../src/utils/pregnancy';
 
 // HomeTab renders Stage 2 of onboarding — voice-record coachmark + daily
 // question card + dual CTAs + AI preview card. See docs/design-system/
-// onboarding.md for the spec. Voice recording itself is still out of
-// scope (PRD-001); the voice CTA surfaces a "coming soon" alert until the
-// audio pipeline lands.
+// onboarding.md for the spec. The voice CTA now routes to the dedicated
+// recording flow (record-audio → record-audio-review) instead of the
+// "곧 추가됩니다" alert. When the user has audio waiting in the local
+// archive, a banner above the CTAs surfaces the entry point to /drafts.
 //
 // AI preview flow: when `first_record_at` flips from null → set (first
 // save), the home kicks off a `requestAiPreview()` and opens an SSE
@@ -45,6 +49,10 @@ export default function HomeTab() {
   // subscription. Used to distinguish "loading" (stream open, waiting)
   // from "failed" (stream errored or never opened).
   const [aiStreamOpen, setAiStreamOpen] = useState(false);
+  // draftCount drives the "보관 중인 음성 원본 N개" banner. Refetched on
+  // every focus so returning from the review or drafts screen reflects
+  // the latest archive size without a manual refresh.
+  const [draftCount, setDraftCount] = useState(0);
 
   const prevFirstRecordAtRef = useRef<string | null>(null);
 
@@ -98,6 +106,18 @@ export default function HomeTab() {
     };
   }, [user?.first_record_at, user?.ai_preview, applyAiPreview]);
 
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void draftStore.count().then((n) => {
+        if (!cancelled) setDraftCount(n);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
+
   const handleRetry = useCallback(() => {
     setAiPreviewFailed(false);
     void requestAiPreview().catch(() => setAiPreviewFailed(true));
@@ -120,13 +140,17 @@ export default function HomeTab() {
 
   const handleVoicePress = useCallback(() => {
     if (showCoachmark) handleDismissCoachmark();
-    Alert.alert('곧 추가됩니다', '음성 기록 기능은 준비 중이에요.');
-  }, [showCoachmark, handleDismissCoachmark]);
+    router.push('/record-audio');
+  }, [router, showCoachmark, handleDismissCoachmark]);
 
   const handleTextPress = useCallback(() => {
     if (showCoachmark) handleDismissCoachmark();
     router.push('/record-text');
   }, [router, showCoachmark, handleDismissCoachmark]);
+
+  const handleDraftsPress = useCallback(() => {
+    router.push('/drafts');
+  }, [router]);
 
   return (
     <ScrollView
@@ -150,6 +174,21 @@ export default function HomeTab() {
           testID="stage2-coachmark"
           dismissTestID="stage2-coachmark-dismiss"
         />
+      ) : null}
+
+      {draftCount > 0 ? (
+        <Pressable
+          onPress={handleDraftsPress}
+          style={styles.draftsBanner}
+          testID="drafts-banner"
+        >
+          <Text variant="caption" color="onPrimary">
+            🎙 보관 중인 음성 원본 {draftCount}개
+          </Text>
+          <Text variant="caption" color="onPrimary">
+            보관함 열기 →
+          </Text>
+        </Pressable>
       ) : null}
 
       <View style={styles.ctaRow}>
@@ -208,4 +247,14 @@ const styles = StyleSheet.create({
   },
   ctaItem: { flex: 1 },
   identity: { textAlign: 'center', marginTop: spacing[2] },
+  draftsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.primary.coral,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    ...shadows.soft,
+  },
 });

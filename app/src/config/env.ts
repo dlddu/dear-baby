@@ -21,3 +21,17 @@ export const GOOGLE_WEB_CLIENT_ID: string =
 export const TEST_AUTH_ENABLED: boolean =
   process.env.EXPO_PUBLIC_TEST_AUTH_ENABLED === 'true' ||
   process.env.EXPO_PUBLIC_TEST_AUTH_ENABLED === '1';
+
+// E2E_AUDIO_FIXTURE swaps real audio recording + whisper STT for a
+// deterministic fixture. Maestro can't drive the microphone, and the
+// whisper model would have to be downloaded on every CI run, so the
+// flag short-circuits both:
+//   - the recorder returns a fixed fake file path immediately on stop
+//   - the STT engine returns a canned Korean transcript without loading
+//     any model
+//   - the upload-audio orchestrator pretends S3 PUT succeeded (no
+//     network call to AWS, since CI doesn't have credentials)
+// Production builds must leave this unset.
+export const E2E_AUDIO_FIXTURE: boolean =
+  process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === 'true' ||
+  process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === '1';
