@@ -15,6 +15,11 @@ jobs:
       # the Maestro login flow. CI/dev only — never enable in production.
       TEST_AUTH_ENABLED: "true"
       REDIS_URL: "redis://localhost:6379"
+      # Drive the voice maestro flow with a deterministic recorder + STT.
+      # The upload step is NOT short-circuited — it actually hits the
+      # MinIO instance set up below, so the records-audio backend
+      # contract gets exercised end-to-end in CI.
+      EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
 
     steps:
       - name: Checkout
@@ -34,6 +39,13 @@ jobs:
           done
           echo "redis failed to start"
           exit 1
+
+      # Stand MinIO up before setup-backend so the AWS_* env vars land
+      # in $GITHUB_ENV first. iOS Simulator shares the host's network
+      # namespace, so the presigned URL host=localhost works without
+      # the adb-reverse trick the Android job needs.
+      - name: Setup MinIO
+        uses: ./.github/actions/setup-minio
 
       - name: Setup backend
         uses: ./.github/actions/setup-backend
@@ -92,6 +104,7 @@ jobs:
           maestro test .maestro/login.yaml
           maestro test .maestro/onboarding-stage1.yaml
           maestro test .maestro/onboarding-stage2.yaml
+          maestro test .maestro/onboarding-stage2-voice.yaml
 
       - name: Upload Maestro debug artifacts
         if: always()

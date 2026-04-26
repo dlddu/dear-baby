@@ -1,0 +1,117 @@
+name: Setup MinIO
+description: |
+  Install + start MinIO on the runner host so the backend's records-audio
+  routes can be exercised against a real S3 API. Cross-platform: works on
+  ubuntu (e2e-android) and macos (e2e-ios) runners. Creates the requested
+  bucket using the bundled `mc` client, then writes the connection vars
+  to GITHUB_ENV so subsequent steps (and the backend started after this
+  action) inherit them automatically.
+
+  Static credentials are non-secret: the runner's MinIO is reachable on
+  127.0.0.1 only and disposed of when the job ends.
+
+inputs:
+  bucket:
+    description: Bucket name to create.
+    required: false
+    default: "dear-baby-ci"
+  port:
+    description: Port MinIO listens on.
+    required: false
+    default: "9000"
+  access-key:
+    description: MinIO root access key (also used as AWS_ACCESS_KEY_ID).
+    required: false
+    default: "ci-minio-access-key"
+  secret-key:
+    description: MinIO root secret key (also used as AWS_SECRET_ACCESS_KEY).
+    required: false
+    default: "ci-minio-secret-key"
+  region:
+    description: AWS_REGION to export. MinIO accepts any value; this is
+      only used for SigV4 signing.
+    required: false
+    default: "us-east-1"
+  key-prefix:
+    description: AWS_S3_KEY_PREFIX to export. Mirrors the production
+      pattern of splitting environments by prefix.
+    required: false
+    default: "ci/"
+
+runs:
+  using: composite
+  steps:
+    # Resolve the right binary URL for the runner's OS+arch. MinIO ships
+    # static Go binaries for both linux + darwin in amd64 + arm64.
+    - name: Detect platform
+      id: plat
+      shell: bash
+      run: |
+        os=$(uname -s | tr '[:upper:]' '[:lower:]')
+        arch=$(uname -m)
+        case "$arch" in
+          x86_64) arch=amd64 ;;
+          arm64|aarch64) arch=arm64 ;;
+        esac
+        echo "minio_url=https://dl.min.io/server/minio/release/${os}-${arch}/minio" >> "$GITHUB_OUTPUT"
+        echo "mc_url=https://dl.min.io/client/mc/release/${os}-${arch}/mc" >> "$GITHUB_OUTPUT"
+
+    - name: Install MinIO + mc
+      shell: bash
+      run: |
+        set -eux
+        bin="$RUNNER_TEMP/minio-bin"
+        mkdir -p "$bin"
+        curl -fsSL "${{ steps.plat.outputs.minio_url }}" -o "$bin/minio"
+        curl -fsSL "${{ steps.plat.outputs.mc_url }}" -o "$bin/mc"
+        chmod +x "$bin/minio" "$bin/mc"
+        echo "$bin" >> "$GITHUB_PATH"
+
+    - name: Start MinIO
+      shell: bash
+      env:
+        MINIO_ROOT_USER: ${{ inputs.access-key }}
+        MINIO_ROOT_PASSWORD: ${{ inputs.secret-key }}
+      run: |
+        set -eux
+        data="$RUNNER_TEMP/minio-data"
+        mkdir -p "$data"
+        nohup minio server "$data" --address ":${{ inputs.port }}" \
+          > "$RUNNER_TEMP/minio.log" 2>&1 &
+        echo $! > "$RUNNER_TEMP/minio.pid"
+        for i in $(seq 1 30); do
+          if curl -fsS "http://127.0.0.1:${{ inputs.port }}/minio/health/ready" >/dev/null 2>&1; then
+            echo "minio ready"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "minio failed to start"
+        cat "$RUNNER_TEMP/minio.log"
+        exit 1
+
+    - name: Create bucket
+      shell: bash
+      run: |
+        set -eux
+        mc alias set local "http://127.0.0.1:${{ inputs.port }}" \
+          "${{ inputs.access-key }}" "${{ inputs.secret-key }}"
+        mc mb -p "local/${{ inputs.bucket }}"
+
+    # Export the connection settings so the backend (started by
+    # setup-backend in the same job) and any later step inherit them.
+    # AWS_ENDPOINT_URL_S3 is the SDK-recognised env that redirects v2
+    # clients off public AWS; AWS_S3_FORCE_PATH_STYLE is read by the
+    # storage package since virtual-hosted style needs subdomain DNS.
+    - name: Export AWS_* env vars
+      shell: bash
+      run: |
+        {
+          echo "AWS_REGION=${{ inputs.region }}"
+          echo "AWS_S3_BUCKET=${{ inputs.bucket }}"
+          echo "AWS_S3_KEY_PREFIX=${{ inputs.key-prefix }}"
+          echo "AWS_S3_FORCE_PATH_STYLE=1"
+          echo "AWS_ENDPOINT_URL_S3=http://127.0.0.1:${{ inputs.port }}"
+          echo "AWS_ACCESS_KEY_ID=${{ inputs.access-key }}"
+          echo "AWS_SECRET_ACCESS_KEY=${{ inputs.secret-key }}"
+        } >> "$GITHUB_ENV"

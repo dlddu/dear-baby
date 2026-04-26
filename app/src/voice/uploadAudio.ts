@@ -20,7 +20,6 @@ import {
   requestAudioUploadUrl,
   uploadAudioToS3,
 } from '../api/records';
-import { E2E_AUDIO_FIXTURE } from '../config/env';
 import * as draftStore from '../drafts/draftStore';
 
 export type UploadResult =
@@ -45,18 +44,14 @@ export async function uploadAudio(recordID: string): Promise<UploadResult> {
   await draftStore.setStatus(recordID, 'uploading');
 
   try {
-    if (E2E_AUDIO_FIXTURE) {
-      // CI lacks AWS credentials and a real S3 endpoint; pretend the
-      // upload succeeded and clean up the local copy. The backend
-      // PATCH is also skipped because the upload-url route returns
-      // 503 without AWS configured.
-      await draftStore.remove(recordID);
-      return { status: 'uploaded' };
-    }
-
     // Step 1: presigned URL. May expire (5 min) if the user lingered
     // in the drafts screen — we treat that the same as any other
     // failure here and retry on next user gesture.
+    //
+    // Under EXPO_PUBLIC_E2E_AUDIO_FIXTURE the recorder + STT are
+    // stubbed (see recorder.ts / whisperEngine.ts), but this upload
+    // path is NOT — CI runs against a real MinIO behind the same S3
+    // contract, so failures here catch real device-side bugs.
     const presigned = await requestAudioUploadUrl(recordID);
 
     // Step 2: S3 PUT. This is the slow one (audio bytes over the
