@@ -1,0 +1,59 @@
+# CI-only manifest: stands up the openrouter-mock server inside the
+# kind cluster used by the integration workflow. The mock script is
+# loaded into a ConfigMap by the workflow, mounted into a stock
+# node:20-alpine pod, and exposed via a ClusterIP Service the worker
+# Deployment reaches at http://openrouter-mock:8088.
+#
+# Not applied in prod — production never sees this file.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openrouter-mock
+  labels:
+    app: openrouter-mock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openrouter-mock
+  template:
+    metadata:
+      labels:
+        app: openrouter-mock
+    spec:
+      containers:
+        - name: openrouter-mock
+          image: node:20-alpine
+          command: ["node", "/app/server.js"]
+          env:
+            - name: PORT
+              value: "8088"
+          ports:
+            - containerPort: 8088
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 1
+            periodSeconds: 2
+          volumeMounts:
+            - name: script
+              mountPath: /app
+      volumes:
+        - name: script
+          configMap:
+            name: openrouter-mock-script
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openrouter-mock
+  labels:
+    app: openrouter-mock
+spec:
+  selector:
+    app: openrouter-mock
+  ports:
+    - name: http
+      port: 8088
+      targetPort: 8088

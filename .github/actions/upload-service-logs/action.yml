@@ -35,6 +35,18 @@ runs:
         fi
         echo "::endgroup::"
 
+    - name: Dump openrouter-mock log (inline)
+      if: always()
+      shell: bash
+      run: |
+        echo "::group::openrouter-mock.log"
+        if [ -f openrouter-mock.log ]; then
+          tail -n 500 openrouter-mock.log || true
+        else
+          echo "(no openrouter-mock.log)"
+        fi
+        echo "::endgroup::"
+
     - name: Upload service logs
       if: always()
       uses: actions/upload-artifact@v4
@@ -43,4 +55,5 @@ runs:
         path: |
           backend/server.log
           worker/worker.log
+          openrouter-mock.log
         if-no-files-found: ignore

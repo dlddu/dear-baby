@@ -1,19 +1,34 @@
 name: Setup AI Worker
-description: Install Node, build the worker, and start it in the background with OpenRouter credentials.
+description: Install Node, build the worker, start a mock OpenRouter server, and start the worker in the background pointing at the mock.
 
 inputs:
   redis-url:
     description: REDIS_URL to connect to.
     required: true
   openrouter-api-key:
-    description: OpenRouter API key.
-    required: true
-  openrouter-model:
-    description: OpenRouter model slug. Defaults to the free-tier
-      auto-router (https://openrouter.ai/openrouter/free) so the E2E
-      run doesn't need paid credits.
+    description: OpenRouter API key. Optional in CI — the worker still
+      requires the env to be non-empty, but the value is ignored by the
+      mock server.
     required: false
-    default: "openrouter/free"
+    default: "ci-mock-key"
+  openrouter-base-url:
+    description: Override for the OpenAI client baseURL. When empty
+      (default) this action starts the local mock server on
+      mock-port and points the worker at it. Set to a real URL to skip
+      the mock and target an upstream provider instead.
+    required: false
+    default: ""
+  mock-port:
+    description: Port the local OpenRouter mock listens on. Only used
+      when openrouter-base-url is empty.
+    required: false
+    default: "8088"
+  openrouter-model:
+    description: OpenRouter model slug. The mock echoes whatever value
+      we send back, so this is only meaningful when openrouter-base-url
+      points at a real provider.
+    required: false
+    default: "openrouter-mock"
   log-level:
     description: pino log level. CI defaults to debug so AI-preview
       pipeline failures leave a full breadcrumb trail.
@@ -51,12 +66,52 @@ runs:
         npm ci --no-audit --no-fund || npm install --no-audit --no-fund
         npm run build
 
+    # Start the mock OpenRouter server in the background. Only runs when
+    # openrouter-base-url is empty — callers that want to talk to a real
+    # provider supply their own baseURL and skip this entirely.
+    - name: Start openrouter-mock
+      if: inputs.openrouter-base-url == ''
+      shell: bash
+      env:
+        PORT: ${{ inputs.mock-port }}
+      run: |
+        nohup node "$GITHUB_WORKSPACE/scripts/openrouter-mock/server.js" \
+          > "$GITHUB_WORKSPACE/openrouter-mock.log" 2>&1 &
+        echo $! > "$GITHUB_WORKSPACE/openrouter-mock.pid"
+        # Wait for the mock to come up before starting the worker —
+        # otherwise the worker's first chat.completions call could race
+        # the listener and fail the integration test.
+        for i in $(seq 1 20); do
+          if curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
+            echo "openrouter-mock ready on port ${PORT}"
+            exit 0
+          fi
+          sleep 0.5
+        done
+        echo "openrouter-mock never came up"
+        cat "$GITHUB_WORKSPACE/openrouter-mock.log" || true
+        exit 1
+
+    - name: Resolve worker baseURL
+      id: worker_base_url
+      shell: bash
+      env:
+        EXPLICIT: ${{ inputs.openrouter-base-url }}
+        PORT: ${{ inputs.mock-port }}
+      run: |
+        if [ -n "$EXPLICIT" ]; then
+          echo "value=$EXPLICIT" >> "$GITHUB_OUTPUT"
+        else
+          echo "value=http://127.0.0.1:${PORT}/v1" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Start worker
       working-directory: worker
       shell: bash
       env:
         REDIS_URL: ${{ inputs.redis-url }}
         OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        OPENROUTER_BASE_URL: ${{ steps.worker_base_url.outputs.value }}
         OPENROUTER_MODEL: ${{ inputs.openrouter-model }}
         LOG_LEVEL: ${{ inputs.log-level }}
         LANGFUSE_PUBLIC_KEY: ${{ inputs.langfuse-public-key }}
@@ -65,6 +120,7 @@ runs:
       run: |
         echo "worker env:"
         echo "  REDIS_URL=$REDIS_URL"
+        echo "  OPENROUTER_BASE_URL=$OPENROUTER_BASE_URL"
         echo "  OPENROUTER_MODEL=$OPENROUTER_MODEL"
         echo "  LOG_LEVEL=$LOG_LEVEL"
         echo "  OPENROUTER_API_KEY=$(printf '%s' "$OPENROUTER_API_KEY" | head -c 6)..."

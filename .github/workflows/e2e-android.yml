@@ -41,7 +41,9 @@ jobs:
         uses: ./.github/actions/setup-ai-worker
         with:
           redis-url: ${{ env.REDIS_URL }}
-          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+          # No openrouter-api-key / openrouter-base-url passed: the
+          # action stands up the local mock server and points the
+          # worker at it.
           langfuse-public-key: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           langfuse-secret-key: ${{ secrets.LANGFUSE_SECRET_KEY }}
           langfuse-baseurl: ${{ secrets.LANGFUSE_BASEURL }}
@@ -170,6 +172,13 @@ jobs:
         run: |
           if [ -f worker.pid ]; then
             kill "$(cat worker.pid)" || true
+          fi
+
+      - name: Stop openrouter-mock
+        if: always()
+        run: |
+          if [ -f openrouter-mock.pid ]; then
+            kill "$(cat openrouter-mock.pid)" || true
           fi
 
       - name: Stop backend
