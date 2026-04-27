@@ -164,7 +164,21 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 			// hitting STS on every request.
 			o.Duration = time.Hour
 		})
-		awsCfg.Credentials = aws.NewCredentialsCache(provider)
+		// ExpiryWindow forces the cache to refresh credentials before
+		// they actually expire. Critical for presigned URLs: a URL
+		// signed with temporary STS credentials is valid only until the
+		// session token expires, regardless of X-Amz-Expires. Without
+		// this, a URL signed at T-30s of credential lifetime would 403
+		// the moment the device PUTs even though X-Amz-Expires says
+		// 5 min. Setting the window to DefaultPresignTTL guarantees
+		// every signed URL has at least its full TTL of session-token
+		// lifetime ahead of it. Jitter avoids a thundering herd of STS
+		// AssumeRole calls when many requests arrive at the refresh
+		// boundary.
+		awsCfg.Credentials = aws.NewCredentialsCache(provider, func(o *aws.CredentialsCacheOptions) {
+			o.ExpiryWindow = DefaultPresignTTL
+			o.ExpiryWindowJitterFrac = 0.5
+		})
 	}
 
 	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
