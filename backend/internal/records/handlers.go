@@ -216,6 +216,26 @@ func (h *Handlers) Patch(w http.ResponseWriter, r *http.Request) {
 	}
 	key := *body.AudioS3Key
 
+	// Look up the record before validating the key. Two reasons:
+	//   1. If the record doesn't belong to this user, returning 404
+	//      (rather than 400 "key mismatch") avoids leaking whether
+	//      the record exists for another user.
+	//   2. If the row already has an audio_s3_key, returning 409
+	//      short-circuits the HEAD round-trip.
+	rec, err := h.Store.GetByIDForUser(r.Context(), uid, recordID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			httpx.WriteError(w, http.StatusNotFound, "record not found")
+			return
+		}
+		httpx.WriteError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+	if rec.AudioS3Key != nil {
+		httpx.WriteError(w, http.StatusConflict, "audio already attached")
+		return
+	}
+
 	if !h.Audio.IsValidRecordAudioKey(uid, recordID, key) {
 		// The client tried to PATCH a key that doesn't match this
 		// user's canonical namespace. Treat as 400 — this is a bug,
@@ -239,7 +259,7 @@ func (h *Handlers) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rec, err := h.Store.AttachAudio(r.Context(), uid, recordID, key)
+	rec, err = h.Store.AttachAudio(r.Context(), uid, recordID, key)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrNotFound):
