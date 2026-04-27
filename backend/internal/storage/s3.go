@@ -174,6 +174,16 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		if cfg.EndpointURL != "" {
 			o.BaseEndpoint = aws.String(cfg.EndpointURL)
 		}
+		// aws-sdk-go-v2 1.30+ adds `x-amz-sdk-checksum-algorithm` and
+		// `x-amz-checksum-...` headers to PutObject by default. They
+		// become part of the SigV4 SignedHeaders, which means a
+		// presigned PUT can only be consumed by a client that ALSO
+		// computes and sends the matching checksum. curl / RN's
+		// fetch don't, so we'd get 403 SignatureDoesNotMatch. Pin
+		// both directions to "when required" so the SDK only adds
+		// checksum behavior on operations that actually need it.
+		o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+		o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 	return &Client{
 		Config:    cfg,
@@ -203,15 +213,19 @@ func (c *Client) IsValidRecordAudioKey(userID, recordID, key string) bool {
 }
 
 // PresignPut issues a presigned PUT URL for the given key. The URL is
-// valid for DefaultPresignTTL and is locked to AudioContentType + a
-// MaxAudioBytes Content-Length. Returning the URL and a wallclock
-// expiry lets the client display "URL expires in ..." if it wants.
+// valid for DefaultPresignTTL and locked to AudioContentType.
+//
+// We deliberately don't include Content-Length in the signed input.
+// SigV4 would then require the client's PUT to send EXACTLY the same
+// number of bytes — but the recorder doesn't know its output size up
+// front and even if it did, signing the exact number gives no upside
+// over IAM-side limits. MaxAudioBytes is enforced as a client-side
+// recorder cap, not a server-side signature constraint.
 func (c *Client) PresignPut(ctx context.Context, key string) (PresignedPut, error) {
 	req, err := c.Presigner.PresignPutObject(ctx, &s3.PutObjectInput{
-		Bucket:        aws.String(c.Config.Bucket),
-		Key:           aws.String(key),
-		ContentType:   aws.String(AudioContentType),
-		ContentLength: aws.Int64(MaxAudioBytes),
+		Bucket:      aws.String(c.Config.Bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(AudioContentType),
 	}, func(o *s3.PresignOptions) {
 		o.Expires = DefaultPresignTTL
 	})
