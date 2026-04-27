@@ -1,3 +1,5 @@
+import * as FileSystem from 'expo-file-system/legacy';
+
 import { apiFetch } from './client';
 import type { CreateRecordResponse, Record } from './types';
 
@@ -59,36 +61,44 @@ export async function requestAudioUploadUrl(
   return (await res.json()) as AudioUploadURL;
 }
 
-// uploadAudioToS3 performs the presigned PUT. The Content-Type and the
-// 25 MiB ceiling must match what the server presigned, otherwise S3
-// answers with SignatureDoesNotMatch.
+// uploadAudioToS3 performs the presigned PUT.
+//
+// FileSystem.uploadAsync is the documented Expo path for binary file PUTs:
+// it goes through NSURLSessionUploadTask / OkHttp with the file as the
+// raw body and our explicit headers preserved. The previous implementation
+// passed `{ uri, type, name }` as a top-level fetch body — that shape is
+// documented as a FormData part, not a fetch body, and RN's behaviour for
+// it is implementation-defined; observed against the dlddu-kubernetes
+// bucket as a 403 with no useful detail in the alert.
+//
+// On failure we surface the S3 response body so SignatureDoesNotMatch /
+// AccessDenied / ExpiredToken / etc. show up in the error message instead
+// of just the bare status code — without that we're guessing at root cause.
 export async function uploadAudioToS3(
   presigned: AudioUploadURL,
   fileUri: string,
 ): Promise<void> {
-  // RN's fetch can take a `{ uri }` body for native file streaming
-  // without loading the whole file into memory. We fall back to a
-  // Blob / ArrayBuffer wrapper if the host doesn't support it (web
-  // dev / unit tests).
-  const body =
-    typeof fileUri === 'string' && fileUri.startsWith('file://')
-      ? // RN-only shape; harmless on web because we never reach this in dev
-        ({ uri: fileUri, type: presigned.content_type, name: 'audio.m4a' } as unknown as BodyInit)
-      : await fileUriToBlob(fileUri);
-
-  const res = await fetch(presigned.upload_url, {
-    method: presigned.method || 'PUT',
+  const res = await FileSystem.uploadAsync(presigned.upload_url, fileUri, {
+    httpMethod: (presigned.method || 'PUT') as 'PUT',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
     headers: { 'Content-Type': presigned.content_type },
-    body,
+    mimeType: presigned.content_type,
   });
-  if (!res.ok) {
-    throw new Error(`uploadAudioToS3 failed: ${res.status}`);
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(
+      `uploadAudioToS3 failed: ${res.status} ${extractS3ErrorCode(res.body)}`.trim(),
+    );
   }
 }
 
-async function fileUriToBlob(uri: string): Promise<Blob> {
-  const r = await fetch(uri);
-  return r.blob();
+// extractS3ErrorCode pulls the <Code> from S3's XML error body, falling
+// back to a truncated raw body so the failure mode is identifiable from
+// just the alert text.
+function extractS3ErrorCode(body: string | undefined): string {
+  if (!body) return '';
+  const m = body.match(/<Code>([^<]+)<\/Code>/);
+  if (m) return m[1];
+  return body.slice(0, 200);
 }
 
 // attachAudioToRecord PATCHes the row with the audio_s3_key the server
