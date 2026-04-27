@@ -166,16 +166,15 @@ jobs:
       - name: Wait for MinIO rollout
         run: kubectl rollout status deployment/minio --timeout=120s
 
-      # Create the bucket using mc against the in-cluster Service. The
-      # bucket name + access keys mirror the env wired into the backend
-      # above. `--ignore-existing` keeps reruns safe.
+      # Create the bucket using mc against the in-cluster Service. mc's
+      # ENTRYPOINT is the binary itself, so we can't `sh -c …` — instead
+      # we pre-bake the alias via MC_HOST_local and invoke `mc mb`
+      # directly. -p makes it idempotent on rerun.
       - name: Create MinIO bucket
         run: |
           kubectl run --rm -i --restart=Never --image=minio/mc:latest mc-mkbucket \
-            -- sh -c '
-              mc alias set local http://minio:9000 ci-minio-access-key ci-minio-secret-key &&
-              mc mb -p local/dear-baby-ci
-            '
+            --env=MC_HOST_local=http://ci-minio-access-key:ci-minio-secret-key@minio:9000 \
+            -- mb -p local/dear-baby-ci
 
       - name: Wait for Redis rollout
         run: kubectl rollout status deployment/redis --timeout=120s
@@ -450,10 +449,8 @@ jobs:
 
           echo "::group::verify object exists in MinIO"
           kubectl run --rm -i --restart=Never --image=minio/mc:latest mc-stat \
-            -- sh -c '
-              mc alias set local http://minio:9000 ci-minio-access-key ci-minio-secret-key &&
-              mc stat local/dear-baby-ci/'"$server_audio_key"'
-            '
+            --env=MC_HOST_local=http://ci-minio-access-key:ci-minio-secret-key@minio:9000 \
+            -- stat "local/dear-baby-ci/$server_audio_key"
           echo "::endgroup::"
 
           echo "::group::PATCH again should 409 (one-way attach)"
