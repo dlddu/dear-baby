@@ -15,7 +15,10 @@ export type LocalAudio = {
   // the server's records.created_at but the backend value is the
   // authoritative one in any UI ordering.
   created_at: string;
-  // Absolute file:// path to the audio blob on disk.
+  // Absolute file:// path to the audio blob on disk. Recomputed on
+  // every read from the record_id (see draftStore.readMeta) — the
+  // persisted value is ignored because the iOS app container UUID
+  // embedded in the path changes across reinstalls.
   audio_path: string;
   // Recording duration in milliseconds; surfaced in the list row.
   audio_duration_ms: number;

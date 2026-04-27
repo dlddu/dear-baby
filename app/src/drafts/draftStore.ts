@@ -49,7 +49,20 @@ async function writeIndex(ids: string[]): Promise<void> {
 async function readMeta(recordID: string): Promise<LocalAudio | null> {
   try {
     const raw = await FileSystem.readAsStringAsync(metaPathFor(recordID));
-    return JSON.parse(raw) as LocalAudio;
+    const parsed = JSON.parse(raw) as LocalAudio;
+    // The persisted audio_path is an absolute file:// path containing
+    // the iOS app container UUID (e.g. /var/mobile/Containers/Data/
+    // Application/{UUID}/Documents/audio/{record_id}/audio.m4a). That
+    // UUID changes on reinstall and on some OS restores, so a path
+    // written by a previous install points to a non-existent location
+    // even though the file may be at the same logical spot under the
+    // current container. We always recompute it from the record_id so
+    // callers (uploadAudio, list rows) get a path that matches the
+    // current container. If the file is genuinely gone (truly deleted,
+    // not just rebased), uploadAsync will surface that — handling that
+    // case is up to the caller.
+    parsed.audio_path = audioPathFor(recordID);
+    return parsed;
   } catch {
     return null;
   }
