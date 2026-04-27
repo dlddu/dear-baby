@@ -152,10 +152,14 @@ appId: com.dlddu.dearbaby
     id: "drafts-screen"
 - tapOn:
     id: "drafts-delete-.+"
-# Native confirm dialog from RN's Alert.alert — its destructive button
-# is rendered by the OS, not the app, so the text "삭제" surfaces in
-# Maestro's tree as expected.
-- tapOn: "삭제"
+# Native confirm dialog from RN's Alert.alert. The dialog's
+# destructive button label is the same as the row's delete button
+# ("삭제") and both surface to a11y, so we anchor the tap to the
+# dialog title to avoid ambiguity.
+- assertVisible: "음성 파일을 삭제할까요?"
+- tapOn:
+    text: "삭제"
+    below: "음성 파일을 삭제할까요?"
 - extendedWaitUntil:
     visible:
       id: "drafts-empty"
