@@ -11,6 +11,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/dlddu/dear-baby/backend/internal/analytics"
 	"github.com/dlddu/dear-baby/backend/internal/auth"
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
@@ -27,7 +28,7 @@ import (
 // Returns an error if S3 wiring fails — the records-audio pipeline is
 // a first-class feature, so a misconfigured AWS env should kill the
 // boot rather than silently disabling the routes.
-func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub) (http.Handler, error) {
+func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub, ph analytics.Client) (http.Handler, error) {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -66,6 +67,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	recordsHandlers := &records.Handlers{
 		Store:           recordsStore,
 		Users:           usersStore,
+		Analytics:       ph,
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
 

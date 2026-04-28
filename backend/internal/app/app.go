@@ -13,6 +13,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/dlddu/dear-baby/backend/internal/analytics"
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
 	"github.com/dlddu/dear-baby/backend/internal/onboarding"
@@ -80,7 +81,10 @@ func Run() error {
 	onboarding.SyncPendingAIPreviews(syncCtx, onboardingStore, tasksClient, logger)
 	cancelSync()
 
-	r, err := newRouter(cfg, sqlDB, logger, redisClient, hub)
+	phClient := analytics.New(cfg.PostHogAPIKey, cfg.PostHogHost, logger)
+	defer func() { _ = phClient.Close() }()
+
+	r, err := newRouter(cfg, sqlDB, logger, redisClient, hub, phClient)
 	if err != nil {
 		return err
 	}

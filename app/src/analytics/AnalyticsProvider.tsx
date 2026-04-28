@@ -11,5 +11,13 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   if (!posthogClient) {
     return <>{children}</>;
   }
-  return <PostHogProvider client={posthogClient}>{children}</PostHogProvider>;
+  // captureScreens hooks into the React Navigation tree expo-router renders
+  // and emits a $screen event on every navigation. captureTouches stays off:
+  // pregnancy notes are sensitive enough that we do not want generic UI
+  // taps logged.
+  return (
+    <PostHogProvider client={posthogClient} autocapture={{ captureScreens: true }}>
+      {children}
+    </PostHogProvider>
+  );
 }

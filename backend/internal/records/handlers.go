@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/dlddu/dear-baby/backend/internal/analytics"
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
 	"github.com/dlddu/dear-baby/backend/internal/storage"
 	"github.com/dlddu/dear-baby/backend/internal/users"
@@ -41,9 +42,12 @@ type AudioStorage interface {
 // not mounted (see app/router.go). This keeps the binary running in
 // environments without S3 credentials (CI smoke, /health-only deploys).
 type Handlers struct {
-	Store           *Store
-	Users           *users.Store
-	Audio           AudioStorage
+	Store *Store
+	Users *users.Store
+	Audio AudioStorage
+	// Analytics may be nil in tests; CreateAudioUploadURL guards the
+	// capture call so a missing client is silently treated as no-op.
+	Analytics       analytics.Client
 	UserIDFromCtxFn func(r *http.Request) (string, bool)
 }
 
@@ -167,6 +171,18 @@ func (h *Handlers) CreateAudioUploadURL(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteError(w, http.StatusInternalServerError, "presign failed")
 		return
 	}
+	if h.Analytics != nil {
+		// Captured server-side (rather than only on the client) so we
+		// can correlate uploads against actual S3 traffic without
+		// relying on the device finishing the request — the presign is
+		// the moment the backend commits to issuing storage capacity.
+		h.Analytics.Capture(uid, "audio_upload_url_issued", map[string]any{
+			"record_id":    recordID,
+			"audio_s3_key": key,
+			"expires_at":   put.ExpiresAt,
+		})
+	}
+
 	httpx.WriteJSON(w, http.StatusOK, audioUploadURLResponse{
 		PresignedPut: put,
 		AudioS3Key:   key,

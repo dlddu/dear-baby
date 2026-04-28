@@ -34,6 +34,12 @@ type Config struct {
 	// is missing, so a misconfigured deploy never silently degrades to
 	// "audio routes disabled".
 	AWS AWSConfig
+
+	// PostHog product-analytics credentials. Optional: when APIKey is
+	// empty the analytics client degrades to a no-op so CI / local dev
+	// boots without PostHog access.
+	PostHogAPIKey string
+	PostHogHost   string
 }
 
 // AWSConfig groups the S3 settings the records-audio pipeline reads.
@@ -100,6 +106,9 @@ func Load() (*Config, error) {
 	if err := validateAWSEnv(cfg.AWS); err != nil {
 		return nil, err
 	}
+
+	cfg.PostHogAPIKey = os.Getenv("POSTHOG_API_KEY")
+	cfg.PostHogHost = os.Getenv("POSTHOG_HOST")
 
 	return cfg, nil
 }

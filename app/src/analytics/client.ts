@@ -15,6 +15,10 @@ export const posthogClient: PostHog | null = POSTHOG_KEY
   ? new PostHog(POSTHOG_KEY, {
       host: POSTHOG_HOST,
       enableSessionReplay: true,
+      // Forward unhandled JS exceptions to PostHog Error Tracking. The SDK
+      // wires into the global error handlers itself; we only flip the bit.
+      // https://posthog.com/docs/error-tracking/installation/react-native
+      enableExceptionAutocapture: true,
       sessionReplayConfig: {
         maskAllTextInputs: true,
         maskAllImages: true,

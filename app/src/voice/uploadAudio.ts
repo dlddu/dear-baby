@@ -10,8 +10,9 @@
 //
 //   - retries are safe (idempotent — same record_id, same orchestrator)
 //   - successful upload removes the local copy immediately
-//   - any failure leaves the LocalAudio in 'failed' state with a
-//     meaningful last_error for the drafts UI
+//   - any failure leaves the LocalAudio in 'failed' state and emits an
+//     audio_upload_failed PostHog event; the user sees a "실패" badge
+//     but never the raw error string
 //   - "already attached" is treated as success for cleanup purposes
 //     (another device finished it; we just clean up our local copy)
 
@@ -20,6 +21,7 @@ import {
   requestAudioUploadUrl,
   uploadAudioToS3,
 } from '../api/records';
+import { posthogClient } from '../analytics/client';
 import * as draftStore from '../drafts/draftStore';
 
 export type UploadResult =
@@ -42,6 +44,10 @@ export async function uploadAudio(recordID: string): Promise<UploadResult> {
     return { status: 'failed', error: 'already uploading' };
   }
   await draftStore.setStatus(recordID, 'uploading');
+  posthogClient?.capture('audio_upload_started', {
+    record_id: recordID,
+    audio_duration_ms: draft.audio_duration_ms,
+  });
 
   try {
     // Step 1: presigned URL. May expire (5 min) if the user lingered
@@ -70,6 +76,9 @@ export async function uploadAudio(recordID: string): Promise<UploadResult> {
         // record is in the desired final state; clean up our local
         // copy and report it as a benign outcome.
         await draftStore.remove(recordID);
+        posthogClient?.capture('audio_upload_already_attached', {
+          record_id: recordID,
+        });
         return { status: 'already_attached' };
       }
       throw err;
@@ -77,10 +86,19 @@ export async function uploadAudio(recordID: string): Promise<UploadResult> {
 
     // All three steps succeeded — drop the local copy.
     await draftStore.remove(recordID);
+    posthogClient?.capture('audio_upload_succeeded', {
+      record_id: recordID,
+      audio_duration_ms: draft.audio_duration_ms,
+    });
     return { status: 'uploaded' };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await draftStore.setStatus(recordID, 'failed', msg);
+    posthogClient?.capture('audio_upload_failed', {
+      record_id: recordID,
+      audio_duration_ms: draft.audio_duration_ms,
+      error: msg,
+    });
     return { status: 'failed', error: msg };
   }
 }

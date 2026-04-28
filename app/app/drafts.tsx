@@ -75,10 +75,10 @@ export default function DraftsScreen() {
     async (item: LocalAudio) => {
       setBusy((prev) => ({ ...prev, [item.record_id]: true }));
       try {
-        const result = await uploadAudio(item.record_id);
-        if (result.status === 'failed') {
-          Alert.alert('업로드를 마치지 못했어요', result.error);
-        }
+        // Failures surface via the row's "실패" badge and an
+        // audio_upload_failed PostHog event — we deliberately do not
+        // show the raw error string to the user anymore.
+        await uploadAudio(item.record_id);
       } finally {
         setBusy((prev) => {
           const next = { ...prev };
