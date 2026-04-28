@@ -1,3 +1,4 @@
+import { posthogHeaders } from '../analytics/client';
 import { API_URL } from '../config/env';
 import {
   clearTokens,
@@ -50,6 +51,11 @@ export async function apiFetch(
   if (access) headers.set('Authorization', `Bearer ${access}`);
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
+  }
+  // Forward PostHog correlation IDs so backend logs can be linked back to
+  // the recorded session in the PostHog UI.
+  for (const [k, v] of Object.entries(posthogHeaders())) {
+    headers.set(k, v);
   }
 
   let res = await fetch(`${API_URL}${path}`, { ...init, headers });

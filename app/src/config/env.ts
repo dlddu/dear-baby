@@ -21,3 +21,12 @@ export const GOOGLE_WEB_CLIENT_ID: string =
 export const TEST_AUTH_ENABLED: boolean =
   process.env.EXPO_PUBLIC_TEST_AUTH_ENABLED === 'true' ||
   process.env.EXPO_PUBLIC_TEST_AUTH_ENABLED === '1';
+
+// PostHog product analytics. POSTHOG_KEY is the project API key from the
+// PostHog dashboard; when unset the AnalyticsProvider degrades to a no-op,
+// so local builds without analytics credentials continue to work.
+export const POSTHOG_KEY: string =
+  process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '';
+
+export const POSTHOG_HOST: string =
+  process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';

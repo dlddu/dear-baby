@@ -3,6 +3,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect } from 'react';
 import { View } from 'react-native';
 
+import { AnalyticsProvider } from '../src/analytics/AnalyticsProvider';
+import { useAnalyticsIdentity } from '../src/analytics/useAnalyticsIdentity';
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import { colors } from '../src/theme/colors';
 import { useAppFonts } from '../src/theme/fonts';
@@ -21,6 +23,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Sync PostHog identity from inside AuthProvider's tree. Mounted here
+  // (rather than in RootLayout) so that `useAuth()` is available.
+  useAnalyticsIdentity();
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -66,24 +72,26 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.cream }} onLayout={onLayoutRootView}>
-      <AuthProvider>
-        <AuthGate>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.bg.cream },
-            }}
-          >
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(onboarding)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="record-text"
-              options={{ presentation: 'modal', headerShown: false }}
-            />
-          </Stack>
-        </AuthGate>
-      </AuthProvider>
+      <AnalyticsProvider>
+        <AuthProvider>
+          <AuthGate>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.bg.cream },
+              }}
+            >
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(onboarding)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="record-text"
+                options={{ presentation: 'modal', headerShown: false }}
+              />
+            </Stack>
+          </AuthGate>
+        </AuthProvider>
+      </AnalyticsProvider>
     </View>
   );
 }
