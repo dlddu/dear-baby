@@ -54,9 +54,29 @@ export async function requestAudioUploadUrl(
     method: 'POST',
   });
   if (!res.ok) {
-    throw new Error(`requestAudioUploadUrl failed: ${res.status}`);
+    throw await httpError('requestAudioUploadUrl', res);
   }
   return (await res.json()) as AudioUploadURL;
+}
+
+// httpError builds a tagged Error with the HTTP status and a truncated
+// response body so the upload orchestrator can forward it to PostHog. We
+// cap the body to keep large/HTML error pages from blowing up the event
+// payload.
+async function httpError(label: string, res: Response): Promise<Error> {
+  let body = '';
+  try {
+    body = await res.text();
+  } catch {
+    // body is best-effort; ignore read failures
+  }
+  const trimmed = body.length > 500 ? body.slice(0, 500) + '…' : body;
+  const err = new Error(
+    `${label} failed: ${res.status}${trimmed ? ` ${trimmed}` : ''}`,
+  ) as Error & { status?: number; body?: string };
+  err.status = res.status;
+  err.body = trimmed;
+  return err;
 }
 
 // uploadAudioToS3 performs the presigned PUT. The Content-Type and the
@@ -82,7 +102,7 @@ export async function uploadAudioToS3(
     body,
   });
   if (!res.ok) {
-    throw new Error(`uploadAudioToS3 failed: ${res.status}`);
+    throw await httpError('uploadAudioToS3', res);
   }
 }
 
@@ -106,11 +126,15 @@ export async function attachAudioToRecord(
     // 409 is "another device already attached" — surface it as a
     // typed error so the orchestrator can clean up local state.
     if (res.status === 409) {
-      const err = new Error('audio already attached');
-      (err as Error & { code?: string }).code = 'audio_already_attached';
+      const err = new Error('audio already attached') as Error & {
+        code?: string;
+        status?: number;
+      };
+      err.code = 'audio_already_attached';
+      err.status = 409;
       throw err;
     }
-    throw new Error(`attachAudioToRecord failed: ${res.status}`);
+    throw await httpError('attachAudioToRecord', res);
   }
   return (await res.json()) as { record: Record };
 }
