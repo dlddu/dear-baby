@@ -16,7 +16,7 @@ func CORS() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-PostHog-Session-Id, X-PostHog-Distinct-Id")
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusOK)
 				return
@@ -50,6 +50,15 @@ func Logger(l *slog.Logger) func(http.Handler) http.Handler {
 			}
 			if reqID := chimw.GetReqID(r.Context()); reqID != "" {
 				attrs = append(attrs, "request_id", reqID)
+			}
+			// PostHog correlation IDs forwarded by the app. Logging them
+			// makes it possible to jump from a backend log line into the
+			// matching PostHog session replay.
+			if sid := r.Header.Get("X-PostHog-Session-Id"); sid != "" {
+				attrs = append(attrs, "ph_session_id", sid)
+			}
+			if did := r.Header.Get("X-PostHog-Distinct-Id"); did != "" {
+				attrs = append(attrs, "ph_distinct_id", did)
 			}
 			if sw.errMsg != "" {
 				attrs = append(attrs, "error", sw.errMsg)

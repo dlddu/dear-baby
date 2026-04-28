@@ -58,6 +58,7 @@ app/                       # expo-router routes
     settings.tsx           # Settings + Sign out
 src/
   analytics/
+    client.ts              # singleton PostHog client (session replay enabled)
     AnalyticsProvider.tsx  # PostHog provider, no-op when key is unset
     useAnalyticsIdentity.ts # syncs PostHog distinctId with auth state
   api/
@@ -70,6 +71,28 @@ src/
   config/
     env.ts                 # typed access to EXPO_PUBLIC_* env vars
 ```
+
+## Analytics & session replay
+
+PostHog is initialized once at module load (`src/analytics/client.ts`) and
+exposed to the React tree via `AnalyticsProvider`. When
+`EXPO_PUBLIC_POSTHOG_KEY` is empty the provider becomes a pass-through, so
+local builds without analytics credentials behave normally.
+
+Session replay is **on** with conservative privacy defaults:
+
+- `maskAllTextInputs: true` — pregnancy notes never leave the device
+  unredacted.
+- `maskAllImages: true` — same reasoning for any image we render.
+- `captureNetworkTelemetry: true` — backend calls show up in the replay
+  timeline so you can correlate UI moments with API behavior.
+
+The app also forwards two correlation headers on every authenticated
+request (`apiFetch` + the SSE stream): `X-PostHog-Session-Id` and
+`X-PostHog-Distinct-Id`. The backend's `httpx.Logger` middleware records
+both as `ph_session_id` / `ph_distinct_id` slog attributes, which lets
+you jump from a backend log line straight into the matching PostHog
+session replay.
 
 ## E2E (Maestro)
 

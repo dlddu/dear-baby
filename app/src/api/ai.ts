@@ -1,5 +1,6 @@
 import EventSource from 'react-native-sse';
 
+import { posthogHeaders } from '../analytics/client';
 import { API_URL } from '../config/env';
 import { getAccessToken } from '../auth/tokens';
 import { apiFetch } from './client';
@@ -44,7 +45,10 @@ export function openAiPreviewStream(
     }
     const url = `${API_URL}/onboarding/ai-preview/events`;
     source = new EventSource<AiCustomEventType>(url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...posthogHeaders(),
+      },
       // EventSource in react-native-sse doesn't auto-reconnect by default.
       // We let it stay closed on error — the home effect reopens the
       // stream when status conditions change, which is a simpler flow
