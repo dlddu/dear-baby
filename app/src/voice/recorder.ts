@@ -78,9 +78,16 @@ class NativeRecorder implements Recorder {
     }
     await audio.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
     const presets = audio.RecordingPresets ?? {};
-    const opts = presets.HIGH_QUALITY ?? presets.LOW_QUALITY;
-    this.recorder = new audio.AudioRecorder(opts);
-    await this.recorder.prepareToRecordAsync();
+    const opts = presets.HIGH_QUALITY ?? presets.LOW_QUALITY ?? {};
+    // expo-audio v1.x exposes the AudioRecorder class on AudioModule, not on
+    // the package root, so `new audio.AudioRecorder(...)` would crash with
+    // "Cannot read property 'prototype' of undefined" in Hermes.
+    const AudioRecorder = audio.AudioModule?.AudioRecorder;
+    if (!AudioRecorder) throw new Error('expo-audio AudioRecorder unavailable');
+    this.recorder = new AudioRecorder(opts);
+    // prepareToRecordAsync's prototype shim flattens preset options to the
+    // platform-specific shape the native side expects.
+    await this.recorder.prepareToRecordAsync(opts);
     this.recorder.record();
     this.startedAt = Date.now();
   }
