@@ -76,14 +76,52 @@ export async function uploadAudioToS3(
         ({ uri: fileUri, type: presigned.content_type, name: 'audio.m4a' } as unknown as BodyInit)
       : await fileUriToBlob(fileUri);
 
-  const res = await fetch(presigned.upload_url, {
-    method: presigned.method || 'PUT',
-    headers: { 'Content-Type': presigned.content_type },
-    body,
-  });
-  if (!res.ok) {
-    throw new Error(`uploadAudioToS3 failed: ${res.status}`);
+  const method = presigned.method || 'PUT';
+  let res: Response;
+  try {
+    res = await fetch(presigned.upload_url, {
+      method,
+      headers: { 'Content-Type': presigned.content_type },
+      body,
+    });
+  } catch (err) {
+    // fetch only rejects on transport-level failure (offline, DNS,
+    // TLS, aborted). HTTP error status never lands here — that's the
+    // !res.ok path below. Surface the underlying cause so a generic
+    // "Network request failed" doesn't bury the real reason.
+    const cause = err instanceof Error ? err.message : String(err);
+    throw new Error(`uploadAudioToS3 ${method} network error: ${cause}`);
   }
+
+  if (!res.ok) {
+    // S3 reports failures as XML: <Error><Code/><Message/><RequestId/></Error>.
+    // Extracting those turns "failed: 403" into an actionable message
+    // like "403 Forbidden (code=SignatureDoesNotMatch req=ABC…)".
+    const detail = await readS3ErrorDetail(res);
+    const status = res.statusText
+      ? `${res.status} ${res.statusText}`
+      : `${res.status}`;
+    throw new Error(`uploadAudioToS3 ${method} failed: ${status}${detail}`);
+  }
+}
+
+async function readS3ErrorDetail(res: Response): Promise<string> {
+  const reqId = res.headers.get('x-amz-request-id') ?? '';
+  let body = '';
+  try {
+    body = await res.text();
+  } catch {
+    // Body unreadable (network drop after headers, or body already
+    // consumed elsewhere). Status + request id is still useful on its
+    // own — fall through with whatever we have.
+  }
+  const code = body.match(/<Code>([^<]+)<\/Code>/)?.[1] ?? '';
+  const msg = body.match(/<Message>([^<]+)<\/Message>/)?.[1] ?? '';
+  const parts: string[] = [];
+  if (code) parts.push(`code=${code}`);
+  if (msg) parts.push(`msg=${msg}`);
+  if (reqId) parts.push(`req=${reqId}`);
+  return parts.length ? ` (${parts.join(' ')})` : '';
 }
 
 async function fileUriToBlob(uri: string): Promise<Blob> {
