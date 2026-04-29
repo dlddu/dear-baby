@@ -102,6 +102,9 @@ jobs:
     needs: [integration, e2e-ios, e2e-android, changes]
     if: >-
       !failure() && !cancelled() &&
+      needs.integration.result != 'cancelled' &&
+      needs.e2e-ios.result != 'cancelled' &&
+      needs.e2e-android.result != 'cancelled' &&
       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/backend-image.yml
     permissions:
@@ -114,6 +117,9 @@ jobs:
     needs: [integration, e2e-ios, e2e-android, changes]
     if: >-
       !failure() && !cancelled() &&
+      needs.integration.result != 'cancelled' &&
+      needs.e2e-ios.result != 'cancelled' &&
+      needs.e2e-android.result != 'cancelled' &&
       (needs.changes.outputs.worker == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/worker-image.yml
     permissions:
@@ -126,6 +132,9 @@ jobs:
     needs: [integration, e2e-ios, e2e-android, changes]
     if: >-
       !failure() && !cancelled() &&
+      needs.integration.result != 'cancelled' &&
+      needs.e2e-ios.result != 'cancelled' &&
+      needs.e2e-android.result != 'cancelled' &&
       github.event_name == 'pull_request' &&
       (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/deploy-testflight.yml
