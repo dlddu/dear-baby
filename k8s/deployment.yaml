@@ -42,6 +42,12 @@ spec:
             # against MinIO.
             - secretRef:
                 name: aws-records-audio
+            # Backend-only product analytics. Optional — when this
+            # secret is missing the analytics package degrades to a
+            # no-op (see k8s/secrets/posthog-secret.example).
+            - secretRef:
+                name: posthog-secret
+                optional: true
           volumeMounts:
             - name: data
               mountPath: /data
