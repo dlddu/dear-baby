@@ -22,6 +22,7 @@
 // regression.
 
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 import { E2E_AUDIO_FIXTURE } from '../config/env';
 
@@ -144,10 +145,12 @@ class NativeRecorder implements Recorder {
     // "Cannot read property 'prototype' of undefined" in Hermes.
     const AudioRecorder = audio.AudioModule?.AudioRecorder;
     if (!AudioRecorder) throw new Error('expo-audio AudioRecorder unavailable');
+    // recordingOptionsForPlatform flattens platform-specific options
+    // onto the top-level (see its comment) — pass the same flat
+    // object to both the constructor and prepareToRecordAsync so they
+    // agree on the format.
     const opts = recordingOptionsForPlatform();
     this.recorder = new AudioRecorder(opts);
-    // prepareToRecordAsync's prototype shim flattens preset options to the
-    // platform-specific shape the native side expects.
     await this.recorder.prepareToRecordAsync(opts);
     this.recorder.record();
     this.startedAt = Date.now();
@@ -174,11 +177,49 @@ class NativeRecorder implements Recorder {
   }
 }
 
-// recordingOptionsForPlatform exposes the active recording options
-// to consumers (tests, the debug screen) so the configuration is
-// inspectable without instantiating the native recorder.
-export function recordingOptionsForPlatform(): WhisperCompatibleOptions {
-  return WHISPER_COMPATIBLE_OPTIONS;
+// recordingOptionsForPlatform flattens the platform-specific block of
+// WHISPER_COMPATIBLE_OPTIONS into the shape expo-audio's *imperative*
+// AudioRecorder constructor expects.
+//
+// Why this exists: the public hook `useAudioRecorder(options)` runs
+// `createRecordingOptions` internally — it reads `options.ios` /
+// `options.android` and spreads it onto the top-level fields before
+// crossing the bridge. The imperative path
+// `new AudioModule.AudioRecorder(options)` does NOT do this flatten,
+// so an `outputFormat: 'lpcm'` left inside `options.ios` is silently
+// dropped on iOS — AVAudioRecorder gets no AVFormatIDKey and falls
+// back to whatever default the OS picks (AAC in practice on recent
+// iOS), producing an m4a-shaped payload that whisper.rn can't decode.
+// That's the root cause of the "STT 결과가 안 나와요 / [미리보기] 만
+// 보여요" symptom even after the previous WAV-config landing.
+//
+// We could switch to useAudioRecorder, but the recorder.ts surface is
+// imperative (start / stop / cancel) and the hook is render-coupled.
+// Flattening here keeps the call site unchanged.
+type FlatRecordingOptions = {
+  extension: string;
+  sampleRate: number;
+  numberOfChannels: number;
+  bitRate: number;
+  isMeteringEnabled: boolean;
+} & Record<string, unknown>;
+
+export function recordingOptionsForPlatform(
+  platformOS: 'ios' | 'android' | 'web' | string = Platform.OS,
+): FlatRecordingOptions {
+  const flat: FlatRecordingOptions = {
+    extension: WHISPER_COMPATIBLE_OPTIONS.extension,
+    sampleRate: WHISPER_COMPATIBLE_OPTIONS.sampleRate,
+    numberOfChannels: WHISPER_COMPATIBLE_OPTIONS.numberOfChannels,
+    bitRate: WHISPER_COMPATIBLE_OPTIONS.bitRate,
+    isMeteringEnabled: false,
+  };
+  if (platformOS === 'ios') {
+    Object.assign(flat, WHISPER_COMPATIBLE_OPTIONS.ios);
+  } else if (platformOS === 'android') {
+    Object.assign(flat, WHISPER_COMPATIBLE_OPTIONS.android);
+  }
+  return flat;
 }
 
 export function createRecorder(): Recorder {

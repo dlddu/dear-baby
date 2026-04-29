@@ -67,13 +67,58 @@ describe('Android limitation — documented bug', () => {
   });
 });
 
-describe('recordingOptionsForPlatform()', () => {
-  it('returns WHISPER_COMPATIBLE_OPTIONS verbatim — no per-platform munging', () => {
-    // The function is a thin shim today, but having a single
-    // chokepoint means we can introduce per-platform fallbacks
-    // (e.g. an AudioRecord-based path for Android) without touching
-    // every consumer.
-    expect(recordingOptionsForPlatform()).toEqual(WHISPER_COMPATIBLE_OPTIONS);
+describe('recordingOptionsForPlatform() — flattens for the imperative AudioRecorder constructor', () => {
+  // This is the regression that swallowed STT a second time. The
+  // hooks-based useAudioRecorder runs an internal flattener
+  // (`createRecordingOptions`) that spreads options.ios / options.android
+  // onto the top-level fields before crossing the bridge. The
+  // imperative path `new AudioModule.AudioRecorder(options)` does NOT
+  // — so leaving `outputFormat: 'lpcm'` inside options.ios drops it
+  // on iOS, AVAudioRecorder defaults back to AAC, and whisper.rn
+  // can't decode the file. Each `it` below pins a property the
+  // native side reads from the TOP level so that bug can't return.
+  it('hoists iOS lpcm + linearPCM bit-depth onto the top-level fields', () => {
+    const flat = recordingOptionsForPlatform('ios');
+    expect(flat.outputFormat).toBe('lpcm');
+    expect(flat.linearPCMBitDepth).toBe(16);
+    expect(flat.linearPCMIsBigEndian).toBe(false);
+    expect(flat.linearPCMIsFloat).toBe(false);
+    expect(flat.audioQuality).toBe(0x7f);
+  });
+
+  it('keeps the WAV-shape baseline fields at the top level', () => {
+    const flat = recordingOptionsForPlatform('ios');
+    expect(flat.extension).toBe('.wav');
+    expect(flat.sampleRate).toBe(16000);
+    expect(flat.numberOfChannels).toBe(1);
+    expect(flat.bitRate).toBe(256000);
+  });
+
+  it('does NOT leave a nested ios block — that would be silently dropped', () => {
+    const flat = recordingOptionsForPlatform('ios') as Record<string, unknown>;
+    expect(flat.ios).toBeUndefined();
+    expect(flat.android).toBeUndefined();
+  });
+
+  it('hoists Android encoder fields when running on Android', () => {
+    const flat = recordingOptionsForPlatform('android');
+    expect(flat.outputFormat).toBe('mpeg4');
+    expect(flat.audioEncoder).toBe('aac');
+    // Top-level WAV-shape fields are still hoisted; the AAC encoder
+    // ignores linearPCM* but the sample-rate / channel count it does
+    // honour mean we get mono 16 kHz output even on the (still-AAC)
+    // Android path, which costs nothing and aligns with what
+    // whisper.rn would prefer if it could decode AAC.
+    expect(flat.sampleRate).toBe(16000);
+    expect(flat.numberOfChannels).toBe(1);
+  });
+
+  it('falls through to baseline fields on web / unknown platforms', () => {
+    const flat = recordingOptionsForPlatform('web');
+    expect(flat.extension).toBe('.wav');
+    expect(flat.sampleRate).toBe(16000);
+    // No platform-specific options merged.
+    expect(flat.outputFormat).toBeUndefined();
   });
 });
 
@@ -173,7 +218,16 @@ describe('createRecorder() — native path uses the WAV options', () => {
     const result = await recorder.stop();
 
     expect(passedOpts).toHaveLength(1);
-    expect(passedOpts[0]).toEqual(WHISPER_COMPATIBLE_OPTIONS);
+    // The constructor MUST receive a flattened options object — see
+    // the regression note in recordingOptionsForPlatform(). Spot-check
+    // the iOS-defining fields rather than the full object so the test
+    // doesn't break the day we add new options.
+    const sent = passedOpts[0] as Record<string, unknown>;
+    expect(sent.extension).toBe('.wav');
+    expect(sent.outputFormat).toBe('lpcm');
+    expect(sent.linearPCMBitDepth).toBe(16);
+    expect(sent.sampleRate).toBe(16000);
+    expect(sent.ios).toBeUndefined();
     expect(result.uri).toBe('/cache/voice-rec/some-recording.wav');
   });
 
