@@ -5,6 +5,7 @@ import { View } from 'react-native';
 
 import { AnalyticsProvider } from '../src/analytics/AnalyticsProvider';
 import { useAnalyticsIdentity } from '../src/analytics/useAnalyticsIdentity';
+import { useScreenTracker } from '../src/analytics/useScreenTracker';
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import { colors } from '../src/theme/colors';
 import { useAppFonts } from '../src/theme/fonts';
@@ -27,6 +28,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // Sync PostHog identity from inside AuthProvider's tree. Mounted here
   // (rather than in RootLayout) so that `useAuth()` is available.
   useAnalyticsIdentity();
+  // Emit $screen events on expo-router navigation. Mounted here so
+  // expo-router's NavigationContainer is already in scope and the
+  // pathname/params hooks resolve.
+  useScreenTracker();
 
   useEffect(() => {
     if (status === 'loading') return;
