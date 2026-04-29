@@ -57,10 +57,6 @@ export type TranscribeOptions = {
   // generally accurate for Korean but failures (silence, music) can
   // misroute to English; pinning language="ko" keeps the output stable.
   language?: string;
-  // maxLenSeconds caps the transcription wallclock to avoid hanging
-  // the UI on a corrupt input. Default 60s — covers a 60-second
-  // recording with margin for the small model.
-  maxLenSeconds?: number;
 };
 
 export async function transcribe(
@@ -74,12 +70,15 @@ export async function transcribe(
     return '오늘 아기가 처음으로 발로 차 줬어요. 잊지 않으려고 남겨둘게요 🌷';
   }
   const c = await getContext();
+  // We deliberately don't pass `maxLen` here. whisper.rn's `maxLen`
+  // option caps the *segment text length in characters*, not wall
+  // time as the previous comment claimed; setting it to the
+  // recording-duration-in-seconds value (60) was a no-op at best
+  // and cut Korean segments mid-sentence at worst. The recorder
+  // already caps audio to 60s (record-audio.tsx MAX_RECORDING_MS),
+  // so wall-time runaway is bounded upstream.
   const { promise } = c.transcribe(audioPath, {
     language: options.language ?? 'ko',
-    // whisper.rn's maxLen is in seconds when tokenTimestamps is off;
-    // it caps the output rather than wall-time, but this is the
-    // closest equivalent we have without a custom abort.
-    maxLen: options.maxLenSeconds ?? 60,
     tokenTimestamps: false,
   });
   const result = await promise;

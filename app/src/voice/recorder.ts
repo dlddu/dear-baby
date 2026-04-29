@@ -8,8 +8,18 @@
 //      "start / stop / current millis" view, not the full recorder
 //      lifecycle.
 //
-// The recorder produces an .m4a (audio/mp4) file in the cache
-// directory; the review screen moves it into the archive on save.
+// Format note — important.
+//
+// whisper.rn's transcribeFile reads the audio file as raw bytes,
+// strips a fixed 44-byte WAV header, and treats the rest as
+// little-endian 16-bit PCM. It does NOT decode m4a / AAC / mp3.
+// expo-audio's bundled RecordingPresets all default to AAC in an m4a
+// container, which is silently incompatible — whisper sees garbage
+// samples and returns "" for the transcript. To stay on a WAV path
+// the recorder MUST be initialised with linear PCM options. The
+// constant below is the single source of truth and is asserted by
+// recorder.test.ts so a future preset bump can't reintroduce the
+// regression.
 
 import * as FileSystem from 'expo-file-system/legacy';
 
@@ -29,6 +39,58 @@ export interface Recorder {
   cancel(): Promise<void>;
 }
 
+// The shape mirrors expo-audio's RecordingOptions just enough for
+// our use, but we keep the fields loosely typed (`unknown`) on the
+// platform sub-objects so a minor expo-audio bump doesn't break the
+// build. The recorder.test.ts suite asserts the runtime values.
+type WhisperCompatibleOptions = {
+  extension: string;
+  sampleRate: number;
+  numberOfChannels: number;
+  bitRate: number;
+  ios: Record<string, unknown>;
+  android: Record<string, unknown>;
+};
+
+// Whisper's native sample rate is 16 kHz mono — the model resamples
+// internally if you give it something else, but going in at 16 kHz
+// removes a wasted resampling pass on every transcribe and roughly
+// halves the on-disk size compared to a 44.1 kHz capture.
+//
+// Bit rate is informational for PCM (it's derived from sample rate
+// × bit depth × channels), but expo-audio still wants a value.
+// 16 000 × 16 × 1 = 256 000.
+export const WHISPER_COMPATIBLE_OPTIONS: WhisperCompatibleOptions = {
+  extension: '.wav',
+  sampleRate: 16000,
+  numberOfChannels: 1,
+  bitRate: 256000,
+  ios: {
+    // 'lpcm' = IOSOutputFormat.LINEARPCM. Combined with the .wav
+    // extension AVAudioRecorder writes a canonical RIFF/WAVE file
+    // that whisper.rn's 44-byte cut decodes correctly.
+    outputFormat: 'lpcm',
+    audioQuality: 0x7f, // AudioQuality.MAX — irrelevant for PCM but required
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  android: {
+    // Android MediaRecorder cannot emit linear PCM / WAV — its
+    // OutputFormat enum only lists container formats (MPEG-4, 3GP,
+    // WebM, …). A future change should swap the Android recorder
+    // for an AudioRecord-based native module that writes a WAV
+    // directly. Until then the value below is a best-effort
+    // configuration that at least keeps the file mono-channel at
+    // whisper's preferred sample rate; the file itself is still
+    // AAC-in-MP4 and will fail the WAV header guard, which is the
+    // signal the upstream caller needs to either skip transcription
+    // or fall back to a server-side STT.
+    outputFormat: 'mpeg4',
+    audioEncoder: 'aac',
+  },
+};
+
 // fixtureRecorder writes a tiny placeholder file synchronously and
 // returns a fixed duration. Maestro and unit tests hit this path; the
 // transcript and upload stages also short-circuit elsewhere so the
@@ -43,7 +105,7 @@ class FixtureRecorder implements Recorder {
   async stop(): Promise<StopResult> {
     const dir = `${FileSystem.cacheDirectory ?? ''}voice-rec/`;
     await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-    const uri = `${dir}fixture-${this.startedAt}.m4a`;
+    const uri = `${dir}fixture-${this.startedAt}.wav`;
     // Placeholder bytes — never decoded because the STT and S3 paths
     // are also short-circuited under the same flag.
     await FileSystem.writeAsStringAsync(uri, 'FIXTURE');
@@ -61,7 +123,7 @@ class FixtureRecorder implements Recorder {
 // nativeRecorder lazily requires expo-audio so the bundle compiles
 // even if the native module isn't installed (managed Expo Go). On a
 // dev or release build with expo-audio linked in, it uses the
-// AudioRecorder class directly.
+// AudioRecorder class directly with a WAV-compatible configuration.
 class NativeRecorder implements Recorder {
   // recorder is `any` because expo-audio's types churn between
   // patch versions and we don't want the TS compiler to fail loudly
@@ -77,13 +139,12 @@ class NativeRecorder implements Recorder {
       throw new Error('mic permission denied');
     }
     await audio.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-    const presets = audio.RecordingPresets ?? {};
-    const opts = presets.HIGH_QUALITY ?? presets.LOW_QUALITY ?? {};
     // expo-audio v1.x exposes the AudioRecorder class on AudioModule, not on
     // the package root, so `new audio.AudioRecorder(...)` would crash with
     // "Cannot read property 'prototype' of undefined" in Hermes.
     const AudioRecorder = audio.AudioModule?.AudioRecorder;
     if (!AudioRecorder) throw new Error('expo-audio AudioRecorder unavailable');
+    const opts = recordingOptionsForPlatform();
     this.recorder = new AudioRecorder(opts);
     // prepareToRecordAsync's prototype shim flattens preset options to the
     // platform-specific shape the native side expects.
@@ -111,6 +172,13 @@ class NativeRecorder implements Recorder {
     }
     this.recorder = null;
   }
+}
+
+// recordingOptionsForPlatform exposes the active recording options
+// to consumers (tests, the debug screen) so the configuration is
+// inspectable without instantiating the native recorder.
+export function recordingOptionsForPlatform(): WhisperCompatibleOptions {
+  return WHISPER_COMPATIBLE_OPTIONS;
 }
 
 export function createRecorder(): Recorder {
