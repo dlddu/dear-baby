@@ -36,11 +36,7 @@ const hasGoogleConfig =
 // is only ever called when at least one client ID is configured. CI does
 // not set the EXPO_PUBLIC_GOOGLE_*_CLIENT_ID vars, so in CI this component
 // is not mounted at all and the landing screen still renders for Maestro.
-function GoogleSignInButton({
-  onError,
-}: {
-  onError: (message: string) => void;
-}) {
+function GoogleSignInButton() {
   const { setSession } = useAuth();
   const [, response, promptAsync] = Google.useAuthRequest({
     iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
@@ -58,18 +54,17 @@ function GoogleSignInButton({
         const session = await exchangeGoogleIdToken(idToken);
         await setSession(session);
       } catch (e) {
-        onError(e instanceof Error ? e.message : String(e));
+        console.error('google sign-in failed', e);
       }
     })();
-  }, [response, setSession, onError]);
+  }, [response, setSession]);
 
   return (
     <Pressable
       testID="google-signin-button"
       onPress={() => {
-        onError('');
         promptAsync().catch((e) => {
-          onError(e instanceof Error ? e.message : String(e));
+          console.error('google prompt failed', e);
         });
       }}
       style={({ pressed }) => [styles.googleButton, pressed && styles.pressed]}
@@ -88,20 +83,15 @@ function GoogleSignInButton({
 // just as the real Google sign-in path would. Keep both testIDs stable —
 // `test-login-button` enters the onboarding funnel, and
 // `test-login-onboarded-button` skips straight into (tabs).
-function TestLoginButtons({
-  onError,
-}: {
-  onError: (message: string) => void;
-}) {
+function TestLoginButtons() {
   const { setSession } = useAuth();
 
   const run = async (email: string, onboarded: boolean) => {
-    onError('');
     try {
       const session = await testLogin({ email, onboarded });
       await setSession(session);
     } catch (e) {
-      onError(e instanceof Error ? e.message : String(e));
+      console.error('test login failed', e);
     }
   };
 
@@ -136,17 +126,15 @@ function TestLoginButtons({
 // `${EXPO_PUBLIC_API_URL}/health` returning `{"status":"ok"}`.
 export default function Landing() {
   const [status, setStatus] = useState('');
-  const [error, setError] = useState('');
 
   const checkHealth = async () => {
     setStatus('');
-    setError('');
     try {
       const res = await fetch(`${API_URL}/health`);
       const json = (await res.json()) as { status: string };
       setStatus(json.status);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      console.error('health check failed', e);
     }
   };
 
@@ -169,13 +157,8 @@ export default function Landing() {
           status: {status}
         </Text>
       )}
-      {hasGoogleConfig && <GoogleSignInButton onError={setError} />}
-      {TEST_AUTH_ENABLED && <TestLoginButtons onError={setError} />}
-      {error !== '' && (
-        <Text variant="caption" color="coral" testID="health-error">
-          error: {error}
-        </Text>
-      )}
+      {hasGoogleConfig && <GoogleSignInButton />}
+      {TEST_AUTH_ENABLED && <TestLoginButtons />}
       <StatusBar style="dark" />
     </View>
   );

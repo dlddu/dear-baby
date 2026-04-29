@@ -77,7 +77,8 @@ export default function DraftsScreen() {
       try {
         const result = await uploadAudio(item.record_id);
         if (result.status === 'failed') {
-          Alert.alert('업로드를 마치지 못했어요', result.error);
+          console.error('audio upload failed', result.error);
+          Alert.alert('업로드를 마치지 못했어요', '잠시 후 다시 시도해 주세요.');
         }
       } finally {
         setBusy((prev) => {

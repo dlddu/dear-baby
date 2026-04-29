@@ -80,8 +80,8 @@ export default function RecordAudioScreen() {
         }
       }, 250);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '녹음을 시작하지 못했어요.';
-      Alert.alert('녹음 시작 실패', msg);
+      console.error('recorder start failed', err);
+      Alert.alert('녹음 시작 실패', '잠시 후 다시 시도해 주세요.');
       recorderRef.current = null;
       setIsRecording(false);
     }
@@ -107,8 +107,8 @@ export default function RecordAudioScreen() {
         },
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '녹음을 마무리하지 못했어요.';
-      Alert.alert('녹음 종료 실패', msg);
+      console.error('recorder stop failed', err);
+      Alert.alert('녹음 종료 실패', '잠시 후 다시 시도해 주세요.');
       setIsRecording(false);
     }
   }, [router, stopTicker]);

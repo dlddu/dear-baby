@@ -127,8 +127,8 @@ export default function RecordAudioReviewScreen() {
       await persistDraftOnSuccess(record.id, record.created_at);
       router.replace('/(tabs)');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '저장에 실패했어요.';
-      Alert.alert('저장에 실패했어요', msg);
+      console.error('record save failed', err);
+      Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
   }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed]);
@@ -152,8 +152,8 @@ export default function RecordAudioReviewScreen() {
       }
       router.replace('/(tabs)');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '저장에 실패했어요.';
-      Alert.alert('저장에 실패했어요', msg);
+      console.error('record save+upload failed', err);
+      Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
   }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed]);
