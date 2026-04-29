@@ -5,6 +5,7 @@ import { View } from 'react-native';
 
 import { AnalyticsProvider } from '../src/analytics/AnalyticsProvider';
 import { useAnalyticsIdentity } from '../src/analytics/useAnalyticsIdentity';
+import { useScreenTracking } from '../src/analytics/useScreenTracking';
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import { colors } from '../src/theme/colors';
 import { useAppFonts } from '../src/theme/fonts';
@@ -27,6 +28,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // Sync PostHog identity from inside AuthProvider's tree. Mounted here
   // (rather than in RootLayout) so that `useAuth()` is available.
   useAnalyticsIdentity();
+  // Capture screen views from Expo Router's URL state. Required because
+  // React Navigation v7 broke PostHog's built-in screen autocapture.
+  useScreenTracking();
 
   useEffect(() => {
     if (status === 'loading') return;
