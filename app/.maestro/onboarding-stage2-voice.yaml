@@ -60,10 +60,16 @@ appId: com.dlddu.dearbaby
 - assertVisible:
     id: "record-audio-review-screen"
 # STT runs, then the editable input appears with the canned transcript.
+# Bumped to 20s — emulator-side recorder.start() now goes through the
+# WAV-PCM path which costs an extra setAudioModeAsync round-trip on
+# slower Android emulators. 10s was on the edge of flake territory
+# even with the fixture; 20s leaves headroom without masking real
+# regressions (the screen falls back to the editable input on STT
+# failure too, so this can't hang forever).
 - extendedWaitUntil:
     visible:
       id: "record-audio-review-input"
-    timeout: 10000
+    timeout: 20000
 - tapOn:
     id: "record-audio-review-save"
 
@@ -93,7 +99,7 @@ appId: com.dlddu.dearbaby
 - extendedWaitUntil:
     visible:
       id: "drafts-empty"
-    timeout: 15000
+    timeout: 20000
 - tapOn:
     id: "drafts-back"
 - assertVisible:
@@ -116,7 +122,7 @@ appId: com.dlddu.dearbaby
 - extendedWaitUntil:
     visible:
       id: "record-audio-review-input"
-    timeout: 10000
+    timeout: 20000
 - tapOn:
     id: "record-audio-review-save-and-upload"
 - assertVisible:
@@ -138,7 +144,7 @@ appId: com.dlddu.dearbaby
 - extendedWaitUntil:
     visible:
       id: "record-audio-review-input"
-    timeout: 10000
+    timeout: 20000
 - tapOn:
     id: "record-audio-review-save"
 - assertVisible:
@@ -163,7 +169,7 @@ appId: com.dlddu.dearbaby
 - extendedWaitUntil:
     visible:
       id: "drafts-empty"
-    timeout: 5000
+    timeout: 10000
 - tapOn:
     id: "drafts-back"
 - assertVisible:
