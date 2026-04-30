@@ -19,8 +19,19 @@ import {
   attachAudioToRecord,
   requestAudioUploadUrl,
   uploadAudioToS3,
+  type AudioFormat,
 } from '../api/records';
 import * as draftStore from '../drafts/draftStore';
+
+// formatFromPath inspects the local file's extension so we can request
+// a presigned URL whose S3 key + Content-Type match the actual bytes
+// on disk. Critical for two cases: (1) pre-update iOS drafts captured
+// as .m4a still upload as m4a; (2) Android stays on m4a regardless of
+// future client changes. Falls back to m4a when the extension is
+// unrecognised — matches the server-side ParseAudioFormat default.
+function formatFromPath(path: string): AudioFormat {
+  return path.toLowerCase().endsWith('.wav') ? 'wav' : 'm4a';
+}
 
 export type UploadResult =
   | { status: 'uploaded' }
@@ -52,7 +63,10 @@ export async function uploadAudio(recordID: string): Promise<UploadResult> {
     // stubbed (see recorder.ts / whisperEngine.ts), but this upload
     // path is NOT — CI runs against a real MinIO behind the same S3
     // contract, so failures here catch real device-side bugs.
-    const presigned = await requestAudioUploadUrl(recordID);
+    const presigned = await requestAudioUploadUrl(
+      recordID,
+      formatFromPath(draft.audio_path),
+    );
 
     // Step 2: S3 PUT. This is the slow one (audio bytes over the
     // network). Errors here are usually network-related.

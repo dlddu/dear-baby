@@ -1,5 +1,17 @@
+import { Platform } from 'react-native';
+
 import { apiFetch } from './client';
 import type { CreateRecordResponse, Record } from './types';
+
+// AudioFormat mirrors storage.AudioFormat on the backend. iOS records
+// linear-PCM .wav (whisper-friendly, no AAC decode); Android records
+// AAC-in-MP4 .m4a. The server uses this to build the matching S3 key
+// and to lock the presigned PUT to the right Content-Type.
+export type AudioFormat = 'm4a' | 'wav';
+
+export function platformAudioFormat(): AudioFormat {
+  return Platform.OS === 'ios' ? 'wav' : 'm4a';
+}
 
 // createTextRecord POSTs a text entry to the backend. The response includes
 // the updated user (with first_record_at stamped) so AuthContext can refresh
@@ -49,9 +61,11 @@ export type AudioUploadURL = {
 
 export async function requestAudioUploadUrl(
   recordID: string,
+  format: AudioFormat = platformAudioFormat(),
 ): Promise<AudioUploadURL> {
   const res = await apiFetch(`/records/${encodeURIComponent(recordID)}/audio/upload-url`, {
     method: 'POST',
+    body: JSON.stringify({ format }),
   });
   if (!res.ok) {
     throw new Error(`requestAudioUploadUrl failed: ${res.status}`);
@@ -69,11 +83,14 @@ export async function uploadAudioToS3(
   // RN's fetch can take a `{ uri }` body for native file streaming
   // without loading the whole file into memory. We fall back to a
   // Blob / ArrayBuffer wrapper if the host doesn't support it (web
-  // dev / unit tests).
+  // dev / unit tests). The form-data `name` is cosmetic (S3 ignores
+  // it) but we keep it aligned with the actual extension so debug
+  // tooling shows a sensible filename.
+  const ext = presigned.content_type === 'audio/wav' ? 'wav' : 'm4a';
   const body =
     typeof fileUri === 'string' && fileUri.startsWith('file://')
       ? // RN-only shape; harmless on web because we never reach this in dev
-        ({ uri: fileUri, type: presigned.content_type, name: 'audio.m4a' } as unknown as BodyInit)
+        ({ uri: fileUri, type: presigned.content_type, name: `audio.${ext}` } as unknown as BodyInit)
       : await fileUriToBlob(fileUri);
 
   const method = presigned.method || 'PUT';
