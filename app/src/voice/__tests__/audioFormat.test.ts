@@ -14,6 +14,7 @@ import {
   WAVE_HEADER_BYTES,
   checkWaveHeader,
   describeWaveProblem,
+  findWaveDataChunk,
 } from '../audioFormat';
 
 // Builds a canonical 44-byte WAV header for the given format
@@ -172,6 +173,207 @@ describe('checkWaveHeader — rejects non-WAV inputs', () => {
     const result = checkWaveHeader(header);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('not_16_bit');
+  });
+});
+
+// Builds a small WAV file in memory: canonical header, optional
+// extra chunks before `data`, and `dataBytes` worth of PCM.
+function buildWaveFile(opts: {
+  sampleRate?: number;
+  numChannels?: number;
+  bitsPerSample?: number;
+  pcm?: Uint8Array;
+  // Extra chunks to insert between fmt and data, in order. Used to
+  // simulate AVAudioRecorder's JUNK / FLLR padding.
+  extraChunks?: Array<{ id: string; payload: Uint8Array }>;
+} = {}): Uint8Array {
+  const sampleRate = opts.sampleRate ?? 16000;
+  const numChannels = opts.numChannels ?? 1;
+  const bitsPerSample = opts.bitsPerSample ?? 16;
+  const pcm = opts.pcm ?? new Uint8Array(0);
+  const extraChunks = opts.extraChunks ?? [];
+
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+
+  const fmtBody = 16;
+  let extraSize = 0;
+  for (const c of extraChunks) {
+    extraSize += 8 + c.payload.length + (c.payload.length & 1);
+  }
+  const dataSize = pcm.length;
+  const totalDataChunkSize = 8 + dataSize;
+  const riffPayloadSize = 4 /* WAVE */ + 8 + fmtBody + extraSize + totalDataChunkSize;
+
+  const total = 8 /* RIFF + size */ + riffPayloadSize;
+  const buf = new Uint8Array(total);
+  const dv = new DataView(buf.buffer);
+
+  let off = 0;
+  // RIFF header
+  buf.set([0x52, 0x49, 0x46, 0x46], off); off += 4; // 'RIFF'
+  dv.setUint32(off, riffPayloadSize, true); off += 4;
+  buf.set([0x57, 0x41, 0x56, 0x45], off); off += 4; // 'WAVE'
+
+  // fmt chunk
+  buf.set([0x66, 0x6d, 0x74, 0x20], off); off += 4; // 'fmt '
+  dv.setUint32(off, fmtBody, true); off += 4;
+  dv.setUint16(off, 1, true); off += 2; // PCM
+  dv.setUint16(off, numChannels, true); off += 2;
+  dv.setUint32(off, sampleRate, true); off += 4;
+  dv.setUint32(off, byteRate, true); off += 4;
+  dv.setUint16(off, blockAlign, true); off += 2;
+  dv.setUint16(off, bitsPerSample, true); off += 2;
+
+  for (const chunk of extraChunks) {
+    for (let i = 0; i < chunk.id.length; i++) {
+      buf[off + i] = chunk.id.charCodeAt(i);
+    }
+    off += 4;
+    dv.setUint32(off, chunk.payload.length, true); off += 4;
+    buf.set(chunk.payload, off);
+    off += chunk.payload.length + (chunk.payload.length & 1);
+  }
+
+  // data chunk
+  buf.set([0x64, 0x61, 0x74, 0x61], off); off += 4; // 'data'
+  dv.setUint32(off, dataSize, true); off += 4;
+  buf.set(pcm, off);
+
+  return buf;
+}
+
+describe('findWaveDataChunk — canonical layout', () => {
+  it('reports a 44-byte data offset for a textbook PCM WAV', () => {
+    const pcm = new Uint8Array(64);
+    for (let i = 0; i < pcm.length; i++) pcm[i] = i & 0xff;
+    const wav = buildWaveFile({ pcm });
+    const result = findWaveDataChunk(wav);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.dataOffset).toBe(44);
+      expect(result.dataSize).toBe(64);
+      expect(result.sampleRate).toBe(16000);
+      expect(result.numChannels).toBe(1);
+      expect(result.bitsPerSample).toBe(16);
+    }
+  });
+});
+
+describe('findWaveDataChunk — AVAudioRecorder-style variants', () => {
+  // The bug we're protecting against: AVAudioRecorder on iOS
+  // sometimes inserts a JUNK / FLLR padding chunk between `fmt` and
+  // `data`, pushing the PCM offset well past 44. whisper.rn's hard
+  // 44-byte cut then reads into the JUNK payload, shifting every
+  // subsequent 16-bit sample by half a byte and producing the
+  // `[한국어의 한국어]` hallucination. The locator must find the
+  // real `data` chunk regardless.
+  it('skips a JUNK pad chunk and reports the correct PCM offset', () => {
+    const junk = new Uint8Array(28); // arbitrary, even-aligned
+    const pcm = new Uint8Array(32);
+    pcm.fill(0xab);
+    const wav = buildWaveFile({
+      pcm,
+      extraChunks: [{ id: 'JUNK', payload: junk }],
+    });
+    const result = findWaveDataChunk(wav);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Header (12) + fmt header (8) + fmt body (16) + JUNK header
+      // (8) + JUNK payload (28) + data header (8) = 80 bytes before
+      // PCM samples.
+      expect(result.dataOffset).toBe(80);
+      expect(result.dataSize).toBe(32);
+    }
+  });
+
+  it('handles an odd-sized chunk + RIFF pad byte without misaligning the data offset', () => {
+    // RIFF requires chunks to be word-aligned: a chunk with an odd
+    // payload has a single pad byte appended before the next chunk
+    // header. Off-by-one here is exactly what produces the
+    // half-sample shift that whispers [한국어의 한국어].
+    const oddJunk = new Uint8Array(7);
+    const pcm = new Uint8Array(16);
+    const wav = buildWaveFile({
+      pcm,
+      extraChunks: [{ id: 'FLLR', payload: oddJunk }],
+    });
+    const result = findWaveDataChunk(wav);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // 12 + 8 + 16 + 8 + 7 + 1 (pad) + 8 = 60.
+      expect(result.dataOffset).toBe(60);
+    }
+  });
+
+  it('walks past multiple non-data chunks (LIST + JUNK)', () => {
+    const wav = buildWaveFile({
+      pcm: new Uint8Array(8),
+      extraChunks: [
+        { id: 'LIST', payload: new Uint8Array(20) },
+        { id: 'JUNK', payload: new Uint8Array(12) },
+      ],
+    });
+    const result = findWaveDataChunk(wav);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // 12 + 8 + 16 + 8 + 20 + 8 + 12 + 8 = 92.
+      expect(result.dataOffset).toBe(92);
+      expect(result.dataSize).toBe(8);
+    }
+  });
+});
+
+describe('findWaveDataChunk — failure modes', () => {
+  it('reports no_data_chunk when fmt is present but data is missing', () => {
+    // RIFF + WAVE + fmt + a JUNK chunk that fills the remaining
+    // space, with no data chunk anywhere. checkWaveHeader needs at
+    // least 44 bytes to pass its initial sanity check, so we leave
+    // enough room.
+    const buf = new Uint8Array(60);
+    const dv = new DataView(buf.buffer);
+    buf.set([0x52, 0x49, 0x46, 0x46], 0); // RIFF
+    dv.setUint32(4, 52, true);
+    buf.set([0x57, 0x41, 0x56, 0x45], 8); // WAVE
+    buf.set([0x66, 0x6d, 0x74, 0x20], 12); // fmt
+    dv.setUint32(16, 16, true);
+    dv.setUint16(20, 1, true); // PCM
+    dv.setUint16(22, 1, true);
+    dv.setUint32(24, 16000, true);
+    dv.setUint32(28, 32000, true);
+    dv.setUint16(32, 2, true);
+    dv.setUint16(34, 16, true);
+    // JUNK chunk filling the rest — no `data` chunk present.
+    buf.set([0x4a, 0x55, 0x4e, 0x4b], 36);
+    dv.setUint32(40, 16, true);
+    const result = findWaveDataChunk(buf);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('no_data_chunk');
+    }
+  });
+
+  it('reports truncated_chunk when data length lies about its size', () => {
+    const wav = buildWaveFile({ pcm: new Uint8Array(8) });
+    // Tamper with the data chunk size field (offset 40 in canonical
+    // layout) so it claims more bytes than the file actually has.
+    const dv = new DataView(wav.buffer);
+    dv.setUint32(40, 9999, true);
+    const result = findWaveDataChunk(wav);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('truncated_chunk');
+    }
+  });
+
+  it('inherits the canonical header errors so callers see one consistent reason', () => {
+    const m4a = new Uint8Array(WAVE_HEADER_BYTES);
+    for (let i = 0; i < 4; i++) m4a[i + 4] = 'ftyp'.charCodeAt(i);
+    const result = findWaveDataChunk(m4a);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('missing_riff');
+    }
   });
 });
 

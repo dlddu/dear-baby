@@ -52,6 +52,31 @@ beforeEach(() => {
   jest.resetModules();
 });
 
+// canonicalWavBase64 is a 44-byte-header 16 kHz mono 16-bit PCM
+// WAV with a tiny PCM payload — produced once at module load so the
+// engine's loadPcmFromWav has something parseable when tests don't
+// override the file-system mock.
+const canonicalWavBase64 = (() => {
+  const dataSize = 8;
+  const buf = new Uint8Array(44 + dataSize);
+  const dv = new DataView(buf.buffer);
+  buf.set([0x52, 0x49, 0x46, 0x46], 0);
+  dv.setUint32(4, 36 + dataSize, true);
+  buf.set([0x57, 0x41, 0x56, 0x45], 8);
+  buf.set([0x66, 0x6d, 0x74, 0x20], 12);
+  dv.setUint32(16, 16, true);
+  dv.setUint16(20, 1, true);
+  dv.setUint16(22, 1, true);
+  dv.setUint32(24, 16000, true);
+  dv.setUint32(28, 32000, true);
+  dv.setUint16(32, 2, true);
+  dv.setUint16(34, 16, true);
+  buf.set([0x64, 0x61, 0x74, 0x61], 36);
+  dv.setUint32(40, dataSize, true);
+  for (let i = 0; i < dataSize; i++) buf[44 + i] = i;
+  return Buffer.from(buf).toString('base64');
+})();
+
 // Builds a fresh module graph with the stated mocks. Returns the
 // imported whisperEngine plus handles to the mocks so each test can
 // drive them. Using isolateModules keeps the module-level
@@ -60,11 +85,17 @@ function loadWhisperEngine(opts: {
   fixture?: boolean;
   initWhisper?: WhisperRnMock['initWhisper'];
   ensureModel?: ModelManagerMock['ensureModel'];
+  // Override what expo-file-system returns when the engine reads
+  // the audio path. Defaults to a canonical 44-byte-header WAV.
+  wavBase64?: string;
+  // Optional spy that fires whenever the engine reads a file.
+  readAsStringAsync?: AnyMock;
 } = {}): {
   whisperEngine: LoadedModule;
   whisperRn: WhisperRnMock;
   modelManager: ModelManagerMock;
   env: EnvMock;
+  readAsStringAsync: AnyMock;
 } {
   const env: EnvMock = { E2E_AUDIO_FIXTURE: opts.fixture ?? false };
   const whisperRn: WhisperRnMock = {
@@ -73,11 +104,15 @@ function loadWhisperEngine(opts: {
   const modelManager: ModelManagerMock = {
     ensureModel: opts.ensureModel ?? jest.fn(),
   };
+  const wavBase64 = opts.wavBase64 ?? canonicalWavBase64;
+  const readAsStringAsync: AnyMock =
+    opts.readAsStringAsync ?? jest.fn(async () => wavBase64);
 
   let whisperEngine!: LoadedModule;
   jest.isolateModules(() => {
     jest.doMock('../../config/env', () => env);
     jest.doMock('../modelManager', () => modelManager);
+    jest.doMock('expo-file-system/legacy', () => ({ readAsStringAsync }));
     // whisper.rn is a native-only RN package and can't be resolved
     // under Jest's node environment, so we register it as a virtual
     // module — the engine consumes it via `require('whisper.rn')`.
@@ -85,22 +120,84 @@ function loadWhisperEngine(opts: {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     whisperEngine = require('../whisperEngine');
   });
-  return { whisperEngine, whisperRn, modelManager, env };
+  return {
+    whisperEngine,
+    whisperRn,
+    modelManager,
+    env,
+    readAsStringAsync,
+  };
+}
+
+// buildWavWithChunks hand-builds a WAV with optional non-data
+// chunks between fmt and data. Keeps the WAV-parser tests inline
+// (the same generator lives in audioFormat.test.ts; we duplicate
+// it here so this suite stays self-contained).
+function buildWavWithChunks(opts: {
+  pcm: Uint8Array;
+  extras?: Array<{ id: string; payload: Uint8Array }>;
+  sampleRate?: number;
+  numChannels?: number;
+  bitsPerSample?: number;
+}): Uint8Array {
+  const sampleRate = opts.sampleRate ?? 16000;
+  const numChannels = opts.numChannels ?? 1;
+  const bitsPerSample = opts.bitsPerSample ?? 16;
+  const extras = opts.extras ?? [];
+  const fmtBody = 16;
+  let extraSize = 0;
+  for (const c of extras) {
+    extraSize += 8 + c.payload.length + (c.payload.length & 1);
+  }
+  const dataSize = opts.pcm.length;
+  const riffPayload = 4 + 8 + fmtBody + extraSize + 8 + dataSize;
+  const buf = new Uint8Array(8 + riffPayload);
+  const dv = new DataView(buf.buffer);
+  let off = 0;
+  buf.set([0x52, 0x49, 0x46, 0x46], off); off += 4;
+  dv.setUint32(off, riffPayload, true); off += 4;
+  buf.set([0x57, 0x41, 0x56, 0x45], off); off += 4;
+  buf.set([0x66, 0x6d, 0x74, 0x20], off); off += 4;
+  dv.setUint32(off, fmtBody, true); off += 4;
+  dv.setUint16(off, 1, true); off += 2;
+  dv.setUint16(off, numChannels, true); off += 2;
+  dv.setUint32(off, sampleRate, true); off += 4;
+  dv.setUint32(off, (sampleRate * numChannels * bitsPerSample) / 8, true); off += 4;
+  dv.setUint16(off, (numChannels * bitsPerSample) / 8, true); off += 2;
+  dv.setUint16(off, bitsPerSample, true); off += 2;
+  for (const e of extras) {
+    for (let i = 0; i < e.id.length; i++) buf[off + i] = e.id.charCodeAt(i);
+    off += 4;
+    dv.setUint32(off, e.payload.length, true); off += 4;
+    buf.set(e.payload, off);
+    off += e.payload.length + (e.payload.length & 1);
+  }
+  buf.set([0x64, 0x61, 0x74, 0x61], off); off += 4;
+  dv.setUint32(off, dataSize, true); off += 4;
+  buf.set(opts.pcm, off);
+  return buf;
 }
 
 type FakeContext = {
   transcribe: AnyMock;
+  transcribeData: AnyMock;
   release: AnyMock;
 };
 
 // Builds a stub WhisperContext that records its calls and resolves
 // with `{ result }`. Optional `result` lets tests vary the output.
+// Both transcribe (file path) and transcribeData (base64 PCM) are
+// stubbed so tests can verify which entry point the engine routes
+// through.
 function makeContext(result = 'hello world'): FakeContext {
-  const transcribe = jest.fn(() => ({
-    promise: Promise.resolve({ result, segments: [], isAborted: false }),
-  }));
+  const make = () =>
+    jest.fn(() => ({
+      promise: Promise.resolve({ result, segments: [], isAborted: false }),
+    }));
+  const transcribe = make();
+  const transcribeData = make();
   const release = jest.fn(async () => undefined);
-  return { transcribe, release };
+  return { transcribe, transcribeData, release };
 }
 
 describe('whisperEngine.transcribe — fixture short-circuit', () => {
@@ -143,16 +240,34 @@ describe('whisperEngine.transcribe — happy path contract with whisper.rn', () 
     });
   });
 
-  it('passes the audio path through to whisper.transcribe verbatim', async () => {
+  it('reads the audio file and routes through transcribeData (raw PCM, no 44-byte cut)', async () => {
+    // This is the primary path. We protect against a regression
+    // back to ctx.transcribe(filePath) — that route silently
+    // swallows AVAudioRecorder's JUNK/FLLR pad chunk and
+    // misaligns the int16 samples, producing the
+    // [한국어의 한국어] hallucination.
     const ctx = makeContext('hi');
-    const { whisperEngine } = loadWhisperEngine({
+    const { whisperEngine, readAsStringAsync } = loadWhisperEngine({
       initWhisper: jest.fn(async () => ctx),
       ensureModel: jest.fn(async () => '/m.bin'),
     });
 
     await whisperEngine.transcribe('/cache/voice/rec.wav');
-    expect(ctx.transcribe).toHaveBeenCalledTimes(1);
-    expect(ctx.transcribe.mock.calls[0][0]).toBe('/cache/voice/rec.wav');
+
+    expect(readAsStringAsync).toHaveBeenCalledTimes(1);
+    expect(readAsStringAsync.mock.calls[0][0]).toBe('/cache/voice/rec.wav');
+    expect(readAsStringAsync.mock.calls[0][1]).toEqual({ encoding: 'base64' });
+    expect(ctx.transcribeData).toHaveBeenCalledTimes(1);
+    expect(ctx.transcribe).not.toHaveBeenCalled();
+    // The first arg is base64-encoded raw PCM. We can't predict
+    // the exact bytes (the test fixture has 8 bytes of PCM), but
+    // it must be a non-empty base64 string and decode to fewer
+    // bytes than the original WAV (since we stripped the header).
+    const sentBase64 = ctx.transcribeData.mock.calls[0][0] as string;
+    expect(typeof sentBase64).toBe('string');
+    expect(sentBase64.length).toBeGreaterThan(0);
+    const decoded = Buffer.from(sentBase64, 'base64');
+    expect(decoded.length).toBe(8);
   });
 
   it('defaults language to "ko" and disables tokenTimestamps', async () => {
@@ -164,7 +279,7 @@ describe('whisperEngine.transcribe — happy path contract with whisper.rn', () 
 
     await whisperEngine.transcribe('/cache/voice/rec.wav');
 
-    const opts = ctx.transcribe.mock.calls[0][1] as Record<string, unknown>;
+    const opts = ctx.transcribeData.mock.calls[0][1] as Record<string, unknown>;
     expect(opts.language).toBe('ko');
     expect(opts.tokenTimestamps).toBe(false);
   });
@@ -185,7 +300,7 @@ describe('whisperEngine.transcribe — happy path contract with whisper.rn', () 
 
     await whisperEngine.transcribe('/cache/voice/rec.wav');
 
-    const opts = ctx.transcribe.mock.calls[0][1] as Record<string, unknown>;
+    const opts = ctx.transcribeData.mock.calls[0][1] as Record<string, unknown>;
     expect(opts).not.toHaveProperty('maxLen');
     expect(opts).not.toHaveProperty('maxLenSeconds');
   });
@@ -199,7 +314,7 @@ describe('whisperEngine.transcribe — happy path contract with whisper.rn', () 
 
     await whisperEngine.transcribe('/cache/voice/rec.wav', { language: 'en' });
     expect(
-      (ctx.transcribe.mock.calls[0][1] as Record<string, unknown>).language,
+      (ctx.transcribeData.mock.calls[0][1] as Record<string, unknown>).language,
     ).toBe('en');
   });
 
@@ -221,10 +336,7 @@ describe('whisperEngine.transcribe — happy path contract with whisper.rn', () 
     // Silence / sub-VAD audio yields { result: '' }. The screen treats
     // an empty string as "let the user type"; a thrown error would
     // surface a confusing alert instead.
-    const transcribe = jest.fn(() => ({
-      promise: Promise.resolve({ result: '', segments: [], isAborted: false }),
-    }));
-    const ctx = { transcribe, release: jest.fn(async () => undefined) };
+    const ctx = makeContext('');
     const { whisperEngine } = loadWhisperEngine({
       initWhisper: jest.fn(async () => ctx),
       ensureModel: jest.fn(async () => '/m.bin'),
@@ -238,16 +350,133 @@ describe('whisperEngine.transcribe — happy path contract with whisper.rn', () 
     // Defensive: some early whisper.rn versions resolved with `null`
     // when the model rejected the audio. The wrapper must not blow
     // up the trim() chain.
-    const transcribe = jest.fn(() => ({
+    const transcribeData = jest.fn(() => ({
       promise: Promise.resolve(null as unknown as { result: string }),
     }));
-    const ctx = { transcribe, release: jest.fn(async () => undefined) };
+    const ctx = {
+      transcribe: jest.fn(),
+      transcribeData,
+      release: jest.fn(async () => undefined),
+    };
     const { whisperEngine } = loadWhisperEngine({
       initWhisper: jest.fn(async () => ctx),
       ensureModel: jest.fn(async () => '/m.bin'),
     });
 
     await expect(whisperEngine.transcribe('/cache/rec.wav')).resolves.toBe('');
+  });
+});
+
+describe('whisperEngine.transcribe — WAV parser robustness', () => {
+  it('locates PCM past a JUNK pad chunk and feeds whisper only the samples', async () => {
+    // Hand-build a WAV with a JUNK pad between fmt and data (mimics
+    // what AVAudioRecorder emits). The PCM region is a recognisable
+    // pattern so we can prove the engine extracted exactly that and
+    // not the raw header bytes.
+    const pcmBytes = new Uint8Array(16);
+    for (let i = 0; i < pcmBytes.length; i++) pcmBytes[i] = 0xa0 + i;
+    const junk = new Uint8Array(20);
+    const wav = buildWavWithChunks({
+      pcm: pcmBytes,
+      extras: [{ id: 'JUNK', payload: junk }],
+    });
+    const wavBase64 = Buffer.from(wav).toString('base64');
+
+    const ctx = makeContext('hi');
+    const { whisperEngine } = loadWhisperEngine({
+      wavBase64,
+      initWhisper: jest.fn(async () => ctx),
+      ensureModel: jest.fn(async () => '/m.bin'),
+    });
+
+    await whisperEngine.transcribe('/cache/rec.wav');
+
+    const sentBase64 = ctx.transcribeData.mock.calls[0][0] as string;
+    const sent = Buffer.from(sentBase64, 'base64');
+    // Exactly the PCM region — no header bytes, no JUNK bytes.
+    expect(Array.from(sent)).toEqual(Array.from(pcmBytes));
+  });
+
+  it('throws when the audio file is not a decodable WAV (no fall-through to the 44-byte path)', async () => {
+    // An m4a-shaped buffer must not reach whisper.rn's transcribe
+    // path — that's what would cause the silent hallucination loop.
+    const m4aLike = Buffer.from('00000020667479704d3441200000000', 'hex');
+    const wavBase64 = m4aLike.toString('base64');
+    const ctx = makeContext('hi');
+    const { whisperEngine } = loadWhisperEngine({
+      wavBase64,
+      initWhisper: jest.fn(async () => ctx),
+      ensureModel: jest.fn(async () => '/m.bin'),
+    });
+
+    await expect(whisperEngine.transcribe('/cache/rec.wav')).rejects.toThrow(
+      /not a decodable WAV/,
+    );
+    expect(ctx.transcribeData).not.toHaveBeenCalled();
+    expect(ctx.transcribe).not.toHaveBeenCalled();
+  });
+
+  it('warns to console.warn on parse failure so PostHog session replay captures it', async () => {
+    // analytics/client.ts:24-30 routes console.warn into the
+    // PostHog error-tracking pipeline. The warn payload must
+    // include the file size and parse reason so a real-device
+    // failure is debuggable from the replay timeline.
+    const wavBase64 = Buffer.from('garbage-not-a-wav').toString('base64');
+    const ctx = makeContext('hi');
+    const { whisperEngine } = loadWhisperEngine({
+      wavBase64,
+      initWhisper: jest.fn(async () => ctx),
+      ensureModel: jest.fn(async () => '/m.bin'),
+    });
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      await whisperEngine
+        .transcribe('/cache/rec.wav')
+        .catch(() => undefined);
+      expect(warn).toHaveBeenCalledTimes(1);
+      const [msg, payload] = warn.mock.calls[0];
+      expect(msg).toMatch(/whisper-stt/);
+      expect(payload).toMatchObject({
+        path: '/cache/rec.wav',
+        size: expect.any(Number),
+        reason: expect.any(String),
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('whisperEngine.transcribe — fallback when transcribeData is absent', () => {
+  it('uses ctx.transcribe(filePath) when whisper.rn does not expose transcribeData', async () => {
+    // Older whisper.rn forks (and some fast-refresh stubs) only
+    // ship the file path entry point. The engine must still
+    // produce a transcript — the parse-the-WAV-ourselves path
+    // is a strict upgrade, not a hard requirement.
+    const ctx = {
+      // No transcribeData on this context.
+      transcribe: jest.fn(() => ({
+        promise: Promise.resolve({
+          result: 'fallback ok',
+          segments: [],
+          isAborted: false,
+        }),
+      })),
+      release: jest.fn(async () => undefined),
+    };
+    const { whisperEngine, readAsStringAsync } = loadWhisperEngine({
+      initWhisper: jest.fn(async () => ctx),
+      ensureModel: jest.fn(async () => '/m.bin'),
+    });
+
+    const text = await whisperEngine.transcribe('/cache/rec.wav');
+    expect(text).toBe('fallback ok');
+    expect(ctx.transcribe).toHaveBeenCalledTimes(1);
+    const call = ctx.transcribe.mock.calls[0] as unknown as unknown[];
+    expect(call[0]).toBe('/cache/rec.wav');
+    // The fallback skips the file read entirely — whisper.rn
+    // handles its own decoding on the file-path route.
+    expect(readAsStringAsync).not.toHaveBeenCalled();
   });
 });
 
@@ -267,7 +496,7 @@ describe('whisperEngine.transcribe — context lifecycle', () => {
 
     expect(initWhisper).toHaveBeenCalledTimes(1);
     expect(ensureModel).toHaveBeenCalledTimes(1);
-    expect(ctx.transcribe).toHaveBeenCalledTimes(3);
+    expect(ctx.transcribeData).toHaveBeenCalledTimes(3);
   });
 
   it('coalesces concurrent first-time loads into a single init', async () => {
@@ -306,7 +535,7 @@ describe('whisperEngine.transcribe — context lifecycle', () => {
     await Promise.all([a, b]);
 
     expect(initWhisper).toHaveBeenCalledTimes(1);
-    expect(ctx.transcribe).toHaveBeenCalledTimes(2);
+    expect(ctx.transcribeData).toHaveBeenCalledTimes(2);
   });
 
   it('re-initialises after release() so the next transcribe loads a fresh context', async () => {
@@ -400,11 +629,15 @@ describe('whisperEngine.transcribe — error paths', () => {
     );
   });
 
-  it('propagates errors thrown by ctx.transcribe', async () => {
-    const transcribe = jest.fn(() => ({
+  it('propagates errors thrown by ctx.transcribeData', async () => {
+    const transcribeData = jest.fn(() => ({
       promise: Promise.reject(new Error('audio decode failed')),
     }));
-    const ctx = { transcribe, release: jest.fn(async () => undefined) };
+    const ctx = {
+      transcribe: jest.fn(),
+      transcribeData,
+      release: jest.fn(async () => undefined),
+    };
     const { whisperEngine } = loadWhisperEngine({
       initWhisper: jest.fn(async () => ctx),
       ensureModel: jest.fn(async () => '/m.bin'),
