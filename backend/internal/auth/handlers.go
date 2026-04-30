@@ -37,6 +37,16 @@ type googleSignInRequest struct {
 	IDToken string `json:"id_token"`
 }
 
+// appleSignInRequest is the payload from POST /auth/apple. The iOS Sign in
+// with Apple flow returns an authorization code we exchange server-side
+// (see Service.SignInWithApple). given_name/family_name are only present
+// on the very first sign-in — clients can omit them on subsequent calls.
+type appleSignInRequest struct {
+	Code       string `json:"code"`
+	GivenName  string `json:"given_name"`
+	FamilyName string `json:"family_name"`
+}
+
 type sessionResponse struct {
 	AccessToken  string         `json:"access_token"`
 	RefreshToken string         `json:"refresh_token"`
@@ -58,6 +68,37 @@ func (h *Handlers) Google(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Warn("google sign-in failed", "error", err)
 		httpx.WriteError(w, http.StatusUnauthorized, "invalid google token")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, sessionResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		User:         result.User,
+	})
+}
+
+// Apple handles POST /auth/apple. The body carries the authorization code
+// returned by the iOS Sign in with Apple flow plus the given/family name
+// fields (present on the first sign-in only). 503 means Apple sign-in is
+// not configured for this deploy; 401 means the code did not validate.
+func (h *Handlers) Apple(w http.ResponseWriter, r *http.Request) {
+	if err := h.Cfg.RequireAppleEnv(); err != nil {
+		httpx.WriteError(w, http.StatusServiceUnavailable, "apple sign-in not configured")
+		return
+	}
+	var req appleSignInRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "code required")
+		return
+	}
+	result, err := h.Service.SignInWithApple(r.Context(), AppleSignInInput{
+		Code:       req.Code,
+		GivenName:  req.GivenName,
+		FamilyName: req.FamilyName,
+	})
+	if err != nil {
+		slog.Warn("apple sign-in failed", "error", err)
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid apple code")
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, sessionResponse{

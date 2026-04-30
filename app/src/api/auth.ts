@@ -22,6 +22,35 @@ export async function exchangeGoogleIdToken(idToken: string): Promise<Session> {
   };
 }
 
+// exchangeAppleAuthCode posts an Apple authorization code (and the optional
+// given/family name returned on the first sign-in) to the backend. The
+// backend exchanges the code with Apple's token endpoint and verifies the
+// id_token before issuing the access/refresh pair.
+export async function exchangeAppleAuthCode(input: {
+  code: string;
+  givenName?: string | null;
+  familyName?: string | null;
+}): Promise<Session> {
+  const res = await fetch(`${API_URL}/auth/apple`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code: input.code,
+      given_name: input.givenName ?? '',
+      family_name: input.familyName ?? '',
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`apple sign-in failed: ${res.status}`);
+  }
+  const json = (await res.json()) as SessionResponse;
+  return {
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    user: json.user,
+  };
+}
+
 // me returns the currently authenticated user, relying on apiFetch to attach
 // the Bearer token and refresh on 401.
 export async function me(): Promise<User> {

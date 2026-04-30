@@ -44,12 +44,19 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		RefreshTTL: cfg.JWTRefreshTTL,
 	}
 	verifier := &auth.GoogleVerifier{Audiences: cfg.GoogleAudiences}
+	appleVerifier := &auth.AppleVerifier{Cfg: auth.AppleConfig{
+		TeamID:     cfg.Apple.TeamID,
+		ClientID:   cfg.Apple.ClientID,
+		KeyID:      cfg.Apple.KeyID,
+		PrivateKey: cfg.Apple.PrivateKey,
+	}}
 	authService := &auth.Service{
-		Verifier:   verifier,
-		Users:      usersStore,
-		Onboarding: onboardingStore,
-		Refresh:    refreshStore,
-		Issuer:     issuer,
+		Verifier:      verifier,
+		AppleVerifier: appleVerifier,
+		Users:         usersStore,
+		Onboarding:    onboardingStore,
+		Refresh:       refreshStore,
+		Issuer:        issuer,
 	}
 	authHandlers := &auth.Handlers{
 		Cfg:        cfg,
@@ -99,6 +106,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	r.Get("/health", httpx.Health)
 
 	r.Post("/auth/google", authHandlers.Google)
+	r.Post("/auth/apple", authHandlers.Apple)
 	r.Post("/auth/refresh", authHandlers.Refresh)
 	r.Post("/auth/logout", authHandlers.Logout)
 

@@ -5,6 +5,7 @@ go 1.24
 toolchain go1.24.7
 
 require (
+	github.com/Timothylock/go-signin-with-apple v0.2.7
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/aws/aws-sdk-go-v2 v1.41.6
 	github.com/aws/aws-sdk-go-v2/config v1.32.16
@@ -12,7 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.0
 	github.com/go-chi/chi/v5 v5.1.0
-	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.18.0
