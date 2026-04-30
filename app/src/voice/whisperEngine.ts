@@ -44,11 +44,11 @@ async function getContext(): Promise<WhisperContext> {
       throw new Error('whisper.rn not linked');
     }
     // useGpu turns on the Metal backend on iOS; whisper.rn ships Metal
-    // shaders in its pod so no extra build step is needed. The medium
-    // ggml model is ~5x heavier than small, and CPU-only inference on
-    // device for a 60s clip pushes well past UI-acceptable latency, so
-    // Metal is effectively required for this model tier. The flag is
-    // a no-op on Android (CPU-only build there).
+    // shaders in its pod so no extra build step is needed. The
+    // large-v3-turbo encoder dwarfs even medium on CPU, and a 60s
+    // clip would push well past UI-acceptable latency, so Metal is
+    // effectively required for this model tier. The flag is a no-op
+    // on Android (CPU-only build there).
     const created: WhisperContext = await initWhisper({
       filePath: modelPath,
       useGpu: Platform.OS === 'ios',
@@ -70,7 +70,7 @@ export type TranscribeOptions = {
   language?: string;
   // maxLenSeconds caps the transcription wallclock to avoid hanging
   // the UI on a corrupt input. Default 60s — covers a 60-second
-  // recording with margin for the medium-q5 model on Metal.
+  // recording with margin for the large-v3-turbo-q5 model on Metal.
   maxLenSeconds?: number;
 };
 

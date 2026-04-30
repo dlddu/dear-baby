@@ -1,8 +1,8 @@
-// modelManager handles the lazy-download of the Whisper ggml-medium-q5_0
-// model the on-device STT relies on. The model is intentionally NOT
-// bundled with the app (it's ~539 MB — every install would balloon, and
-// most users may never record voice). It is fetched on first use and
-// kept on disk forever after.
+// modelManager handles the lazy-download of the Whisper
+// ggml-large-v3-turbo-q5_0 model the on-device STT relies on. The
+// model is intentionally NOT bundled with the app (it's ~547 MB —
+// every install would balloon, and most users may never record
+// voice). It is fetched on first use and kept on disk forever after.
 //
 // Public surface is small on purpose:
 //   ensureModel(onProgress?) -> resolves to a file:// path
@@ -17,9 +17,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import { E2E_AUDIO_FIXTURE } from '../config/env';
 
-// MODEL_URL points at the ggml-medium-q5_0 Whisper weights (Q5_0
-// quantization keeps medium-tier accuracy at a fraction of the FP16
-// size). Self-hosting the asset (CloudFront or similar) lets us pin a
+// MODEL_URL points at the ggml-large-v3-turbo-q5_0 Whisper weights.
+// large-v3-turbo is the distilled-decoder variant of large-v3: near
+// large-tier accuracy at a fraction of the inference cost, which is
+// what makes it tractable to run on a phone Metal GPU. Q5_0
+// quantization further halves the on-disk footprint.
+//
+// Self-hosting the asset (CloudFront or similar) lets us pin a
 // specific build and avoid HuggingFace rate limiting; the URL is a
 // single source of truth so a migration is one edit, no scattered
 // constants.
@@ -28,17 +32,17 @@ import { E2E_AUDIO_FIXTURE } from '../config/env';
 // EXPO_PUBLIC_WHISPER_MODEL_URL still function. Production builds must
 // set the var to the team-controlled CDN.
 const DEFAULT_MODEL_URL =
-  'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin';
+  'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin';
 
 export const MODEL_URL: string =
   process.env.EXPO_PUBLIC_WHISPER_MODEL_URL ?? DEFAULT_MODEL_URL;
 
 // Approximate size in bytes (used for UI progress only — the response
 // itself is the source of truth when streaming).
-export const MODEL_APPROX_BYTES = 539 * 1024 * 1024;
+export const MODEL_APPROX_BYTES = 547 * 1024 * 1024;
 
 const MODEL_DIR = `${FileSystem.documentDirectory ?? ''}whisper/`;
-const MODEL_PATH = `${MODEL_DIR}ggml-medium-q5_0.bin`;
+const MODEL_PATH = `${MODEL_DIR}ggml-large-v3-turbo-q5_0.bin`;
 
 export type DownloadProgress = {
   totalBytes: number;
@@ -70,7 +74,7 @@ export async function ensureModel(
     // The fixture path is never read — whisperEngine short-circuits
     // before opening the file. We return a sentinel so callers can
     // still log a meaningful "model path".
-    return 'fixture://ggml-medium-q5_0.bin';
+    return 'fixture://ggml-large-v3-turbo-q5_0.bin';
   }
   if (await isModelDownloaded()) {
     return MODEL_PATH;
@@ -108,7 +112,7 @@ export async function ensureModel(
       }
       // Commit by renaming the .part file. Any reader from this point
       // on sees a complete file, even if the app is killed mid-call —
-      // there is no half-written ggml-medium-q5_0.bin.
+      // there is no half-written ggml-large-v3-turbo-q5_0.bin.
       await FileSystem.moveAsync({ from: tmp, to: MODEL_PATH });
       return MODEL_PATH;
     } catch (err) {

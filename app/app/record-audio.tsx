@@ -24,8 +24,8 @@ import { spacing } from '../src/theme/spacing';
 import { typography } from '../src/theme/typography';
 import { createRecorder, type Recorder } from '../src/voice/recorder';
 
-// 60s — 디바이스 STT(medium-q5)의 권장 처리 길이. 저장된 오디오 파일이 너무
-// 커지지 않도록 cap도 같이 둔다.
+// 60s — 디바이스 STT(large-v3-turbo-q5)의 권장 처리 길이. 저장된 오디오
+// 파일이 너무 커지지 않도록 cap도 같이 둔다.
 const MAX_RECORDING_MS = 60_000;
 
 function formatTime(ms: number): string {
