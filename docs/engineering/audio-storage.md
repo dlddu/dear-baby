@@ -9,9 +9,11 @@ A voice record produces two artifacts. They live separately on purpose.
 | Artifact | Where it lives | Required? |
 |---|---|---|
 | Transcript | `records.content` (server) | Yes — the row exists only when transcript is committed. |
-| Audio blob | S3 object at `users/{user_id}/records/{record_id}.m4a` (under the configured prefix) | No — `records.audio_s3_key` may stay null forever. |
+| Audio blob | S3 object at `users/{user_id}/records/{record_id}.{m4a\|wav}` (under the configured prefix) | No — `records.audio_s3_key` may stay null forever. |
 
 The transcript is the authoritative diary entry. The audio is a souvenir the user can keep, upload later, or delete entirely. Two records with identical transcripts are functionally identical even if one has audio and the other doesn't.
+
+The extension and Content-Type vary by recording platform: Android captures AAC-in-MP4 (`.m4a`, `audio/mp4`) and iOS captures 16 kHz mono linear-PCM (`.wav`, `audio/wav`) — whisper.cpp consumes the latter natively, so STT skips an AAC decode. The client signals which one it produced via the `format` field on the upload-url request; the server uses that to build the matching S3 key and to lock the presigned PUT's Content-Type. Older clients that omit the field default to `m4a`.
 
 ## Why the backend doesn't proxy audio
 
@@ -31,10 +33,13 @@ The trade-off is that the backend can't reject corrupt audio mid-stream. We catc
   ├── POST /records {content, source: "voice"} ─► creates row, audio_s3_key = NULL
   │   ◄──────────────────── 201 {record, user} ──┤
   │                                              │
-  ├── POST /records/{id}/audio/upload-url ──────►│
-  │   ◄─── 200 {upload_url, audio_s3_key, ttl} ──┤
+  ├── POST /records/{id}/audio/upload-url        │
+  │     {format: "m4a"|"wav"} ─────────────────►│
+  │   ◄─── 200 {upload_url, audio_s3_key,       │
+  │           content_type, ttl} ────────────────┤
   │                                              │
-  ├── PUT {upload_url} (Content-Type: audio/mp4) ────────────────────────►│
+  ├── PUT {upload_url}                           │
+  │     (Content-Type matches presigned) ────────────────────────────────►│
   │   ◄────────────────────────────────────────────────── 200 ─────────────┤
   │                                              │                        │
   ├── PATCH /records/{id} {audio_s3_key} ───────►│                        │

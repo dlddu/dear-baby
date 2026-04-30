@@ -76,27 +76,35 @@ func seedUser(t *testing.T, db *sql.DB, id, email string) {
 // canonical key builder so handlers exercise the same prefix-validation
 // path as in production.
 type fakeAudio struct {
-	prefix    string
-	objects   map[string]bool
-	headErr   error
-	presigned int
+	prefix      string
+	objects     map[string]bool
+	headErr     error
+	presigned   int
+	lastFormat  storage.AudioFormat
+	lastContent string
 }
 
-func (f *fakeAudio) BuildRecordAudioKey(userID, recordID string) string {
-	return fmt.Sprintf("%susers/%s/records/%s.m4a", f.prefix, userID, recordID)
+func (f *fakeAudio) BuildRecordAudioKey(userID, recordID string, format storage.AudioFormat) string {
+	return fmt.Sprintf("%susers/%s/records/%s%s", f.prefix, userID, recordID, format.Extension())
 }
 
 func (f *fakeAudio) IsValidRecordAudioKey(userID, recordID, key string) bool {
-	return key != "" && key == f.BuildRecordAudioKey(userID, recordID)
+	if key == "" {
+		return false
+	}
+	return key == f.BuildRecordAudioKey(userID, recordID, storage.AudioFormatM4A) ||
+		key == f.BuildRecordAudioKey(userID, recordID, storage.AudioFormatWAV)
 }
 
-func (f *fakeAudio) PresignPut(_ context.Context, key string) (storage.PresignedPut, error) {
+func (f *fakeAudio) PresignPut(_ context.Context, key string, format storage.AudioFormat) (storage.PresignedPut, error) {
 	f.presigned++
+	f.lastFormat = format
+	f.lastContent = format.ContentType()
 	return storage.PresignedPut{
 		URL:         "https://s3.example/" + key,
 		Method:      http.MethodPut,
 		ExpiresAt:   time.Now().Add(5 * time.Minute),
-		ContentType: storage.AudioContentType,
+		ContentType: format.ContentType(),
 		MaxBytes:    storage.MaxAudioBytes,
 	}, nil
 }
@@ -425,6 +433,87 @@ func TestUploadURL_AlreadyAttached_409(t *testing.T) {
 	}
 }
 
+func TestUploadURL_WAVFormat_KeyAndContentType(t *testing.T) {
+	h, db, audio := newHandlers(t, "u1")
+	defer db.Close()
+	seedVoiceRecord(t, db, "rec-1", "u1", "transcript", nil)
+
+	rec := runReq(t, h, http.MethodPost, "/records/rec-1/audio/upload-url", "u1",
+		`{"format":"wav"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body audioUploadURLResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	wantKey := "test/users/u1/records/rec-1.wav"
+	if body.AudioS3Key != wantKey {
+		t.Errorf("audio_s3_key: got %q want %q", body.AudioS3Key, wantKey)
+	}
+	if body.ContentType != "audio/wav" {
+		t.Errorf("content_type: got %q want %q", body.ContentType, "audio/wav")
+	}
+	if audio.lastFormat != storage.AudioFormatWAV {
+		t.Errorf("PresignPut format: got %q want %q", audio.lastFormat, storage.AudioFormatWAV)
+	}
+}
+
+func TestUploadURL_DefaultFormatIsM4A(t *testing.T) {
+	h, db, audio := newHandlers(t, "u1")
+	defer db.Close()
+	seedVoiceRecord(t, db, "rec-1", "u1", "transcript", nil)
+
+	// Empty body — older clients that haven't been updated for the
+	// format field. Must keep returning the m4a key.
+	rec := runReq(t, h, http.MethodPost, "/records/rec-1/audio/upload-url", "u1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body audioUploadURLResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.AudioS3Key != "test/users/u1/records/rec-1.m4a" {
+		t.Errorf("audio_s3_key: got %q", body.AudioS3Key)
+	}
+	if audio.lastFormat != storage.AudioFormatM4A {
+		t.Errorf("PresignPut format: got %q want %q", audio.lastFormat, storage.AudioFormatM4A)
+	}
+}
+
+func TestUploadURL_UnknownFormat_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedVoiceRecord(t, db, "rec-1", "u1", "transcript", nil)
+
+	rec := runReq(t, h, http.MethodPost, "/records/rec-1/audio/upload-url", "u1",
+		`{"format":"mp3"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400 body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPatch_WAVKey_AttachesAudio(t *testing.T) {
+	h, db, audio := newHandlers(t, "u1")
+	defer db.Close()
+	seedVoiceRecord(t, db, "rec-1", "u1", "transcript", nil)
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatWAV)
+	audio.objects[key] = true
+
+	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var stored sql.NullString
+	if err := db.QueryRow(`SELECT audio_s3_key FROM records WHERE id=?`, "rec-1").Scan(&stored); err != nil {
+		t.Fatalf("requery: %v", err)
+	}
+	if !stored.Valid || stored.String != key {
+		t.Errorf("audio_s3_key not persisted: %v", stored)
+	}
+}
+
 func TestUploadURL_NoAudioConfig_503(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
@@ -446,7 +535,7 @@ func TestPatch_HappyPath_AttachesAudio(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
 	seedVoiceRecord(t, db, "rec-1", "u1", "transcript", nil)
-	key := audio.BuildRecordAudioKey("u1", "rec-1")
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A)
 	audio.objects[key] = true
 
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
@@ -467,7 +556,7 @@ func TestPatch_KeyOutsideUserNamespace_400(t *testing.T) {
 	defer db.Close()
 	seedUser(t, db, "u2", "u2@b.com")
 	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
-	wrong := audio.BuildRecordAudioKey("u2", "rec-1")
+	wrong := audio.BuildRecordAudioKey("u2", "rec-1", storage.AudioFormatM4A)
 
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(wrong))
 	if rec.Code != http.StatusBadRequest {
@@ -479,7 +568,7 @@ func TestPatch_MissingS3Object_400(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
 	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
-	key := audio.BuildRecordAudioKey("u1", "rec-1")
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A)
 
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
 	if rec.Code != http.StatusBadRequest {
@@ -490,7 +579,7 @@ func TestPatch_MissingS3Object_400(t *testing.T) {
 func TestPatch_AlreadyAttached_409(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
-	key := audio.BuildRecordAudioKey("u1", "rec-1")
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A)
 	seedVoiceRecord(t, db, "rec-1", "u1", "x", &key)
 	audio.objects[key] = true
 
@@ -504,7 +593,7 @@ func TestPatch_HeadObjectError_500(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
 	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
-	key := audio.BuildRecordAudioKey("u1", "rec-1")
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A)
 	audio.headErr = errors.New("network down")
 
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))

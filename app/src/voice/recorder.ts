@@ -8,9 +8,14 @@
 //      "start / stop / current millis" view, not the full recorder
 //      lifecycle.
 //
-// The recorder produces an .m4a (audio/mp4) file in the cache
-// directory; the review screen moves it into the archive on save.
+// On iOS the recorder produces a 16 kHz mono linear-PCM .wav file —
+// whisper.cpp consumes WAV directly without an AAC decode pass, which
+// shortens cold-start STT latency and avoids a quality loss step. On
+// Android the HIGH_QUALITY preset (.m4a / AAC) is kept because the
+// platform's recommended capture path is encoded MP4. Either way the
+// review screen moves the file into the archive on save.
 
+import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { E2E_AUDIO_FIXTURE } from '../config/env';
@@ -43,7 +48,8 @@ class FixtureRecorder implements Recorder {
   async stop(): Promise<StopResult> {
     const dir = `${FileSystem.cacheDirectory ?? ''}voice-rec/`;
     await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-    const uri = `${dir}fixture-${this.startedAt}.m4a`;
+    const ext = Platform.OS === 'ios' ? 'wav' : 'm4a';
+    const uri = `${dir}fixture-${this.startedAt}.${ext}`;
     // Placeholder bytes — never decoded because the STT and S3 paths
     // are also short-circuited under the same flag.
     await FileSystem.writeAsStringAsync(uri, 'FIXTURE');
@@ -78,7 +84,7 @@ class NativeRecorder implements Recorder {
     }
     await audio.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
     const presets = audio.RecordingPresets ?? {};
-    const opts = presets.HIGH_QUALITY ?? presets.LOW_QUALITY ?? {};
+    const opts = recordingOptionsFor(presets);
     // expo-audio v1.x exposes the AudioRecorder class on AudioModule, not on
     // the package root, so `new audio.AudioRecorder(...)` would crash with
     // "Cannot read property 'prototype' of undefined" in Hermes.
@@ -115,4 +121,39 @@ class NativeRecorder implements Recorder {
 
 export function createRecorder(): Recorder {
   return E2E_AUDIO_FIXTURE ? new FixtureRecorder() : new NativeRecorder();
+}
+
+// recordingOptionsFor picks the platform-appropriate recorder config.
+// On iOS we override the preset with linear-PCM @ 16 kHz mono — that's
+// the format whisper.cpp ingests natively, so the STT path skips the
+// AAC decode. Android stays on HIGH_QUALITY (.m4a / AAC) because the
+// platform's capture pipeline is built around encoded MP4; forcing PCM
+// there would require additional MediaRecorder gymnastics for no STT
+// gain.
+function recordingOptionsFor(presets: Record<string, unknown>): any {
+  if (Platform.OS === 'ios') {
+    return {
+      extension: '.wav',
+      sampleRate: 16000,
+      numberOfChannels: 1,
+      bitRate: 256000,
+      ios: {
+        extension: '.wav',
+        // 'lpcm' = IOSOutputFormat.LINEARPCM. Whisper expects 16-bit
+        // little-endian signed PCM at 16 kHz mono — every field below
+        // matches that contract.
+        outputFormat: 'lpcm',
+        // 96 = AudioQuality.HIGH; PCM is lossless so quality mostly
+        // affects the resampler, not the encoder.
+        audioQuality: 96,
+        sampleRate: 16000,
+        numberOfChannels: 1,
+        bitRate: 256000,
+        linearPCMBitDepth: 16,
+        linearPCMIsBigEndian: false,
+        linearPCMIsFloat: false,
+      },
+    };
+  }
+  return presets.HIGH_QUALITY ?? presets.LOW_QUALITY ?? {};
 }

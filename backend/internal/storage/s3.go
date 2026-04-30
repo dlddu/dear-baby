@@ -52,11 +52,67 @@ const (
 	// recorder's hard cap; it is NOT a billing safeguard — IAM is.
 	MaxAudioBytes int64 = 25 * 1024 * 1024 // 25 MiB
 
-	// AudioContentType is the only Content-Type the presigned URL allows.
-	// Locking this matches the recorder's expo-av output and prevents the
-	// client from uploading something other than the audio they recorded.
+	// AudioContentType is the historical default Content-Type the
+	// presigned URL allowed before WAV support was added. Kept as a
+	// backwards-compat alias for AudioFormatM4A.ContentType() — new
+	// code should go through AudioFormat to stay format-aware.
 	AudioContentType = "audio/mp4"
 )
+
+// AudioFormat enumerates the audio container formats the records
+// pipeline accepts. Each format pins both an S3 key extension and an
+// HTTP Content-Type — drift between the two would make S3 SigV4
+// validation fail (Content-Type is part of the signed headers).
+//
+// Android records AAC-in-MP4 (m4a), iOS records 16 kHz mono linear-PCM
+// (wav). Both are first-class on the server side; the client picks
+// based on Platform.OS at upload-url request time.
+type AudioFormat string
+
+const (
+	AudioFormatM4A AudioFormat = "m4a"
+	AudioFormatWAV AudioFormat = "wav"
+)
+
+// ParseAudioFormat normalises a wire-form value (the JSON `format`
+// field on POST /records/{id}/audio/upload-url). An empty string maps
+// to the historical default (m4a) so older clients keep working
+// without sending the new field; any other unknown value is rejected.
+func ParseAudioFormat(s string) (AudioFormat, bool) {
+	switch s {
+	case "":
+		return AudioFormatM4A, true
+	case string(AudioFormatM4A):
+		return AudioFormatM4A, true
+	case string(AudioFormatWAV):
+		return AudioFormatWAV, true
+	}
+	return "", false
+}
+
+// Extension returns the leading-dot file extension for the format.
+// Used as the S3 key suffix and (cosmetically) as the on-disk
+// extension in the device archive.
+func (f AudioFormat) Extension() string {
+	switch f {
+	case AudioFormatWAV:
+		return ".wav"
+	default:
+		return ".m4a"
+	}
+}
+
+// ContentType returns the HTTP Content-Type the presigned URL will
+// accept for this format. Must match exactly what the client sends or
+// S3 returns SignatureDoesNotMatch.
+func (f AudioFormat) ContentType() string {
+	switch f {
+	case AudioFormatWAV:
+		return "audio/wav"
+	default:
+		return "audio/mp4"
+	}
+}
 
 // Config carries the settings needed to construct a Client. Loaded from
 // the environment by Load(), but accepted as a struct so tests can inject
@@ -193,27 +249,37 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 }
 
 // BuildRecordAudioKey returns the canonical S3 key for a record's audio
-// blob. The format is stable across environments — only the prefix
-// differs (dev/staging/prod) — so a key string is meaningful in logs:
+// blob. The structure is stable across environments — only the prefix
+// (dev/staging/prod) and the file extension (per format) vary — so a
+// key string is meaningful in logs:
 //
-//	{prefix}users/{user_id}/records/{record_id}.m4a
+//	{prefix}users/{user_id}/records/{record_id}{.m4a|.wav}
 //
 // Callers MUST go through this function; constructing keys by hand
 // elsewhere defeats the prefix-validation invariant in PATCH /records.
-func (c *Client) BuildRecordAudioKey(userID, recordID string) string {
-	return fmt.Sprintf("%susers/%s/records/%s.m4a", c.Config.KeyPrefix, userID, recordID)
+func (c *Client) BuildRecordAudioKey(userID, recordID string, format AudioFormat) string {
+	return fmt.Sprintf("%susers/%s/records/%s%s", c.Config.KeyPrefix, userID, recordID, format.Extension())
 }
 
 // IsValidRecordAudioKey returns true when key matches the canonical
-// format for the given user and record. PATCH /records uses this to
-// reject keys that point outside the calling user's record namespace —
-// the client never gets to choose its own key.
+// format for the given user and record in any supported audio format.
+// PATCH /records uses this to reject keys that point outside the
+// calling user's record namespace — the client never gets to choose
+// its own key. Either extension (.m4a or .wav) is accepted; which one
+// the client uses is signalled by the format field on the upload-url
+// request and verified later by the HEAD check (a key the device
+// didn't actually upload to has no object to find).
 func (c *Client) IsValidRecordAudioKey(userID, recordID, key string) bool {
-	return key != "" && key == c.BuildRecordAudioKey(userID, recordID)
+	if key == "" {
+		return false
+	}
+	return key == c.BuildRecordAudioKey(userID, recordID, AudioFormatM4A) ||
+		key == c.BuildRecordAudioKey(userID, recordID, AudioFormatWAV)
 }
 
-// PresignPut issues a presigned PUT URL for the given key. The URL is
-// valid for DefaultPresignTTL and locked to AudioContentType.
+// PresignPut issues a presigned PUT URL for the given key, locked to
+// the supplied format's Content-Type. The URL is valid for
+// DefaultPresignTTL.
 //
 // We deliberately don't include Content-Length in the signed input.
 // SigV4 would then require the client's PUT to send EXACTLY the same
@@ -221,11 +287,12 @@ func (c *Client) IsValidRecordAudioKey(userID, recordID, key string) bool {
 // front and even if it did, signing the exact number gives no upside
 // over IAM-side limits. MaxAudioBytes is enforced as a client-side
 // recorder cap, not a server-side signature constraint.
-func (c *Client) PresignPut(ctx context.Context, key string) (PresignedPut, error) {
+func (c *Client) PresignPut(ctx context.Context, key string, format AudioFormat) (PresignedPut, error) {
+	contentType := format.ContentType()
 	req, err := c.Presigner.PresignPutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(c.Config.Bucket),
 		Key:         aws.String(key),
-		ContentType: aws.String(AudioContentType),
+		ContentType: aws.String(contentType),
 	}, func(o *s3.PresignOptions) {
 		o.Expires = DefaultPresignTTL
 	})
@@ -239,7 +306,7 @@ func (c *Client) PresignPut(ctx context.Context, key string) (PresignedPut, erro
 		URL:         req.URL,
 		Method:      req.Method,
 		ExpiresAt:   time.Now().UTC().Add(DefaultPresignTTL),
-		ContentType: AudioContentType,
+		ContentType: contentType,
 		MaxBytes:    MaxAudioBytes,
 	}, nil
 }

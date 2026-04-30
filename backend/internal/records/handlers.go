@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -26,9 +27,9 @@ const maxContentRunes = 2000
 // need. Defining it as an interface here lets tests substitute a fake
 // without pulling in the AWS SDK at all.
 type AudioStorage interface {
-	BuildRecordAudioKey(userID, recordID string) string
+	BuildRecordAudioKey(userID, recordID string, format storage.AudioFormat) string
 	IsValidRecordAudioKey(userID, recordID, key string) bool
-	PresignPut(ctx context.Context, key string) (storage.PresignedPut, error)
+	PresignPut(ctx context.Context, key string, format storage.AudioFormat) (storage.PresignedPut, error)
 	HeadObject(ctx context.Context, key string) (bool, error)
 }
 
@@ -122,10 +123,23 @@ type audioUploadURLResponse struct {
 	AudioS3Key string `json:"audio_s3_key"`
 }
 
+// audioUploadURLBody is the optional request body for upload-url. Only
+// `format` is supported today: "m4a" (default, Android) or "wav"
+// (iOS). Older clients send no body; ParseAudioFormat falls back to
+// m4a so they keep working unchanged.
+type audioUploadURLBody struct {
+	Format string `json:"format"`
+}
+
 // CreateAudioUploadURL handles POST /records/{id}/audio/upload-url.
 // Returns a short-lived presigned PUT URL bound to the canonical key
 // for this user/record. The client uploads with the returned URL +
 // Content-Type, then PATCHes the record with the same key.
+//
+// Accepts an optional `{format: "wav"|"m4a"}` body so iOS (PCM/.wav)
+// and Android (AAC/.m4a) can each request a presigned URL whose
+// Content-Type matches what the device actually produced — SigV4
+// would otherwise reject the PUT because Content-Type is signed.
 //
 // Idempotent: presigning a URL does not mutate state, so the client can
 // re-request after a 5-min URL expiry without coordination.
@@ -145,6 +159,21 @@ func (h *Handlers) CreateAudioUploadURL(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Body is optional — older clients send nothing. io.EOF on Decode
+	// means an empty body, which falls through to the default format.
+	var body audioUploadURLBody
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	format, formatOK := storage.ParseAudioFormat(body.Format)
+	if !formatOK {
+		httpx.WriteError(w, http.StatusBadRequest, "unsupported format")
+		return
+	}
+
 	rec, err := h.Store.GetByIDForUser(r.Context(), uid, recordID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -160,10 +189,10 @@ func (h *Handlers) CreateAudioUploadURL(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	key := h.Audio.BuildRecordAudioKey(uid, recordID)
-	put, err := h.Audio.PresignPut(r.Context(), key)
+	key := h.Audio.BuildRecordAudioKey(uid, recordID, format)
+	put, err := h.Audio.PresignPut(r.Context(), key, format)
 	if err != nil {
-		slog.Error("presign put failed", "err", err, "user_id", uid, "record_id", recordID)
+		slog.Error("presign put failed", "err", err, "user_id", uid, "record_id", recordID, "format", format)
 		httpx.WriteError(w, http.StatusInternalServerError, "presign failed")
 		return
 	}
