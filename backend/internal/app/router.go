@@ -44,8 +44,19 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		RefreshTTL: cfg.JWTRefreshTTL,
 	}
 	verifier := &auth.GoogleVerifier{Audiences: cfg.GoogleAudiences}
+	// Apple verifier is only attached when at least one audience is set,
+	// so test/dev environments without the Apple developer config don't
+	// pay the JWKS-fetch cost and the /auth/apple handler returns 503.
+	var appleVerifier *auth.AppleVerifier
+	if len(cfg.AppleAudiences) > 0 {
+		appleVerifier = &auth.AppleVerifier{
+			Audiences: cfg.AppleAudiences,
+			Fetcher:   &auth.AppleJWKSFetcher{},
+		}
+	}
 	authService := &auth.Service{
 		Verifier:   verifier,
+		Apple:      appleVerifier,
 		Users:      usersStore,
 		Onboarding: onboardingStore,
 		Refresh:    refreshStore,
@@ -99,6 +110,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	r.Get("/health", httpx.Health)
 
 	r.Post("/auth/google", authHandlers.Google)
+	r.Post("/auth/apple", authHandlers.Apple)
 	r.Post("/auth/refresh", authHandlers.Refresh)
 	r.Post("/auth/logout", authHandlers.Logout)
 

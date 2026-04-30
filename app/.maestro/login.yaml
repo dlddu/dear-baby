@@ -1,10 +1,15 @@
 appId: com.dlddu.dearbaby
 ---
-# Covers the E2E login path that bypasses real Google OAuth via the
+# Covers the E2E login path that bypasses real Google/Apple OAuth via the
 # backend's /auth/test-login endpoint. Requires the app bundle to be built
 # with EXPO_PUBLIC_TEST_AUTH_ENABLED=true AND the backend to run with
-# TEST_AUTH_ENABLED=true — otherwise the buttons this flow taps are not
+# TEST_AUTH_ENABLED=true — otherwise the hidden gesture overlays are not
 # mounted and the endpoint returns 404.
+#
+# The visible test-login buttons were replaced by a hidden tap sequence:
+# tap the top-left corner 6 times (inside the [5, 7] window the gesture
+# accepts), then tap the top-right corner 10 times to surface the tester
+# login modal. Each tester button issues a session via /auth/test-login.
 
 # Path 1: unauthenticated → onboarding funnel.
 - launchApp:
@@ -14,10 +19,16 @@ appId: com.dlddu.dearbaby
       visible: "isn't responding"
     commands:
       - tapOn: "Wait"
-- assertVisible:
-    id: "test-login-button"
 - tapOn:
-    id: "test-login-button"
+    id: "tester-gesture-top-left"
+    repeat: 6
+- tapOn:
+    id: "tester-gesture-top-right"
+    repeat: 10
+- assertVisible:
+    id: "tester-login-tester-onboarding@dear-baby.test"
+- tapOn:
+    id: "tester-login-tester-onboarding@dear-baby.test"
 - assertVisible:
     id: "onboarding-welcome"
 
@@ -34,9 +45,15 @@ appId: com.dlddu.dearbaby
       visible: "isn't responding"
     commands:
       - tapOn: "Wait"
-- assertVisible:
-    id: "test-login-onboarded-button"
 - tapOn:
-    id: "test-login-onboarded-button"
+    id: "tester-gesture-top-left"
+    repeat: 6
+- tapOn:
+    id: "tester-gesture-top-right"
+    repeat: 10
+- assertVisible:
+    id: "tester-login-tester-onboarded@dear-baby.test"
+- tapOn:
+    id: "tester-login-tester-onboarded@dear-baby.test"
 - assertVisible:
     id: "home-tab"

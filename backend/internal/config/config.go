@@ -19,6 +19,11 @@ type Config struct {
 	JWTAccessTTL    time.Duration
 	JWTRefreshTTL   time.Duration
 	GoogleAudiences []string
+	// AppleAudiences holds the bundle identifiers (and/or Service IDs) the
+	// backend will accept on Apple identity tokens. When empty, the
+	// /auth/apple route returns 503 — Apple sign-in is opt-in so non-iOS
+	// deploys don't have to set anything.
+	AppleAudiences []string
 	// TestAuthEnabled, when true, causes the router to mount the
 	// POST /auth/test-login endpoint used by the Maestro E2E flow. It must
 	// NEVER be enabled in production — the endpoint issues a valid JWT
@@ -78,6 +83,14 @@ func Load() (*Config, error) {
 		for _, a := range strings.Split(auds, ",") {
 			if s := strings.TrimSpace(a); s != "" {
 				cfg.GoogleAudiences = append(cfg.GoogleAudiences, s)
+			}
+		}
+	}
+
+	if auds := os.Getenv("APPLE_ALLOWED_AUDIENCES"); auds != "" {
+		for _, a := range strings.Split(auds, ",") {
+			if s := strings.TrimSpace(a); s != "" {
+				cfg.AppleAudiences = append(cfg.AppleAudiences, s)
 			}
 		}
 	}

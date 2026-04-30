@@ -37,6 +37,16 @@ type googleSignInRequest struct {
 	IDToken string `json:"id_token"`
 }
 
+// appleSignInRequest is the body for POST /auth/apple. The identity token
+// is required and verified against Apple's JWKS. Name is optional because
+// Apple only sends it on the very first sign-in for a user — clients
+// should forward whatever they received and omit the field on later
+// requests rather than substituting a placeholder.
+type appleSignInRequest struct {
+	IDToken string `json:"id_token"`
+	Name    string `json:"name"`
+}
+
 type sessionResponse struct {
 	AccessToken  string         `json:"access_token"`
 	RefreshToken string         `json:"refresh_token"`
@@ -58,6 +68,34 @@ func (h *Handlers) Google(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Warn("google sign-in failed", "error", err)
 		httpx.WriteError(w, http.StatusUnauthorized, "invalid google token")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, sessionResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		User:         result.User,
+	})
+}
+
+// Apple handles POST /auth/apple. The body must include the identity
+// token Apple returned to the client; the name field is optional and
+// only meaningful on the first sign-in (Apple does not echo it back on
+// subsequent ones). Failures are logged at warn-level so a misconfigured
+// audience is visible during rollout without leaking token contents.
+func (h *Handlers) Apple(w http.ResponseWriter, r *http.Request) {
+	if h.Service.Apple == nil {
+		httpx.WriteError(w, http.StatusServiceUnavailable, "apple sign-in not configured")
+		return
+	}
+	var req appleSignInRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.IDToken == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "id_token required")
+		return
+	}
+	result, err := h.Service.SignInWithApple(r.Context(), req.IDToken, req.Name)
+	if err != nil {
+		slog.Warn("apple sign-in failed", "error", err)
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid apple token")
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, sessionResponse{

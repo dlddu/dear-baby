@@ -22,6 +22,31 @@ export async function exchangeGoogleIdToken(idToken: string): Promise<Session> {
   };
 }
 
+// exchangeAppleIdentityToken posts a Sign in with Apple identity token to
+// the backend and returns a session. `name` is only meaningful on the very
+// first sign-in for a given Apple user — Apple delivers the full name in
+// the authorization response exactly once, so the caller should forward
+// it that one time and pass an empty string thereafter.
+export async function exchangeAppleIdentityToken(
+  idToken: string,
+  name: string,
+): Promise<Session> {
+  const res = await fetch(`${API_URL}/auth/apple`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: idToken, name }),
+  });
+  if (!res.ok) {
+    throw new Error(`apple sign-in failed: ${res.status}`);
+  }
+  const json = (await res.json()) as SessionResponse;
+  return {
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    user: json.user,
+  };
+}
+
 // me returns the currently authenticated user, relying on apiFetch to attach
 // the Bearer token and refresh on 401.
 export async function me(): Promise<User> {

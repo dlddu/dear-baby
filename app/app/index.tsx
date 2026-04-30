@@ -6,7 +6,10 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '../src/components/Button';
 import { Text } from '../src/components/Text';
-import { exchangeGoogleIdToken, testLogin } from '../src/api/auth';
+import { exchangeGoogleIdToken } from '../src/api/auth';
+import { AppleSignInButton } from '../src/auth/AppleSignInButton';
+import { TesterLoginModal } from '../src/auth/TesterLoginModal';
+import { useTesterGesture } from '../src/auth/useTesterGesture';
 import { useAuth } from '../src/auth/AuthContext';
 import {
   API_URL,
@@ -76,48 +79,10 @@ function GoogleSignInButton() {
   );
 }
 
-// TestLoginButtons are only mounted when EXPO_PUBLIC_TEST_AUTH_ENABLED=true.
-// They drive the Maestro E2E login flow (app/.maestro/login.yaml) by hitting
-// the backend's /auth/test-login endpoint and feeding the resulting session
-// into AuthContext, which lets AuthGate redirect into onboarding or tabs
-// just as the real Google sign-in path would. Keep both testIDs stable —
-// `test-login-button` enters the onboarding funnel, and
-// `test-login-onboarded-button` skips straight into (tabs).
-function TestLoginButtons() {
-  const { setSession } = useAuth();
-
-  const run = async (email: string, onboarded: boolean) => {
-    try {
-      const session = await testLogin({ email, onboarded });
-      await setSession(session);
-    } catch (e) {
-      console.error('test login failed', e);
-    }
-  };
-
-  return (
-    <>
-      <Pressable
-        testID="test-login-button"
-        onPress={() => run('e2e-onboarding@dear-baby.test', false)}
-        style={({ pressed }) => [styles.testButton, pressed && styles.pressed]}
-      >
-        <Text variant="body" color="primary" style={styles.googleLabel}>
-          Test login (onboarding)
-        </Text>
-      </Pressable>
-      <Pressable
-        testID="test-login-onboarded-button"
-        onPress={() => run('e2e-onboarded@dear-baby.test', true)}
-        style={({ pressed }) => [styles.testButton, pressed && styles.pressed]}
-      >
-        <Text variant="body" color="primary" style={styles.googleLabel}>
-          Test login (onboarded)
-        </Text>
-      </Pressable>
-    </>
-  );
-}
+// hitArea governs the size of the invisible top-corner targets that drive
+// the QA tester gesture. 64x64 lines up roughly with a comfortable thumb
+// reach in the corner without colliding with the centered logo.
+const HIT_AREA = 64;
 
 // Landing screen shown when the user is not authenticated. This screen is
 // load-bearing for the Maestro E2E flow at app/.maestro/health.yaml — it
@@ -126,6 +91,7 @@ function TestLoginButtons() {
 // `${EXPO_PUBLIC_API_URL}/health` returning `{"status":"ok"}`.
 export default function Landing() {
   const [status, setStatus] = useState('');
+  const [testerOpen, setTesterOpen] = useState(false);
 
   const checkHealth = async () => {
     setStatus('');
@@ -137,6 +103,15 @@ export default function Landing() {
       console.error('health check failed', e);
     }
   };
+
+  // The tester gesture is only registered on internal builds where
+  // EXPO_PUBLIC_TEST_AUTH_ENABLED is set. App Store builds get nothing
+  // — there's no way for an end user to surface the tester modal even
+  // by accident, since both the listener and the modal are pruned at
+  // bundle time when the env flag is false.
+  const { tapLeft, tapRight } = useTesterGesture({
+    onTrigger: () => setTesterOpen(true),
+  });
 
   return (
     <View style={styles.container} testID="root">
@@ -158,7 +133,34 @@ export default function Landing() {
         </Text>
       )}
       {hasGoogleConfig && <GoogleSignInButton />}
-      {TEST_AUTH_ENABLED && <TestLoginButtons />}
+      <AppleSignInButton />
+
+      {TEST_AUTH_ENABLED && (
+        <>
+          {/* Hidden corner overlays — visually transparent so the only way
+              to discover the gesture is via internal docs. They sit on
+              top of the gradient with `pointerEvents=box-only` so taps
+              are captured but the children below stay interactive. */}
+          <Pressable
+            testID="tester-gesture-top-left"
+            onPress={tapLeft}
+            style={styles.cornerLeft}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+          <Pressable
+            testID="tester-gesture-top-right"
+            onPress={tapRight}
+            style={styles.cornerRight}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+          <TesterLoginModal
+            visible={testerOpen}
+            onClose={() => setTesterOpen(false)}
+          />
+        </>
+      )}
       <StatusBar style="dark" />
     </View>
   );
@@ -188,15 +190,18 @@ const styles = StyleSheet.create({
   },
   googleLabel: { fontWeight: '600' },
   pressed: { opacity: 0.9 },
-  testButton: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.accent.sage,
-    backgroundColor: colors.surface.ivory,
-    borderRadius: radius.sm,
-    paddingVertical: spacing[3],
-    paddingHorizontal: spacing[5],
-    alignSelf: 'stretch',
-    alignItems: 'center',
+  cornerLeft: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: HIT_AREA,
+    height: HIT_AREA,
+  },
+  cornerRight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: HIT_AREA,
+    height: HIT_AREA,
   },
 });

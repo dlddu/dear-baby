@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -10,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
@@ -195,6 +199,96 @@ func TestTestLogin_IdempotentForSameEmail(t *testing.T) {
 	if first.User.ID != second.User.ID {
 		t.Errorf("user id should be stable across test-login calls: %q vs %q",
 			first.User.ID, second.User.ID)
+	}
+}
+
+func TestApple_NotConfiguredReturns503(t *testing.T) {
+	h, cleanup := newTestHandlers(t)
+	defer cleanup()
+	if h.Service.Apple != nil {
+		t.Fatal("apple should be unconfigured by default")
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/apple",
+		strings.NewReader(`{"id_token":"anything"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.Apple(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status: got %d want 503, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestApple_ValidTokenIssuesSession(t *testing.T) {
+	h, cleanup := newTestHandlers(t)
+	defer cleanup()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("genkey: %v", err)
+	}
+	const kid = "test-kid"
+	h.Service.Apple = &AppleVerifier{
+		Audiences: []string{"com.dlddu.dearbaby"},
+		Fetcher:   &fakeFetcher{keys: map[string]*rsa.PublicKey{kid: &key.PublicKey}},
+	}
+
+	now := time.Now()
+	tokClaims := jwt.MapClaims{
+		"iss":   appleIssuer,
+		"aud":   "com.dlddu.dearbaby",
+		"sub":   "001234.handlers",
+		"email": "appleuser@privaterelay.appleid.com",
+		"iat":   now.Unix(),
+		"exp":   now.Add(10 * time.Minute).Unix(),
+	}
+	idToken := signAppleToken(t, key, kid, tokClaims)
+
+	body, _ := json.Marshal(map[string]string{"id_token": idToken, "name": "Apple Tester"})
+	req := httptest.NewRequest(http.MethodPost, "/auth/apple", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.Apple(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp sessionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.AccessToken == "" || resp.RefreshToken == "" {
+		t.Error("tokens should be non-empty")
+	}
+	if resp.User == nil || resp.User.Email != "appleuser@privaterelay.appleid.com" {
+		t.Errorf("user: got %+v", resp.User)
+	}
+	if resp.User.Name != "Apple Tester" {
+		t.Errorf("name should pass through from request: got %q", resp.User.Name)
+	}
+}
+
+func TestApple_InvalidTokenReturns401(t *testing.T) {
+	h, cleanup := newTestHandlers(t)
+	defer cleanup()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("genkey: %v", err)
+	}
+	h.Service.Apple = &AppleVerifier{
+		Audiences: []string{"com.dlddu.dearbaby"},
+		Fetcher:   &fakeFetcher{keys: map[string]*rsa.PublicKey{"k": &key.PublicKey}},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/apple",
+		strings.NewReader(`{"id_token":"not-a-jwt"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.Apple(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

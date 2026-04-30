@@ -15,9 +15,11 @@ export const GOOGLE_WEB_CLIENT_ID: string =
   process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 
 // TEST_AUTH_ENABLED mirrors the backend's TEST_AUTH_ENABLED flag and gates
-// the E2E-only test login button on the landing screen. It must only be set
-// in CI / local development — production builds leave it unset, which
-// removes the button from the bundle via a boolean guard.
+// the hidden tester login gesture (corner-tap sequence + modal) on the
+// landing screen. It must only be set in CI / local development —
+// production builds leave it unset, which prunes both the gesture
+// overlays and the modal from the bundle so end users cannot surface
+// the tester login window even by accident.
 export const TEST_AUTH_ENABLED: boolean =
   process.env.EXPO_PUBLIC_TEST_AUTH_ENABLED === 'true' ||
   process.env.EXPO_PUBLIC_TEST_AUTH_ENABLED === '1';

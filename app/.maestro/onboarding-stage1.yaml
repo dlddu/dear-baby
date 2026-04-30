@@ -16,10 +16,19 @@ appId: com.dlddu.dearbaby
     commands:
       - tapOn: "Wait"
 
-- assertVisible:
-    id: "test-login-button"
+# Tester login is hidden behind a corner-tap gesture: 6 taps on the
+# top-left overlay (inside the [5,7] window the gesture accepts), then
+# 10 taps on the top-right overlay surfaces the tester modal.
 - tapOn:
-    id: "test-login-button"
+    id: "tester-gesture-top-left"
+    repeat: 6
+- tapOn:
+    id: "tester-gesture-top-right"
+    repeat: 10
+- assertVisible:
+    id: "tester-login-tester-onboarding@dear-baby.test"
+- tapOn:
+    id: "tester-login-tester-onboarding@dear-baby.test"
 - assertVisible:
     id: "onboarding-welcome"
 
@@ -48,10 +57,19 @@ appId: com.dlddu.dearbaby
     commands:
       - tapOn: "Wait"
 
-- assertVisible:
-    id: "test-login-button"
+# Tester login is hidden behind a corner-tap gesture: 6 taps on the
+# top-left overlay (inside the [5,7] window the gesture accepts), then
+# 10 taps on the top-right overlay surfaces the tester modal.
 - tapOn:
-    id: "test-login-button"
+    id: "tester-gesture-top-left"
+    repeat: 6
+- tapOn:
+    id: "tester-gesture-top-right"
+    repeat: 10
+- assertVisible:
+    id: "tester-login-tester-onboarding@dear-baby.test"
+- tapOn:
+    id: "tester-login-tester-onboarding@dear-baby.test"
 - assertVisible:
     id: "onboarding-welcome"
 

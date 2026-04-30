@@ -2,17 +2,21 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
-// Service orchestrates Google sign-in, token refresh, and logout. It
-// combines the Google verifier, the users store, the refresh-token store,
-// and the JWT issuer.
+// Service orchestrates Google/Apple sign-in, token refresh, and logout. It
+// combines the OAuth verifiers, the users store, the refresh-token store,
+// and the JWT issuer. Apple is optional — when AppleVerifier is nil the
+// /auth/apple handler short-circuits with a 503-level error and clients
+// fall back to Google.
 type Service struct {
 	Verifier   *GoogleVerifier
+	Apple      *AppleVerifier
 	Users      *users.Store
 	Onboarding users.OnboardingEnsurer
 	Refresh    *RefreshStore
@@ -36,6 +40,27 @@ func (s *Service) SignInWithGoogle(ctx context.Context, idToken string) (*Sessio
 		return nil, fmt.Errorf("verify: %w", err)
 	}
 	u, err := s.Users.UpsertByOAuth(ctx, s.Onboarding, "google", claims.Sub, claims.Email, claims.Name, claims.Picture)
+	if err != nil {
+		return nil, fmt.Errorf("upsert: %w", err)
+	}
+	return s.issueSession(ctx, u.ID)
+}
+
+// SignInWithApple verifies an Apple identity token and upserts the user
+// under provider="apple". The display name is supplied by the client
+// (Apple only delivers it once, in the authorization response, never in
+// the JWT), and the email may be missing on subsequent sign-ins — that's
+// fine because UpsertByOAuth keys on (provider, sub) first and only falls
+// back to email lookup when no oauth_accounts row matches.
+func (s *Service) SignInWithApple(ctx context.Context, idToken, name string) (*SessionResult, error) {
+	if s.Apple == nil {
+		return nil, errors.New("apple sign-in not configured")
+	}
+	claims, err := s.Apple.Verify(ctx, idToken)
+	if err != nil {
+		return nil, fmt.Errorf("verify apple: %w", err)
+	}
+	u, err := s.Users.UpsertByOAuth(ctx, s.Onboarding, "apple", claims.Sub, claims.Email, name, "")
 	if err != nil {
 		return nil, fmt.Errorf("upsert: %w", err)
 	}
