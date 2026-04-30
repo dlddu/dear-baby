@@ -1,6 +1,7 @@
 // 녹음 화면 — 음성 기록 흐름의 첫 단계. 사용자는 한 번 탭으로 녹음을
-// 시작하고, 다시 탭으로 종료한다. 종료 직후 임시 m4a 파일과 길이를
-// 들고 리뷰 화면으로 넘어간다 (record-audio-review).
+// 시작하고, 다시 탭으로 종료한다. 종료 직후 임시 오디오 파일(iOS는
+// .wav / Android는 .m4a)과 길이를 들고 리뷰 화면으로 넘어간다
+// (record-audio-review).
 //
 // 이 화면은 전송 / STT / 저장 어떤 것도 하지 않는다. 책임은 마이크 권한,
 // 녹음 토글, 시각적 피드백뿐이다.
@@ -23,8 +24,8 @@ import { spacing } from '../src/theme/spacing';
 import { typography } from '../src/theme/typography';
 import { createRecorder, type Recorder } from '../src/voice/recorder';
 
-// 60s — 디바이스 STT(small)의 권장 처리 길이. 저장된 m4a 파일이 너무 커지지
-// 않도록 cap도 같이 둔다.
+// 60s — 디바이스 STT(medium-q5)의 권장 처리 길이. 저장된 오디오 파일이 너무
+// 커지지 않도록 cap도 같이 둔다.
 const MAX_RECORDING_MS = 60_000;
 
 function formatTime(ms: number): string {

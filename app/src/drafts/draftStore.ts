@@ -1,6 +1,7 @@
 // draftStore is the persistent index of LocalAudio rows. The audio file
-// itself lives at `${documentDirectory}audio/{record_id}/audio.m4a`
-// and a copy of the metadata (for crash recovery) at
+// itself lives at `${documentDirectory}audio/{record_id}/audio.<ext>`
+// (`.wav` on iOS, `.m4a` on Android — see recorder.ts for why the
+// formats differ) and a copy of the metadata (for crash recovery) at
 // `${documentDirectory}audio/{record_id}/meta.json`. The index of all
 // known record_ids is kept in AsyncStorage so listing the archive is
 // O(N) without scanning the filesystem.
@@ -12,19 +13,25 @@
 // safe to garbage-collect — that's the known-leak case we accept.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import type { LocalAudio, UploadStatus } from './types';
 
 const INDEX_KEY = 'db_local_audio_index';
 const ROOT_DIR = `${FileSystem.documentDirectory ?? ''}audio/`;
+// The recorder emits .wav on iOS and .m4a on Android — see recorder.ts.
+// We mirror that on disk so the file extension reflects actual content
+// (otherwise a debugger pulling the file off the device would see an
+// .m4a that won't open in QuickTime).
+const AUDIO_EXT = Platform.OS === 'ios' ? 'wav' : 'm4a';
 
 function dirFor(recordID: string): string {
   return `${ROOT_DIR}${recordID}/`;
 }
 
 export function audioPathFor(recordID: string): string {
-  return `${dirFor(recordID)}audio.m4a`;
+  return `${dirFor(recordID)}audio.${AUDIO_EXT}`;
 }
 
 function metaPathFor(recordID: string): string {
