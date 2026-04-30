@@ -2,11 +2,32 @@ package records
 
 import "time"
 
+// Source enumerates how the user produced a record. The set is closed and
+// matches the CHECK constraint on records.source.
+type Source string
+
+const (
+	SourceText  Source = "text"
+	SourceVoice Source = "voice"
+)
+
+// Valid reports whether s is one of the recognised sources.
+func (s Source) Valid() bool {
+	switch s {
+	case SourceText, SourceVoice:
+		return true
+	}
+	return false
+}
+
 // Record represents a single entry in the records table. Records are the
-// user's raw diary content (today: text only; voice is a separate PRD).
+// user's raw diary content. AudioS3Key is nullable and may stay nil
+// forever — the user can choose to keep audio local-only or delete it.
 type Record struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         string    `json:"id"`
+	UserID     string    `json:"user_id"`
+	Source     Source    `json:"source"`
+	Content    string    `json:"content"`
+	AudioS3Key *string   `json:"audio_s3_key"`
+	CreatedAt  time.Time `json:"created_at"`
 }

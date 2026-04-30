@@ -27,10 +27,20 @@ jobs:
       # the Maestro login flow. CI/dev only — never enable in production.
       TEST_AUTH_ENABLED: "true"
       REDIS_URL: "redis://localhost:6379"
+      # Drive the voice maestro flow with a deterministic recorder + STT.
+      # The upload step is NOT short-circuited — it actually hits the
+      # MinIO instance set up below, so the records-audio backend
+      # contract gets exercised end-to-end in CI.
+      EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Stand MinIO up first so its AWS_* env vars land in $GITHUB_ENV
+      # before setup-backend reads them.
+      - name: Setup MinIO
+        uses: ./.github/actions/setup-minio
 
       - name: Setup backend
         uses: ./.github/actions/setup-backend
@@ -94,9 +104,11 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
           EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
+          EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
         run: |
           echo "EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL"
           echo "EXPO_PUBLIC_TEST_AUTH_ENABLED=$EXPO_PUBLIC_TEST_AUTH_ENABLED"
+          echo "EXPO_PUBLIC_E2E_AUDIO_FIXTURE=$EXPO_PUBLIC_E2E_AUDIO_FIXTURE"
           ./gradlew assembleRelease --no-daemon
 
       # reactivecircus/android-emulator-runner splits `script:` on newlines and
@@ -123,6 +135,14 @@ jobs:
             fi
           done
 
+          # Reverse-port-forward MinIO so the app sees host:9000 as
+          # localhost:9000 inside the emulator. The presigned PUT URL
+          # the backend hands the app uses host=localhost (since
+          # AWS_ENDPOINT_URL_S3 is set to http://localhost:9000), and
+          # SigV4 ties the URL to that exact host — using 10.0.2.2
+          # would break the signature.
+          adb reverse tcp:9000 tcp:9000
+
           cd "$GITHUB_WORKSPACE/app"
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
           echo "Installing $APK"
@@ -133,6 +153,7 @@ jobs:
           maestro test .maestro/login.yaml
           maestro test .maestro/onboarding-stage1.yaml
           maestro test .maestro/onboarding-stage2.yaml
+          maestro test .maestro/onboarding-stage2-voice.yaml
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 

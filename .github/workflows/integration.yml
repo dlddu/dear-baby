@@ -102,6 +102,31 @@ jobs:
             --from-file=server.js=scripts/openrouter-mock/server.js
           kubectl apply -f scripts/openrouter-mock/deployment.yaml
 
+      # MinIO stands in for S3 inside the kind cluster. The backend
+      # talks to it via AWS_ENDPOINT_URL_S3 + AWS_S3_FORCE_PATH_STYLE=1
+      # (set further down). Bucket creation runs as a follow-up step
+      # once the Deployment is ready.
+      - name: Deploy MinIO
+        run: |
+          kubectl apply -f scripts/minio/deployment.yaml
+
+      # Records-audio config secret. Prod ships AWS_ASSUME_ROLE_ARN
+      # here and relies on IRSA for bootstrap creds (no static keys in
+      # the secret). CI doesn't have IRSA, so this secret carries the
+      # MinIO root credentials directly + the endpoint overrides.
+      # AWS_ASSUME_ROLE_ARN is intentionally omitted: there's no STS
+      # endpoint to call against MinIO.
+      - name: Create aws-records-audio secret (MinIO config)
+        run: |
+          kubectl create secret generic aws-records-audio \
+            --from-literal=AWS_REGION=us-east-1 \
+            --from-literal=AWS_S3_BUCKET=dear-baby-ci \
+            --from-literal=AWS_S3_KEY_PREFIX=ci/ \
+            --from-literal=AWS_S3_FORCE_PATH_STYLE=1 \
+            --from-literal=AWS_ENDPOINT_URL_S3=http://minio:9000 \
+            --from-literal=AWS_ACCESS_KEY_ID=ci-minio-access-key \
+            --from-literal=AWS_SECRET_ACCESS_KEY=ci-minio-secret-key
+
       - name: Apply backend + Redis manifests
         run: |
           sed -i \
@@ -138,6 +163,19 @@ jobs:
         run: |
           kubectl set env deployment/dear-baby TEST_AUTH_ENABLED=true
 
+      - name: Wait for MinIO rollout
+        run: kubectl rollout status deployment/minio --timeout=120s
+
+      # Create the bucket using mc against the in-cluster Service. mc's
+      # ENTRYPOINT is the binary itself, so we can't `sh -c …` — instead
+      # we pre-bake the alias via MC_HOST_local and invoke `mc mb`
+      # directly. -p makes it idempotent on rerun.
+      - name: Create MinIO bucket
+        run: |
+          kubectl run --rm -i --restart=Never --image=minio/mc:latest mc-mkbucket \
+            --env=MC_HOST_local=http://ci-minio-access-key:ci-minio-secret-key@minio:9000 \
+            -- mb -p local/dear-baby-ci
+
       - name: Wait for Redis rollout
         run: kubectl rollout status deployment/redis --timeout=120s
 
@@ -168,12 +206,14 @@ jobs:
           echo "::group::kubectl describe deployment/worker"
           kubectl describe deployment/worker || true
           kubectl describe deployment/openrouter-mock || true
+          kubectl describe deployment/minio || true
           echo "::endgroup::"
           echo "::group::kubectl describe pods"
           kubectl describe pods -l app=dear-baby || true
           kubectl describe pods -l app=redis || true
           kubectl describe pods -l app=worker || true
           kubectl describe pods -l app=openrouter-mock || true
+          kubectl describe pods -l app=minio || true
           echo "::endgroup::"
           echo "::group::kubectl logs"
           kubectl logs deployment/dear-baby --tail=200 --all-containers=true || true
@@ -181,6 +221,7 @@ jobs:
           kubectl logs deployment/redis --tail=200 --all-containers=true || true
           kubectl logs deployment/worker --tail=200 --all-containers=true || true
           kubectl logs deployment/openrouter-mock --tail=200 --all-containers=true || true
+          kubectl logs deployment/minio --tail=200 --all-containers=true || true
           echo "::endgroup::"
           echo "::group::kubectl get events"
           kubectl get events --sort-by=.lastTimestamp || true
@@ -319,12 +360,168 @@ jobs:
             || { echo "no preview log line found"; kubectl logs deployment/worker --tail=500 --all-containers=true; exit 1; }
           echo "::endgroup::"
 
+      # ─── End-to-end: voice record + audio upload via MinIO ────────────
+      #
+      # Verifies the full three-step contract documented in
+      # docs/engineering/audio-storage.md:
+      #
+      #   1. POST /records {source: voice}         → record_id, audio_s3_key=null
+      #   2. POST /records/{id}/audio/upload-url    → presigned PUT + key
+      #   3. PUT presigned-url                      → bytes land in MinIO
+      #   4. PATCH /records/{id} {audio_s3_key}     → server HEAD-checks, persists
+      #
+      # The PUT (step 3) runs from a one-shot pod inside the cluster
+      # because the presigned URL points at http://minio:9000, which is
+      # only resolvable in-cluster. The runner can't reach minio
+      # directly even with port-forward — the host inside the URL
+      # would still be `minio`.
+      - name: Voice record + audio upload e2e
+        run: |
+          set -euo pipefail
+
+          echo "::group::test-login"
+          session=$(curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"audio@dear-baby.test","onboarded":true}' \
+            http://127.0.0.1:18080/auth/test-login)
+          access_token=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          echo "::endgroup::"
+
+          echo "::group::create voice record"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"content":"오늘 처음으로 너의 발길질을 느꼈어","source":"voice"}' \
+            http://127.0.0.1:18080/records >/tmp/voice-rec.json
+          record_id=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["id"])')
+          source=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["source"])')
+          audio_key=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["audio_s3_key"])')
+          echo "record_id=$record_id source=$source audio_s3_key=$audio_key"
+          if [ "$source" != "voice" ]; then
+            echo "expected source=voice, got $source"; exit 1
+          fi
+          if [ "$audio_key" != "None" ]; then
+            echo "expected audio_s3_key=null on creation, got $audio_key"; exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::request presigned upload URL"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $access_token" \
+            "http://127.0.0.1:18080/records/$record_id/audio/upload-url" >/tmp/presign.json
+          upload_url=$(python3 -c 'import json; print(json.load(open("/tmp/presign.json"))["upload_url"])')
+          server_audio_key=$(python3 -c 'import json; print(json.load(open("/tmp/presign.json"))["audio_s3_key"])')
+          content_type=$(python3 -c 'import json; print(json.load(open("/tmp/presign.json"))["content_type"])')
+          echo "audio_s3_key=$server_audio_key content_type=$content_type"
+          # Backend should return the canonical key under our configured
+          # prefix; "ci/users/{uid}/records/{rid}.m4a" shape.
+          case "$server_audio_key" in
+            ci/users/*/records/*.m4a) ;;
+            *) echo "unexpected key shape: $server_audio_key"; exit 1 ;;
+          esac
+          echo "::endgroup::"
+
+          echo "::group::PUT audio bytes via in-cluster pod"
+          # Pass the URL via env (no quoting hell) and pipe a small
+          # placeholder body. The Content-Type must match what the
+          # backend signed — the SDK rejects mismatches with
+          # SignatureDoesNotMatch.
+          echo "fixture audio bytes - $(date -u +%s)" > /tmp/audio.m4a
+          kubectl run --rm -i --restart=Never --image=curlimages/curl:latest s3-uploader \
+            --env="UPLOAD_URL=$upload_url" \
+            --env="CONTENT_TYPE=$content_type" \
+            -- sh -c 'curl -fsS -X PUT -H "Content-Type: $CONTENT_TYPE" --data-binary @- "$UPLOAD_URL"' \
+            < /tmp/audio.m4a
+          echo "::endgroup::"
+
+          echo "::group::PATCH record with audio_s3_key"
+          curl -fsS -X PATCH \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Content-Type: application/json' \
+            -d "{\"audio_s3_key\":\"$server_audio_key\"}" \
+            "http://127.0.0.1:18080/records/$record_id" >/tmp/patched.json
+          stored_key=$(python3 -c 'import json; print(json.load(open("/tmp/patched.json"))["record"]["audio_s3_key"])')
+          if [ "$stored_key" != "$server_audio_key" ]; then
+            echo "audio_s3_key mismatch: stored=$stored_key sent=$server_audio_key"; exit 1
+          fi
+          echo "audio_s3_key persisted: $stored_key"
+          echo "::endgroup::"
+
+          echo "::group::verify object exists in MinIO"
+          kubectl run --rm -i --restart=Never --image=minio/mc:latest mc-stat \
+            --env=MC_HOST_local=http://ci-minio-access-key:ci-minio-secret-key@minio:9000 \
+            -- stat "local/dear-baby-ci/$server_audio_key"
+          echo "::endgroup::"
+
+          echo "::group::PATCH again should 409 (one-way attach)"
+          code=$(curl -s -o /tmp/patch2.txt -w '%{http_code}' \
+            -X PATCH \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Content-Type: application/json' \
+            -d "{\"audio_s3_key\":\"$server_audio_key\"}" \
+            "http://127.0.0.1:18080/records/$record_id")
+          if [ "$code" != "409" ]; then
+            echo "expected 409 (already attached), got $code body=$(cat /tmp/patch2.txt)"; exit 1
+          fi
+          echo "second PATCH correctly rejected with 409"
+          echo "::endgroup::"
+
+      - name: Audio upload e2e — cross-user prefix is rejected
+        # Negative test: even with a valid presigned URL for one user,
+        # PATCHing a different user's record with that key must 400 on
+        # the server's prefix-validation check. This is the security
+        # boundary preventing key tampering.
+        run: |
+          set -euo pipefail
+
+          # Two sessions for two different users.
+          a=$(curl -fsS -X POST -H 'Content-Type: application/json' \
+            -d '{"email":"a@dear-baby.test","onboarded":true}' \
+            http://127.0.0.1:18080/auth/test-login)
+          a_token=$(echo "$a" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+          b=$(curl -fsS -X POST -H 'Content-Type: application/json' \
+            -d '{"email":"b@dear-baby.test","onboarded":true}' \
+            http://127.0.0.1:18080/auth/test-login)
+          b_token=$(echo "$b" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+          # B creates a record.
+          b_rec=$(curl -fsS -X POST \
+            -H "Authorization: Bearer $b_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"content":"b transcript","source":"voice"}' \
+            http://127.0.0.1:18080/records)
+          b_record_id=$(echo "$b_rec" | python3 -c 'import json,sys; print(json.load(sys.stdin)["record"]["id"])')
+
+          # A tries to PATCH B's record with a key from B's namespace
+          # (after intercepting it somehow). The handler must reject
+          # because the URL's record id is B's but the user context is A.
+          b_presign=$(curl -fsS -X POST \
+            -H "Authorization: Bearer $b_token" \
+            "http://127.0.0.1:18080/records/$b_record_id/audio/upload-url")
+          b_key=$(echo "$b_presign" | python3 -c 'import json,sys; print(json.load(sys.stdin)["audio_s3_key"])')
+
+          code=$(curl -s -o /tmp/cross.txt -w '%{http_code}' \
+            -X PATCH \
+            -H "Authorization: Bearer $a_token" \
+            -H 'Content-Type: application/json' \
+            -d "{\"audio_s3_key\":\"$b_key\"}" \
+            "http://127.0.0.1:18080/records/$b_record_id")
+          # B's record is not A's, so A's PATCH should 404 (record not
+          # found in A's namespace) before we even reach key validation.
+          if [ "$code" != "404" ]; then
+            echo "expected 404 cross-user PATCH, got $code body=$(cat /tmp/cross.txt)"; exit 1
+          fi
+          echo "cross-user PATCH correctly rejected with 404"
+
       - name: Full worker logs (debug)
         if: always()
         run: |
           kubectl logs deployment/worker --tail=500 --all-containers=true || true
           echo "--- openrouter-mock logs ---"
           kubectl logs deployment/openrouter-mock --tail=500 --all-containers=true || true
+          echo "--- minio logs ---"
+          kubectl logs deployment/minio --tail=500 --all-containers=true || true
 
       - name: Stop port-forward
         if: always()

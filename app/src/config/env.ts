@@ -30,3 +30,15 @@ export const POSTHOG_KEY: string =
 
 export const POSTHOG_HOST: string =
   process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
+
+// E2E_AUDIO_FIXTURE swaps real audio recording + whisper STT for a
+// deterministic fixture. Maestro can't drive the microphone, and the
+// whisper model would have to be downloaded on every CI run, so the
+// flag short-circuits both:
+//   - the recorder returns a fixed fake file path immediately on stop
+//   - the STT engine returns a canned Korean transcript without loading
+//     any model
+// Production builds must leave this unset.
+export const E2E_AUDIO_FIXTURE: boolean =
+  process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === 'true' ||
+  process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === '1';

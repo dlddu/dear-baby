@@ -21,6 +21,13 @@ export const posthogClient: PostHog | null = POSTHOG_KEY
         captureLog: true,
         captureNetworkTelemetry: true,
       },
+      errorTracking: {
+        autocapture: {
+          uncaughtExceptions: true,
+          unhandledRejections: true,
+          console: ['error', 'warn'],
+        },
+      },
     })
   : null;
 

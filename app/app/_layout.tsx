@@ -5,6 +5,7 @@ import { View } from 'react-native';
 
 import { AnalyticsProvider } from '../src/analytics/AnalyticsProvider';
 import { useAnalyticsIdentity } from '../src/analytics/useAnalyticsIdentity';
+import { useScreenTracking } from '../src/analytics/useScreenTracking';
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import { colors } from '../src/theme/colors';
 import { useAppFonts } from '../src/theme/fonts';
@@ -27,6 +28,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // Sync PostHog identity from inside AuthProvider's tree. Mounted here
   // (rather than in RootLayout) so that `useAuth()` is available.
   useAnalyticsIdentity();
+  // Capture screen views from Expo Router's URL state. Required because
+  // React Navigation v7 broke PostHog's built-in screen autocapture.
+  useScreenTracking();
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -37,7 +41,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // signed-in UX, so AuthGate treats them as equivalent to `(tabs)` — we
     // must not redirect back to the home tab or the modal would close
     // immediately after `router.push`.
-    const inAuthedModal = root === 'record-text';
+    const inAuthedModal =
+      root === 'record-text' ||
+      root === 'record-audio' ||
+      root === 'record-audio-review' ||
+      root === 'drafts';
     if (status === 'authenticated' && !inTabs && !inAuthedModal) {
       router.replace('/(tabs)');
     } else if (status === 'onboarding' && !inOnboarding) {
@@ -86,6 +94,18 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" />
               <Stack.Screen
                 name="record-text"
+                options={{ presentation: 'modal', headerShown: false }}
+              />
+              <Stack.Screen
+                name="record-audio"
+                options={{ presentation: 'modal', headerShown: false }}
+              />
+              <Stack.Screen
+                name="record-audio-review"
+                options={{ presentation: 'modal', headerShown: false }}
+              />
+              <Stack.Screen
+                name="drafts"
                 options={{ presentation: 'modal', headerShown: false }}
               />
             </Stack>

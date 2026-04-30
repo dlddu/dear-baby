@@ -40,6 +40,11 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      // Pin the a11y label to the title so iOS Maestro / VoiceOver pick
+      // up "업로드" / "삭제" cleanly. Without this, multi-Text children
+      // (leading icon + label) inside a Pressable can fail to surface
+      // their text on iOS, making text-based selectors miss the button.
+      accessibilityLabel={title}
       disabled={disabled}
       {...rest}
       style={({ pressed }) => [

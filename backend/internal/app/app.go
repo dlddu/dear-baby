@@ -80,7 +80,10 @@ func Run() error {
 	onboarding.SyncPendingAIPreviews(syncCtx, onboardingStore, tasksClient, logger)
 	cancelSync()
 
-	r := newRouter(cfg, sqlDB, logger, redisClient, hub)
+	r, err := newRouter(cfg, sqlDB, logger, redisClient, hub)
+	if err != nil {
+		return err
+	}
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

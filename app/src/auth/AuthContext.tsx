@@ -8,8 +8,11 @@ import React, {
 } from 'react';
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
-import { createTextRecord as apiCreateTextRecord } from '../api/records';
-import type { Session, User } from '../api/types';
+import {
+  createTextRecord as apiCreateTextRecord,
+  createVoiceRecord as apiCreateVoiceRecord,
+} from '../api/records';
+import type { Record, Session, User } from '../api/types';
 import { patchMe } from '../api/users';
 import {
   clearOnboardingCache,
@@ -36,6 +39,11 @@ type AuthContextValue = {
   completeOnboarding: (dueDate: string | null) => Promise<void>;
   dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string) => Promise<void>;
+  // createVoiceRecord saves the transcript with source="voice". The
+  // returned Record is what the caller needs to either move on or
+  // kick off the audio upload pipeline (record.id is the key for the
+  // draft store + presigned URL).
+  createVoiceRecord: (content: string) => Promise<Record>;
   applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -137,6 +145,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(updated);
   }, []);
 
+  // createVoiceRecord saves the transcript half of a voice record. The
+  // audio upload (or the decision to keep the audio local-only) is
+  // handled by the review screen, which uses the returned record_id
+  // to feed the draft store and/or uploadAudio orchestrator.
+  const createVoiceRecord = useCallback(async (content: string) => {
+    const { record, user: updated } = await apiCreateVoiceRecord(content);
+    setUser(updated);
+    await cacheFromUser(updated);
+    return record;
+  }, []);
+
   // applyAiPreview is called by the home screen when the SSE stream
   // delivers a `ready` event. It merges the new preview text into the
   // current user without hitting /me again.
@@ -168,6 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       completeOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
+      createVoiceRecord,
       applyAiPreview,
       signOut,
     }),
@@ -178,6 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       completeOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
+      createVoiceRecord,
       applyAiPreview,
       signOut,
     ],

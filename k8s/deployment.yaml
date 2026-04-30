@@ -31,6 +31,17 @@ spec:
           envFrom:
             - secretRef:
                 name: auth-secret
+            # Records-audio configuration: AWS_REGION, AWS_S3_BUCKET,
+            # AWS_S3_KEY_PREFIX, AWS_ASSUME_ROLE_ARN. Prod ships the
+            # writer-role ARN here and relies on IRSA to provide the
+            # bootstrap credentials the SDK uses to call sts:AssumeRole;
+            # CI ships MinIO endpoint overrides (AWS_ENDPOINT_URL_S3,
+            # AWS_S3_FORCE_PATH_STYLE) plus static AWS_ACCESS_KEY_ID /
+            # AWS_SECRET_ACCESS_KEY (kind has no IRSA / OIDC) and omits
+            # the role ARN so the SDK uses those static creds directly
+            # against MinIO.
+            - secretRef:
+                name: aws-records-audio
           volumeMounts:
             - name: data
               mountPath: /data
