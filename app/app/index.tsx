@@ -254,9 +254,15 @@ const styles = StyleSheet.create({
   // where the OS chrome lives. Background is omitted so the cream
   // landing screen shows through — testers cannot see them, only feel
   // them out by following the tap-count instructions.
+  //
+  // `top: 60` keeps the entire box south of every iPhone's safe-area
+  // top inset (the iPhone 16 dynamic island reaches ~59pt), so iOS
+  // delivers the touch to React instead of consuming it as a system
+  // gesture. Android's status bar is shorter (~24-32dp) so 60 is
+  // generous on both platforms.
   cornerHit: {
     position: 'absolute',
-    top: 0,
+    top: 60,
     width: 80,
     height: 80,
   },

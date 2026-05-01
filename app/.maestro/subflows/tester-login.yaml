@@ -52,6 +52,12 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "tester-login-email"
 - inputText: ${MAESTRO_TEST_USER_EMAIL}
+# hideKeyboard between fields: with the keyboard up, the password
+# field is offscreen on Android, and `tapOn id` then either lands on
+# the keyboard or silently keeps focus on the email input — the
+# password ends up appended to the email and the real password field
+# stays empty (which leaves the submit button disabled).
+- hideKeyboard
 - tapOn:
     id: "tester-login-password"
 - inputText: ${MAESTRO_TEST_USER_PASSWORD}
