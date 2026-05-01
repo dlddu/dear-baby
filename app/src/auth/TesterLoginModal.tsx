@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -35,6 +35,12 @@ export function TesterLoginModal({ visible, onClose }: TesterLoginModalProps) {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Focus chain: pressing the email keyboard's "Next" returns focus
+  // to the password field; pressing the password keyboard's "Done"
+  // submits. This avoids `hideKeyboard` between fields, which
+  // Maestro's iOS driver implements as a screen-area gesture that
+  // tends to dismiss the modal mid-flow.
+  const passwordRef = useRef<TextInput>(null);
 
   const submit = async () => {
     if (submitting) return;
@@ -107,6 +113,9 @@ export function TesterLoginModal({ visible, onClose }: TesterLoginModalProps) {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            blurOnSubmit={false}
             placeholder="tester@dear-baby.app"
             placeholderTextColor={colors.text.muted}
             style={styles.input}
@@ -116,12 +125,15 @@ export function TesterLoginModal({ visible, onClose }: TesterLoginModalProps) {
             비밀번호
           </Text>
           <TextInput
+            ref={passwordRef}
             testID="tester-login-password"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={submit}
             placeholder="••••••••"
             placeholderTextColor={colors.text.muted}
             style={styles.input}

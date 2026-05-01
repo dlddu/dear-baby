@@ -52,17 +52,16 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "tester-login-email"
 - inputText: ${MAESTRO_TEST_USER_EMAIL}
-# hideKeyboard between fields: with the keyboard up, the password
-# field is offscreen on Android, and `tapOn id` then either lands on
-# the keyboard or silently keeps focus on the email input — the
-# password ends up appended to the email and the real password field
-# stays empty (which leaves the submit button disabled).
-- hideKeyboard
-- tapOn:
-    id: "tester-login-password"
+# Press the keyboard's Next key — the email TextInput has
+# returnKeyType=next + onSubmitEditing focusing the password field.
+# Avoids `hideKeyboard` mid-flow, which on iOS dismisses the modal
+# (Maestro's hideKeyboard fires a screen-area gesture that the
+# transparent modal then loses focus to).
+- pressKey: Enter
 - inputText: ${MAESTRO_TEST_USER_PASSWORD}
-- hideKeyboard
-- tapOn:
-    id: "tester-login-submit"
+# Password TextInput has returnKeyType=done + onSubmitEditing=submit,
+# so the second Enter triggers the login API call. On success the
+# modal calls onClose(); on failure the error copy renders inline.
+- pressKey: Enter
 - assertNotVisible:
     id: "tester-login-modal"
