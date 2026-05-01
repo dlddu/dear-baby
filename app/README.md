@@ -48,9 +48,11 @@ All variables the bundler inlines must be prefixed with `EXPO_PUBLIC_`.
 ```
 app/                       # expo-router routes
   _layout.tsx              # Root Stack + AuthProvider + AuthGate
-  index.tsx                # Landing (unauthenticated) — keeps testIDs `root`,
-                           # `check-health-button`, `health-status` for
-                           # Maestro; also hosts "Sign in with Google".
+  index.tsx                # Landing (unauthenticated) — keeps testIDs `root`
+                           # and `health-error-toast` for Maestro; auto-fires
+                           # GET /health on mount and shows the toast when
+                           # the backend is unreachable. Also hosts the
+                           # Google + Apple sign-in buttons.
   (tabs)/
     _layout.tsx            # Bottom tabs: Home, Records, Settings
     index.tsx              # Home skeleton

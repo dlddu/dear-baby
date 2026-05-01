@@ -10,9 +10,13 @@ appId: com.dlddu.dearbaby
     commands:
       - tapOn: "Wait"
 - assertVisible:
-    id: "check-health-button"
-- tapOn:
-    id: "check-health-button"
-- assertVisible:
-    id: "health-status"
-- assertVisible: "status: ok"
+    id: "root"
+# The landing screen auto-fires GET /health on mount and only renders
+# `health-error-toast` when the call fails or returns a non-ok status.
+# CI runs against a live backend, so the toast must NOT appear — its
+# absence is the smoke-test signal that the API is reachable. The
+# timeout gives the fetch + animation enough time to settle on a slow
+# emulator.
+- assertNotVisible:
+    id: "health-error-toast"
+    timeout: 10000
