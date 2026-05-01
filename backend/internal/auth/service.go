@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,10 +18,13 @@ type AppleCodeVerifier interface {
 	Verify(ctx context.Context, code string) (*AppleClaims, error)
 }
 
-// Service orchestrates Google sign-in, Apple sign-in, token refresh, and
-// logout. It combines the verifiers, the users store, the refresh-token
-// store, and the JWT issuer. Apple is optional — leaving AppleVerifier nil
-// keeps the Apple endpoint disabled without affecting Google sign-in.
+// Service orchestrates Google sign-in, Apple sign-in, password sign-in,
+// token refresh, and logout. It combines the verifiers, the users
+// store, the refresh-token store, and the JWT issuer. Apple is optional
+// — leaving AppleVerifier nil keeps the Apple endpoint disabled without
+// affecting Google sign-in. TestUser is optional too: nil disables
+// password sign-in (every request returns 401), which is the seeded
+// state when TEST_USER_EMAIL/TEST_USER_PASSWORD are not configured.
 type Service struct {
 	Verifier      *GoogleVerifier
 	AppleVerifier AppleCodeVerifier
@@ -28,6 +32,7 @@ type Service struct {
 	Onboarding    users.OnboardingEnsurer
 	Refresh       *RefreshStore
 	Issuer        *Issuer
+	TestUser      *TestUserCreds
 }
 
 // SessionResult bundles the artifacts returned by SignInWithGoogle and Refresh.
@@ -110,6 +115,28 @@ func joinName(given, family string) string {
 	default:
 		return family
 	}
+}
+
+// SignInWithPassword verifies the email + password against the
+// in-memory test-user credentials seeded at boot, then issues a new
+// session. Returns ErrPasswordInvalid for "no test user configured",
+// "wrong email", and "wrong password" alike so the endpoint cannot
+// be used to enumerate accounts.
+func (s *Service) SignInWithPassword(ctx context.Context, email, password string) (*SessionResult, error) {
+	if s.TestUser == nil || email != s.TestUser.Email {
+		return nil, ErrPasswordInvalid
+	}
+	if err := s.TestUser.Verify(password); err != nil {
+		return nil, err
+	}
+	u, err := s.Users.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, users.ErrNotFound) {
+			return nil, ErrPasswordInvalid
+		}
+		return nil, fmt.Errorf("lookup: %w", err)
+	}
+	return s.issueSession(ctx, u.ID)
 }
 
 // RefreshSession consumes and rotates a refresh token, returning a new pair.

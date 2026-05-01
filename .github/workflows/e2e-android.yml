@@ -22,10 +22,16 @@ jobs:
           --health-retries 10
     env:
       EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
-      EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
-      # Mirrors the app-side flag so the backend mounts /auth/test-login for
-      # the Maestro login flow. CI/dev only — never enable in production.
-      TEST_AUTH_ENABLED: "true"
+      # Seeded password-backed test account (see backend/internal/auth/seed.go).
+      # Same code path runs in production — the gesture on the landing
+      # screen plus knowledge of the password is the only gate. CI uses
+      # a fixed throwaway value; the App Store reviewer credential is
+      # provisioned separately via TestFlight notes.
+      TEST_USER_EMAIL: "tester@dear-baby.test"
+      TEST_USER_PASSWORD: "ci-tester-password-do-not-reuse"
+      TEST_USER_NAME: "CI Tester"
+      MAESTRO_TEST_USER_EMAIL: "tester@dear-baby.test"
+      MAESTRO_TEST_USER_PASSWORD: "ci-tester-password-do-not-reuse"
       REDIS_URL: "redis://localhost:6379"
       # Drive the voice maestro flow with a deterministic recorder + STT.
       # The upload step is NOT short-circuited — it actually hits the
@@ -46,6 +52,14 @@ jobs:
         uses: ./.github/actions/setup-backend
         with:
           redis-url: ${{ env.REDIS_URL }}
+
+      # Build the reset-onboarding CLI alongside the server so the
+      # maestro suite below can wipe the seeded test user's onboarding
+      # state between runs that need a fresh funnel. Lives inside the
+      # backend module so it shares config + migrations.
+      - name: Build reset-onboarding tool
+        working-directory: backend
+        run: go build -o reset-onboarding ./cmd/reset-onboarding
 
       - name: Setup AI worker
         uses: ./.github/actions/setup-ai-worker
@@ -103,11 +117,9 @@ jobs:
         working-directory: app/android
         env:
           EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
-          EXPO_PUBLIC_TEST_AUTH_ENABLED: "true"
           EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
         run: |
           echo "EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL"
-          echo "EXPO_PUBLIC_TEST_AUTH_ENABLED=$EXPO_PUBLIC_TEST_AUTH_ENABLED"
           echo "EXPO_PUBLIC_E2E_AUDIO_FIXTURE=$EXPO_PUBLIC_E2E_AUDIO_FIXTURE"
           ./gradlew assembleRelease --no-daemon
 
@@ -149,11 +161,30 @@ jobs:
           adb install -r "$APK"
           adb shell monkey -p com.dlddu.dearbaby -c android.intent.category.LAUNCHER 1
           sleep 3
-          maestro test .maestro/health.yaml
-          maestro test .maestro/login.yaml
-          maestro test .maestro/onboarding-stage1.yaml
-          maestro test .maestro/onboarding-stage2.yaml
-          maestro test .maestro/onboarding-stage2-voice.yaml
+
+          run_flow() {
+            maestro test \
+              --env MAESTRO_TEST_USER_EMAIL="$MAESTRO_TEST_USER_EMAIL" \
+              --env MAESTRO_TEST_USER_PASSWORD="$MAESTRO_TEST_USER_PASSWORD" \
+              "$1"
+          }
+          reset_onboarding() {
+            (cd "$GITHUB_WORKSPACE/backend" && ./reset-onboarding "$TEST_USER_EMAIL")
+          }
+
+          run_flow .maestro/health.yaml
+          reset_onboarding
+          run_flow .maestro/login.yaml
+          reset_onboarding
+          run_flow .maestro/onboarding-stage1-skip.yaml
+          reset_onboarding
+          run_flow .maestro/onboarding-stage1-date.yaml
+          reset_onboarding
+          run_flow .maestro/onboarding-stage2.yaml
+          reset_onboarding
+          run_flow .maestro/onboarding-stage2-undecided.yaml
+          reset_onboarding
+          run_flow .maestro/onboarding-stage2-voice.yaml
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 
@@ -161,6 +192,11 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         env:
           EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
+          # Mirror the workflow-level env so the e2e script subshell
+          # sees them when it invokes maestro and reset-onboarding.
+          TEST_USER_EMAIL: ${{ env.TEST_USER_EMAIL }}
+          MAESTRO_TEST_USER_EMAIL: ${{ env.MAESTRO_TEST_USER_EMAIL }}
+          MAESTRO_TEST_USER_PASSWORD: ${{ env.MAESTRO_TEST_USER_PASSWORD }}
         with:
           # API 30 + default profile is much more stable than API 34 + pixel_6
           # on a cold-booted emulator — the heavier Pixel Launcher on 34

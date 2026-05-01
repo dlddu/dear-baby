@@ -27,7 +27,7 @@ import (
 // Returns an error if S3 wiring fails — the records-audio pipeline is
 // a first-class feature, so a misconfigured AWS env should kill the
 // boot rather than silently disabling the routes.
-func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub) (http.Handler, error) {
+func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub, testUserCreds *auth.TestUserCreds) (http.Handler, error) {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -57,11 +57,11 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		Onboarding:    onboardingStore,
 		Refresh:       refreshStore,
 		Issuer:        issuer,
+		TestUser:      testUserCreds,
 	}
 	authHandlers := &auth.Handlers{
-		Cfg:        cfg,
-		Service:    authService,
-		Onboarding: onboardingStore,
+		Cfg:     cfg,
+		Service: authService,
 	}
 	usersHandlers := &users.Handlers{
 		Store:                 usersStore,
@@ -109,15 +109,13 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	r.Post("/auth/apple", authHandlers.Apple)
 	r.Post("/auth/refresh", authHandlers.Refresh)
 	r.Post("/auth/logout", authHandlers.Logout)
-
-	if cfg.TestAuthEnabled {
-		// This endpoint bypasses Google OAuth and issues a session for any
-		// requested email. It exists solely for the Maestro E2E flow and must
-		// never be reachable in production. The warning log is a tripwire —
-		// if it shows up in production logs, rotate the deploy.
-		logger.Warn("mounting POST /auth/test-login — CI/dev only, do not enable in production")
-		r.Post("/auth/test-login", authHandlers.TestLogin)
-	}
+	// Password sign-in backs the seeded test account that Apple beta
+	// reviewers and the Maestro E2E flow use to enter the app. The
+	// route is mounted unconditionally and runs in production too —
+	// the gate is the seeded password (only known to the App Store
+	// reviewer and CI), plus the secret tap pattern that gates the
+	// modal in the client.
+	r.Post("/auth/password-login", authHandlers.PasswordLogin)
 
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuth(issuer))

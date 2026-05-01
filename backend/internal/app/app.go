@@ -13,6 +13,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/dlddu/dear-baby/backend/internal/auth"
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
 	"github.com/dlddu/dear-baby/backend/internal/onboarding"
@@ -38,6 +39,29 @@ func Run() error {
 
 	if err := db.RunMigrations(sqlDB); err != nil {
 		return err
+	}
+
+	// Seed (or refresh) the password-backed test user. Returns nil
+	// creds when TEST_USER_EMAIL or TEST_USER_PASSWORD is unset, in
+	// which case /auth/password-login stays mounted but every
+	// request gets 401. Hash lives only in memory — the env var is
+	// the source of truth so secret rotation just needs a pod
+	// restart.
+	seedCtx, cancelSeed := context.WithTimeout(context.Background(), 10*time.Second)
+	testUserCreds, err := auth.SeedTestUser(
+		seedCtx,
+		sqlDB,
+		&onboarding.Store{DB: sqlDB},
+		logger,
+		auth.TestUserSeed{
+			Email:    cfg.TestUser.Email,
+			Password: cfg.TestUser.Password,
+			Name:     cfg.TestUser.Name,
+		},
+	)
+	cancelSeed()
+	if err != nil {
+		return fmt.Errorf("seed test user: %w", err)
 	}
 
 	if cfg.RedisURL == "" {
@@ -80,7 +104,7 @@ func Run() error {
 	onboarding.SyncPendingAIPreviews(syncCtx, onboardingStore, tasksClient, logger)
 	cancelSync()
 
-	r, err := newRouter(cfg, sqlDB, logger, redisClient, hub)
+	r, err := newRouter(cfg, sqlDB, logger, redisClient, hub, testUserCreds)
 	if err != nil {
 		return err
 	}

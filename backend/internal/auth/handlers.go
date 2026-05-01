@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -12,25 +11,15 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
-// testProvider is the oauth_accounts provider value used for users created
-// through POST /auth/test-login. Kept distinct from "google" so the Google
-// namespace stays untouched by the E2E harness.
-const testProvider = "test"
-
-
-// OnboardingOps is the subset of onboarding.Store used by the auth
-// handlers. Declared as an interface so this package does not import the
-// onboarding package directly.
-type OnboardingOps interface {
-	Reset(ctx context.Context, userID string) error
-	UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error
-}
+// passwordProvider is the oauth_accounts provider value used for the
+// seeded test user. Kept distinct from "google" / "apple" so the OAuth
+// namespaces stay untouched by the password-based path.
+const passwordProvider = "password"
 
 // Handlers exposes the auth HTTP endpoints.
 type Handlers struct {
-	Cfg        *config.Config
-	Service    *Service
-	Onboarding OnboardingOps
+	Cfg     *config.Config
+	Service *Service
 }
 
 type googleSignInRequest struct {
@@ -135,63 +124,34 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// testLoginRequest is the body for POST /auth/test-login. All fields are
-// optional. `onboarded` controls whether the returned user already has
-// `onboarded_at` set so the E2E flow can test both the onboarding funnel
-// and the post-onboarding tabs without seeding data out-of-band.
-type testLoginRequest struct {
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	Onboarded bool   `json:"onboarded"`
+// passwordLoginRequest is the body for POST /auth/password-login.
+type passwordLoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
-// TestLogin handles POST /auth/test-login. This handler is only mounted
-// when config.Config.TestAuthEnabled is true (see router.go). It upserts a
-// test user under provider="test" and issues a real session. Never mount
-// this in production — it bypasses OAuth verification entirely.
-func (h *Handlers) TestLogin(w http.ResponseWriter, r *http.Request) {
-	var req testLoginRequest
-	if r.ContentLength > 0 {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid body")
-			return
-		}
-	}
-	if req.Email == "" {
-		httpx.WriteError(w, http.StatusBadRequest, "email required")
+// PasswordLogin handles POST /auth/password-login. The endpoint is
+// mounted unconditionally — it backs the seeded test account that
+// Apple beta reviewers and the Maestro E2E flow use to enter the app.
+// Access is gated by knowledge of the seeded password (which is
+// distributed only to the App Store reviewer and to CI), and there is
+// no signup path: the only user who can authenticate via this route
+// is the one seeded at boot from TEST_USER_EMAIL/TEST_USER_PASSWORD.
+func (h *Handlers) PasswordLogin(w http.ResponseWriter, r *http.Request) {
+	var req passwordLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
+		req.Email == "" ||
+		req.Password == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "email and password required")
 		return
 	}
-	email := req.Email
-	name := req.Name
-	if name == "" {
-		name = email
-	}
-
 	ctx := r.Context()
-	u, err := h.Service.Users.UpsertByOAuth(ctx, h.Service.Onboarding, testProvider, email, email, name, "")
+	result, err := h.Service.SignInWithPassword(ctx, req.Email, req.Password)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "upsert failed")
-		return
-	}
-	// Align the onboarding state with the request so the same email can be
-	// reused across E2E flows that test both paths.
-	if req.Onboarded {
-		if err := h.Onboarding.UpdateDueDateAndOnboardedAt(ctx, u.ID, nil); err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "onboarding failed")
-			return
-		}
-	} else {
-		// Reset unconditionally so repeated E2E runs start from the same
-		// blank slate even when the previous run only dismissed the
-		// coachmark but did not complete Stage 1.
-		if err := h.Onboarding.Reset(ctx, u.ID); err != nil {
-			httpx.WriteError(w, http.StatusInternalServerError, "reset onboarding failed")
-			return
-		}
-	}
-	result, err := h.Service.IssueSessionForUser(ctx, u)
-	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "issue failed")
+		// Single error code for "user not found" and "wrong password"
+		// so the endpoint cannot be used to enumerate accounts.
+		slog.Warn("password sign-in failed", "error", err)
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, sessionResponse{

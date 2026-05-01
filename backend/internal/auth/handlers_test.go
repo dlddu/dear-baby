@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,58 +14,7 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
-// localOnboardingOps implements both OnboardingOps and
-// users.OnboardingEnsurer against the test DB so the handlers can run
-// without pulling in the onboarding package.
-type localOnboardingOps struct{ db *sql.DB }
-
-func (l *localOnboardingOps) EnsureRowTx(ctx context.Context, tx *sql.Tx, userID string) error {
-	_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO onboarding (user_id) VALUES (?)`, userID)
-	return err
-}
-
-var errLocalOnboardingNotFound = errors.New("onboarding not found")
-
-func (l *localOnboardingOps) Reset(ctx context.Context, userID string) error {
-	res, err := l.db.ExecContext(ctx, `
-		UPDATE onboarding
-		SET due_date = NULL, onboarded_at = NULL,
-		    voice_coachmark_dismissed_at = NULL,
-		    first_record_at = NULL, ai_preview = NULL,
-		    updated_at = datetime('now')
-		WHERE user_id = ?
-	`, userID)
-	if err != nil {
-		return err
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return errLocalOnboardingNotFound
-	}
-	return nil
-}
-
-func (l *localOnboardingOps) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error {
-	var dueArg any
-	if dueDate != nil {
-		dueArg = *dueDate
-	}
-	res, err := l.db.ExecContext(ctx, `
-		UPDATE onboarding
-		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
-		WHERE user_id = ?
-	`, dueArg, userID)
-	if err != nil {
-		return err
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return errLocalOnboardingNotFound
-	}
-	return nil
-}
-
-func newTestHandlers(t *testing.T) (*Handlers, func()) {
+func newTestHandlers(t *testing.T) (*Handlers, *sql.DB, func()) {
 	t.Helper()
 	db := newTestDB(t)
 	usersStore := &users.Store{DB: db}
@@ -75,46 +24,118 @@ func newTestHandlers(t *testing.T) (*Handlers, func()) {
 		AccessTTL:  5 * time.Minute,
 		RefreshTTL: time.Hour,
 	}
-	onb := &localOnboardingOps{db: db}
 	svc := &Service{
 		Verifier:   &GoogleVerifier{},
 		Users:      usersStore,
-		Onboarding: onb,
+		Onboarding: testEnsurer{},
 		Refresh:    refreshStore,
 		Issuer:     issuer,
 	}
-	h := &Handlers{Service: svc, Onboarding: onb}
-	return h, func() { db.Close() }
+	h := &Handlers{Service: svc}
+	return h, db, func() { db.Close() }
 }
 
-func TestTestLogin_EmptyEmailReturns400(t *testing.T) {
-	h, cleanup := newTestHandlers(t)
-	defer cleanup()
+// configureTestUser drops the seeded user into the DB and stashes the
+// matching in-memory creds on the service — mirrors what app.go does
+// after SeedTestUser at boot.
+func configureTestUser(t *testing.T, h *Handlers, db *sql.DB, email, password string) string {
+	t.Helper()
+	creds, err := SeedTestUser(
+		context.Background(),
+		db,
+		testEnsurer{},
+		slog.New(slog.NewTextHandler(nopWriter{}, nil)),
+		TestUserSeed{Email: email, Password: password, Name: "Tester"},
+	)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if creds == nil {
+		t.Fatal("seed returned nil creds")
+	}
+	h.Service.TestUser = creds
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
-		strings.NewReader(`{}`))
+	var id string
+	if err := db.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&id); err != nil {
+		t.Fatalf("lookup id: %v", err)
+	}
+	return id
+}
+
+type nopWriter struct{}
+
+func (nopWriter) Write(p []byte) (int, error) { return len(p), nil }
+
+func postPasswordLogin(t *testing.T, h *Handlers, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/auth/password-login",
+		strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	h.TestLogin(rec, req)
+	h.PasswordLogin(rec, req)
+	return rec
+}
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status: got %d want 400, body=%s", rec.Code, rec.Body.String())
+func TestPasswordLogin_MissingFieldsReturns400(t *testing.T) {
+	h, _, cleanup := newTestHandlers(t)
+	defer cleanup()
+
+	cases := []string{
+		`{}`,
+		`{"email":"a@b.com"}`,
+		`{"password":"hunter2"}`,
+		`not-json`,
+	}
+	for _, body := range cases {
+		rec := postPasswordLogin(t, h, body)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("body=%q: status got %d want 400, resp=%s", body, rec.Code, rec.Body.String())
+		}
 	}
 }
 
-func TestTestLogin_WithEmail(t *testing.T) {
-	h, cleanup := newTestHandlers(t)
+func TestPasswordLogin_NoTestUserConfiguredReturns401(t *testing.T) {
+	h, _, cleanup := newTestHandlers(t)
 	defer cleanup()
+	// h.Service.TestUser is nil — the deploy did not configure
+	// TEST_USER_EMAIL/PASSWORD, so every login attempt must 401.
+	rec := postPasswordLogin(t, h, `{"email":"anyone@dear-baby.app","password":"hunter2"}`)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d want 401, resp=%s", rec.Code, rec.Body.String())
+	}
+}
 
-	const email = "fixture@dear-baby.test"
-	req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
-		strings.NewReader(`{"email":"`+email+`"}`))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	h.TestLogin(rec, req)
+func TestPasswordLogin_WrongEmailReturns401(t *testing.T) {
+	h, db, cleanup := newTestHandlers(t)
+	defer cleanup()
+	configureTestUser(t, h, db, "tester@dear-baby.app", "correct-password")
 
+	rec := postPasswordLogin(t, h, `{"email":"someone-else@dear-baby.app","password":"correct-password"}`)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d want 401, resp=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPasswordLogin_WrongPasswordReturns401(t *testing.T) {
+	h, db, cleanup := newTestHandlers(t)
+	defer cleanup()
+	configureTestUser(t, h, db, "tester@dear-baby.app", "correct-password")
+
+	rec := postPasswordLogin(t, h, `{"email":"tester@dear-baby.app","password":"wrong-password"}`)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d want 401, resp=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPasswordLogin_Success(t *testing.T) {
+	h, db, cleanup := newTestHandlers(t)
+	defer cleanup()
+	const email, pwd = "tester@dear-baby.app", "correct-password"
+	uid := configureTestUser(t, h, db, email, pwd)
+
+	rec := postPasswordLogin(t, h, `{"email":"`+email+`","password":"`+pwd+`"}`)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+		t.Fatalf("status: got %d want 200, resp=%s", rec.Code, rec.Body.String())
 	}
 	var resp sessionResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
@@ -123,11 +144,8 @@ func TestTestLogin_WithEmail(t *testing.T) {
 	if resp.AccessToken == "" || resp.RefreshToken == "" {
 		t.Error("tokens should be non-empty")
 	}
-	if resp.User == nil || resp.User.Email != email {
-		t.Errorf("email: got %+v", resp.User)
-	}
-	if resp.User.OnboardedAt != nil {
-		t.Error("default user should not be onboarded")
+	if resp.User == nil || resp.User.ID != uid || resp.User.Email != email {
+		t.Errorf("user mismatch: got %+v want id=%q email=%q", resp.User, uid, email)
 	}
 
 	claims, err := h.Service.Issuer.Parse(resp.AccessToken)
@@ -137,97 +155,95 @@ func TestTestLogin_WithEmail(t *testing.T) {
 	if err := ExpectType(claims, TypeAccess); err != nil {
 		t.Errorf("access type: %v", err)
 	}
-	if claims.UserID != resp.User.ID {
-		t.Errorf("uid drift: %q vs %q", claims.UserID, resp.User.ID)
+	if claims.UserID != uid {
+		t.Errorf("uid drift: got %q want %q", claims.UserID, uid)
 	}
 }
 
-func TestTestLogin_OnboardedFlag(t *testing.T) {
-	h, cleanup := newTestHandlers(t)
+func TestPasswordLogin_Idempotent(t *testing.T) {
+	h, db, cleanup := newTestHandlers(t)
 	defer cleanup()
+	const email, pwd = "tester@dear-baby.app", "correct-password"
+	uid := configureTestUser(t, h, db, email, pwd)
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
-		strings.NewReader(`{"email":"a@b.com","name":"Alice","onboarded":true}`))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	h.TestLogin(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
-	}
-	var resp sessionResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if resp.User.Email != "a@b.com" || resp.User.Name != "Alice" {
-		t.Errorf("user fields: got %+v", resp.User)
-	}
-	if resp.User.OnboardedAt == nil {
-		t.Error("onboarded=true should set onboarded_at")
-	}
-	if resp.User.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *resp.User.DueDate)
-	}
-}
-
-func TestTestLogin_IdempotentForSameEmail(t *testing.T) {
-	h, cleanup := newTestHandlers(t)
-	defer cleanup()
-
-	body := `{"email":"dup@b.com"}`
-	run := func() sessionResponse {
-		req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
-			strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
-		h.TestLogin(rec, req)
+	body := `{"email":"` + email + `","password":"` + pwd + `"}`
+	for i := 0; i < 3; i++ {
+		rec := postPasswordLogin(t, h, body)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+			t.Fatalf("iter %d: status got %d, resp=%s", i, rec.Code, rec.Body.String())
 		}
-		var r sessionResponse
-		if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
-			t.Fatalf("decode: %v", err)
+		var resp sessionResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("iter %d decode: %v", i, err)
 		}
-		return r
-	}
-	first := run()
-	second := run()
-	if first.User.ID != second.User.ID {
-		t.Errorf("user id should be stable across test-login calls: %q vs %q",
-			first.User.ID, second.User.ID)
+		if resp.User.ID != uid {
+			t.Errorf("iter %d: user id drifted: %q vs %q", i, resp.User.ID, uid)
+		}
 	}
 }
 
-func TestTestLogin_ResetOnboarding(t *testing.T) {
-	h, cleanup := newTestHandlers(t)
-	defer cleanup()
+func TestSeedTestUser_SkipsWhenUnconfigured(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
 
-	call := func(body string) sessionResponse {
-		req := httptest.NewRequest(http.MethodPost, "/auth/test-login",
-			strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
-		h.TestLogin(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
-		}
-		var r sessionResponse
-		if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		return r
+	creds, err := SeedTestUser(
+		context.Background(),
+		db,
+		testEnsurer{},
+		slog.New(slog.NewTextHandler(nopWriter{}, nil)),
+		TestUserSeed{Email: "", Password: ""},
+	)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if creds != nil {
+		t.Errorf("expected nil creds, got %+v", creds)
 	}
 
-	r1 := call(`{"email":"reset@test.com","onboarded":true}`)
-	if r1.User.OnboardedAt == nil {
-		t.Fatal("expected onboarded_at to be set")
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("expected no users seeded, found %d", n)
+	}
+}
+
+func TestSeedTestUser_IdempotentAcrossReboots(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	logger := slog.New(slog.NewTextHandler(nopWriter{}, nil))
+
+	first, err := SeedTestUser(context.Background(), db, testEnsurer{}, logger,
+		TestUserSeed{Email: "tester@dear-baby.app", Password: "first-secret", Name: "Tester"})
+	if err != nil {
+		t.Fatalf("first seed: %v", err)
 	}
 
-	r2 := call(`{"email":"reset@test.com","onboarded":false}`)
-	if r2.User.OnboardedAt != nil {
-		t.Error("expected onboarded_at to be nil after reset")
+	// Simulate a secret rotation: same email, new password.
+	second, err := SeedTestUser(context.Background(), db, testEnsurer{}, logger,
+		TestUserSeed{Email: "tester@dear-baby.app", Password: "second-secret", Name: "Tester"})
+	if err != nil {
+		t.Fatalf("second seed: %v", err)
 	}
-	if r1.User.ID != r2.User.ID {
-		t.Errorf("user id should be stable: %q vs %q", r1.User.ID, r2.User.ID)
+
+	// Old hash must no longer verify; new one must.
+	if err := first.Verify("first-secret"); err != nil {
+		t.Errorf("first creds should still verify their original password: %v", err)
+	}
+	if err := second.Verify("second-secret"); err != nil {
+		t.Errorf("second creds should verify rotated password: %v", err)
+	}
+	if err := second.Verify("first-secret"); err == nil {
+		t.Error("second creds must not accept rotated-out password")
+	}
+
+	// Single users row, despite two seed calls.
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM users WHERE email = ?`, "tester@dear-baby.app").Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("expected exactly one users row, found %d", n)
 	}
 }

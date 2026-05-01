@@ -1,0 +1,67 @@
+appId: com.dlddu.dearbaby
+---
+# Reusable tester-login subflow. Caller must launch the app and arrive
+# at the landing screen first. Drives the secret tap pattern (top-left
+# 5 times, then top-right 10 times) and submits the test credentials —
+# the same code path that ships in production.
+#
+# Required env (passed via `maestro test --env`):
+#   MAESTRO_TEST_USER_EMAIL
+#   MAESTRO_TEST_USER_PASSWORD
+
+- assertVisible:
+    id: "root"
+
+- tapOn:
+    id: "tester-corner-tl"
+- tapOn:
+    id: "tester-corner-tl"
+- tapOn:
+    id: "tester-corner-tl"
+- tapOn:
+    id: "tester-corner-tl"
+- tapOn:
+    id: "tester-corner-tl"
+
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+
+- extendedWaitUntil:
+    visible:
+      id: "tester-login-modal"
+    timeout: 5000
+
+- tapOn:
+    id: "tester-login-email"
+- inputText: ${MAESTRO_TEST_USER_EMAIL}
+# Press the keyboard's Next key — the email TextInput has
+# returnKeyType=next + onSubmitEditing focusing the password field.
+# Avoids `hideKeyboard` mid-flow, which on iOS dismisses the modal
+# (Maestro's hideKeyboard fires a screen-area gesture that the
+# transparent modal then loses focus to).
+- pressKey: Enter
+- inputText: ${MAESTRO_TEST_USER_PASSWORD}
+# Password TextInput has returnKeyType=done + onSubmitEditing=submit,
+# so the second Enter triggers the login API call. On success the
+# modal calls onClose(); on failure the error copy renders inline.
+- pressKey: Enter
+- assertNotVisible:
+    id: "tester-login-modal"

@@ -10,15 +10,15 @@ import { Text } from '../src/components/Text';
 import {
   exchangeAppleAuthCode,
   exchangeGoogleIdToken,
-  testLogin,
 } from '../src/api/auth';
 import { useAuth } from '../src/auth/AuthContext';
+import { TesterLoginModal } from '../src/auth/TesterLoginModal';
+import { useTesterLoginGesture } from '../src/auth/useTesterLoginGesture';
 import {
   API_URL,
   GOOGLE_ANDROID_CLIENT_ID,
   GOOGLE_IOS_CLIENT_ID,
   GOOGLE_WEB_CLIENT_ID,
-  TEST_AUTH_ENABLED,
 } from '../src/config/env';
 import { colors } from '../src/theme/colors';
 import { radius } from '../src/theme/radius';
@@ -144,56 +144,30 @@ function AppleSignInButton() {
   );
 }
 
-// TestLoginButtons are only mounted when EXPO_PUBLIC_TEST_AUTH_ENABLED=true.
-// They drive the Maestro E2E login flow (app/.maestro/login.yaml) by hitting
-// the backend's /auth/test-login endpoint and feeding the resulting session
-// into AuthContext, which lets AuthGate redirect into onboarding or tabs
-// just as the real Google sign-in path would. Keep both testIDs stable —
-// `test-login-button` enters the onboarding funnel, and
-// `test-login-onboarded-button` skips straight into (tabs).
-function TestLoginButtons() {
-  const { setSession } = useAuth();
-
-  const run = async (email: string, onboarded: boolean) => {
-    try {
-      const session = await testLogin({ email, onboarded });
-      await setSession(session);
-    } catch (e) {
-      console.error('test login failed', e);
-    }
-  };
-
-  return (
-    <>
-      <Pressable
-        testID="test-login-button"
-        onPress={() => run('e2e-onboarding@dear-baby.test', false)}
-        style={({ pressed }) => [styles.testButton, pressed && styles.pressed]}
-      >
-        <Text variant="body" color="primary" style={styles.googleLabel}>
-          Test login (onboarding)
-        </Text>
-      </Pressable>
-      <Pressable
-        testID="test-login-onboarded-button"
-        onPress={() => run('e2e-onboarded@dear-baby.test', true)}
-        style={({ pressed }) => [styles.testButton, pressed && styles.pressed]}
-      >
-        <Text variant="body" color="primary" style={styles.googleLabel}>
-          Test login (onboarded)
-        </Text>
-      </Pressable>
-    </>
-  );
-}
-
 // Landing screen shown when the user is not authenticated. This screen is
 // load-bearing for the Maestro E2E flow at app/.maestro/health.yaml — it
 // must keep the exact testIDs `root`, `check-health-button`, and
 // `health-status`, and the health fetch must hit
 // `${EXPO_PUBLIC_API_URL}/health` returning `{"status":"ok"}`.
+//
+// The two corner Pressables are intentionally invisible. Tapping the
+// top-left 5–7 times and then the top-right 10+ times opens the
+// tester-login modal (see useTesterLoginGesture). The same code runs
+// in production — the Apple beta reviewer uses this gesture to log in
+// with the seeded test account, and the Maestro flows drive it via
+// the testIDs.
+//
+// They MUST stay in the accessibility tree (no `accessibilityElementsHidden`,
+// no `importantForAccessibility="no-hide-descendants"`) — Maestro's
+// element lookup uses the same accessibility identifiers Apple/Google
+// expose, so hiding the pressables there hides them from the test
+// harness too.
 export default function Landing() {
   const [status, setStatus] = useState('');
+  const [testerLoginVisible, setTesterLoginVisible] = useState(false);
+  const { onLeftPress, onRightPress } = useTesterLoginGesture(() => {
+    setTesterLoginVisible(true);
+  });
 
   const checkHealth = async () => {
     setStatus('');
@@ -227,7 +201,25 @@ export default function Landing() {
       )}
       {hasGoogleConfig && <GoogleSignInButton />}
       {Platform.OS === 'ios' && <AppleSignInButton />}
-      {TEST_AUTH_ENABLED && <TestLoginButtons />}
+
+      <Pressable
+        testID="tester-corner-tl"
+        accessibilityRole="button"
+        accessibilityLabel="tester corner top left"
+        onPress={onLeftPress}
+        style={[styles.cornerHit, styles.cornerHitTopLeft]}
+      />
+      <Pressable
+        testID="tester-corner-tr"
+        accessibilityRole="button"
+        accessibilityLabel="tester corner top right"
+        onPress={onRightPress}
+        style={[styles.cornerHit, styles.cornerHitTopRight]}
+      />
+      <TesterLoginModal
+        visible={testerLoginVisible}
+        onClose={() => setTesterLoginVisible(false)}
+      />
       <StatusBar style="dark" />
     </View>
   );
@@ -257,16 +249,28 @@ const styles = StyleSheet.create({
   },
   googleLabel: { fontWeight: '600' },
   pressed: { opacity: 0.9 },
-  testButton: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.accent.sage,
-    backgroundColor: colors.surface.ivory,
-    borderRadius: radius.sm,
-    paddingVertical: spacing[3],
-    paddingHorizontal: spacing[5],
-    alignSelf: 'stretch',
-    alignItems: 'center',
+  // Invisible 80×80 hot zones in the top corners. Sized large enough
+  // for a thumb-friendly tap target without spilling into the safe area
+  // where the OS chrome lives. Background is omitted so the cream
+  // landing screen shows through — testers cannot see them, only feel
+  // them out by following the tap-count instructions.
+  //
+  // `top: 60` keeps the entire box south of every iPhone's safe-area
+  // top inset (the iPhone 16 dynamic island reaches ~59pt), so iOS
+  // delivers the touch to React instead of consuming it as a system
+  // gesture. Android's status bar is shorter (~24-32dp) so 60 is
+  // generous on both platforms.
+  cornerHit: {
+    position: 'absolute',
+    top: 60,
+    width: 80,
+    height: 80,
+  },
+  cornerHitTopLeft: {
+    left: 0,
+  },
+  cornerHitTopRight: {
+    right: 0,
   },
   // Apple HIG requires the proprietary AppleAuthenticationButton with a
   // fixed height/width set via style. Background color and border radius

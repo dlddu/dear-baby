@@ -1,31 +1,16 @@
 appId: com.dlddu.dearbaby
 ---
-# Covers the E2E login path that bypasses real Google OAuth via the
-# backend's /auth/test-login endpoint. Requires the app bundle to be built
-# with EXPO_PUBLIC_TEST_AUTH_ENABLED=true AND the backend to run with
-# TEST_AUTH_ENABLED=true — otherwise the buttons this flow taps are not
-# mounted and the endpoint returns 404.
+# Verifies the password sign-in path that backs Apple beta review and
+# the rest of the Maestro suite. The flow drives the secret tap pattern
+# (top-left 5–7 times, then top-right 10+ times) that gates the
+# tester-login modal in the same code path that ships in production —
+# there is no build-time test-mode flag, only the seeded password
+# (TEST_USER_PASSWORD) and the gesture.
+#
+# The MAESTRO_TEST_USER_EMAIL / MAESTRO_TEST_USER_PASSWORD env vars are
+# injected by CI (see .github/workflows/e2e-*.yml) and must match the
+# backend's TEST_USER_EMAIL / TEST_USER_PASSWORD secrets.
 
-# Path 1: unauthenticated → onboarding funnel.
-- launchApp:
-    clearState: true
-- runFlow:
-    when:
-      visible: "isn't responding"
-    commands:
-      - tapOn: "Wait"
-- assertVisible:
-    id: "test-login-button"
-- tapOn:
-    id: "test-login-button"
-- assertVisible:
-    id: "onboarding-welcome"
-
-# Path 2: unauthenticated → straight into (tabs) with onboarded=true.
-# iOS Keychain (used by expo-secure-store) survives `clearState: true`,
-# so tokens from Path 1 would cause AuthProvider to skip the landing
-# screen entirely. `clearKeychain` wipes all Keychain entries for the
-# app so the next launch starts truly unauthenticated.
 - clearKeychain
 - launchApp:
     clearState: true
@@ -34,9 +19,12 @@ appId: com.dlddu.dearbaby
       visible: "isn't responding"
     commands:
       - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Newly seeded user has no onboarded_at, so login lands on the
+# onboarding welcome screen. The dedicated onboarding flows verify the
+# rest of the funnel.
 - assertVisible:
-    id: "test-login-onboarded-button"
-- tapOn:
-    id: "test-login-onboarded-button"
-- assertVisible:
-    id: "home-tab"
+    id: "onboarding-welcome"

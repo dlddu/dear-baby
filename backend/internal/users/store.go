@@ -126,6 +126,31 @@ func (s *Store) GetByID(ctx context.Context, id string) (*User, error) {
 	return getByID(ctx, s.DB, id)
 }
 
+// GetByEmail returns a user by their unique email. Returns ErrNotFound
+// when no row matches — callers (e.g., the password sign-in path)
+// should map that to a uniform "invalid credentials" response so the
+// endpoint cannot be used for account enumeration.
+func (s *Store) GetByEmail(ctx context.Context, email string) (*User, error) {
+	u := &User{}
+	var name, picture sql.NullString
+	var createdAt, updatedAt string
+	err := s.DB.QueryRowContext(ctx, `
+		SELECT id, email, name, picture_url, created_at, updated_at
+		FROM users WHERE email = ?
+	`, email).Scan(&u.ID, &u.Email, &name, &picture, &createdAt, &updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("select user by email: %w", err)
+	}
+	u.Name = name.String
+	u.PictureURL = picture.String
+	u.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
+	u.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
+	return u, nil
+}
+
 type rowScanner interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
