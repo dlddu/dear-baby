@@ -61,11 +61,18 @@ jobs:
 
       # Seed the auth secret the backend reads from before applying the
       # Deployment — with this in place the AI-preview routes come online,
-      # which the checks below exercise end-to-end.
+      # which the checks below exercise end-to-end. TEST_USER_*
+      # populate the seeded password account that
+      # backend/internal/auth/seed.go materializes at boot, which the
+      # integration tests below use in place of the legacy /auth/test-login
+      # endpoint.
       - name: Create auth secret
         run: |
           kubectl create secret generic auth-secret \
-            --from-literal=JWT_SECRET=integration-jwt-secret
+            --from-literal=JWT_SECRET=integration-jwt-secret \
+            --from-literal=TEST_USER_EMAIL=integration@dear-baby.test \
+            --from-literal=TEST_USER_PASSWORD=integration-password \
+            --from-literal=TEST_USER_NAME=Integration\ Tester
 
       # CI uses an in-cluster mock OpenRouter server (see step below), so
       # the API key is non-secret and just needs to be non-empty for the
@@ -154,14 +161,6 @@ jobs:
         run: |
           kubectl set env deployment/worker \
             OPENROUTER_BASE_URL=http://openrouter-mock:8088/v1
-
-      # Enable /auth/test-login so the end-to-end test can mint a
-      # session without going through Google OAuth. Only effective on
-      # this cluster; the production manifests don't carry this env.
-      # Triggers a backend rollout.
-      - name: Enable test auth on backend
-        run: |
-          kubectl set env deployment/dear-baby TEST_AUTH_ENABLED=true
 
       - name: Wait for MinIO rollout
         run: kubectl rollout status deployment/minio --timeout=120s
@@ -282,26 +281,44 @@ jobs:
 
       # ─── End-to-end: mock OpenRouter call via the worker ─────────────
       #
-      # Goes all the way through: test-login → record save → AI preview
-      # enqueue → worker reads queue → openrouter-mock chat completion →
-      # publishes result → backend hub processor persists → /me reflects
-      # ai_preview. Prints the generated preview to the job log for
-      # visual inspection of each CI run.
+      # Goes all the way through: password-login → PATCH /me to complete
+      # onboarding → record save → AI preview enqueue → worker reads
+      # queue → openrouter-mock chat completion → publishes result →
+      # backend hub processor persists → /me reflects ai_preview. Prints
+      # the generated preview to the job log for visual inspection of
+      # each CI run.
+      #
+      # The test runs as the seeded password account whose credentials
+      # come from the auth-secret created above. There is no longer a
+      # /auth/test-login endpoint to short-circuit OAuth — the password
+      # path is the same code path that ships in production.
 
-      - name: AI preview end-to-end (test-login → record → worker → /me)
+      - name: AI preview end-to-end (password-login → record → worker → /me)
         run: |
           set -euo pipefail
 
-          echo "::group::test-login"
+          echo "::group::password-login"
           session=$(curl -fsS -X POST \
             -H 'Content-Type: application/json' \
-            -d '{"email":"integration@dear-baby.test","onboarded":true}' \
-            http://127.0.0.1:18080/auth/test-login)
+            -d '{"email":"integration@dear-baby.test","password":"integration-password"}' \
+            http://127.0.0.1:18080/auth/password-login)
           echo "$session" | head -c 200
           echo
           access_token=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
           user_id=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["user"]["id"])')
           echo "user_id=$user_id"
+          echo "::endgroup::"
+
+          echo "::group::complete onboarding"
+          # Stamp onboarded_at so /onboarding/ai-preview proceeds (which
+          # the seeded user does not have by default — the seeder
+          # leaves onboarding state untouched on every boot to mirror a
+          # fresh sign-up).
+          curl -fsS -X PATCH \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"due_date":"2026-09-01"}' \
+            http://127.0.0.1:18080/me >/dev/null
           echo "::endgroup::"
 
           echo "::group::create record"
@@ -379,11 +396,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "::group::test-login"
+          # Reuse the same seeded password account; this test only adds
+          # a voice record on top of the text record from the AI
+          # preview test so the operations don't conflict.
+          echo "::group::password-login"
           session=$(curl -fsS -X POST \
             -H 'Content-Type: application/json' \
-            -d '{"email":"audio@dear-baby.test","onboarded":true}' \
-            http://127.0.0.1:18080/auth/test-login)
+            -d '{"email":"integration@dear-baby.test","password":"integration-password"}' \
+            http://127.0.0.1:18080/auth/password-login)
           access_token=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
           echo "::endgroup::"
 
@@ -466,53 +486,12 @@ jobs:
           echo "second PATCH correctly rejected with 409"
           echo "::endgroup::"
 
-      - name: Audio upload e2e — cross-user prefix is rejected
-        # Negative test: even with a valid presigned URL for one user,
-        # PATCHing a different user's record with that key must 400 on
-        # the server's prefix-validation check. This is the security
-        # boundary preventing key tampering.
-        run: |
-          set -euo pipefail
-
-          # Two sessions for two different users.
-          a=$(curl -fsS -X POST -H 'Content-Type: application/json' \
-            -d '{"email":"a@dear-baby.test","onboarded":true}' \
-            http://127.0.0.1:18080/auth/test-login)
-          a_token=$(echo "$a" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-
-          b=$(curl -fsS -X POST -H 'Content-Type: application/json' \
-            -d '{"email":"b@dear-baby.test","onboarded":true}' \
-            http://127.0.0.1:18080/auth/test-login)
-          b_token=$(echo "$b" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-
-          # B creates a record.
-          b_rec=$(curl -fsS -X POST \
-            -H "Authorization: Bearer $b_token" \
-            -H 'Content-Type: application/json' \
-            -d '{"content":"b transcript","source":"voice"}' \
-            http://127.0.0.1:18080/records)
-          b_record_id=$(echo "$b_rec" | python3 -c 'import json,sys; print(json.load(sys.stdin)["record"]["id"])')
-
-          # A tries to PATCH B's record with a key from B's namespace
-          # (after intercepting it somehow). The handler must reject
-          # because the URL's record id is B's but the user context is A.
-          b_presign=$(curl -fsS -X POST \
-            -H "Authorization: Bearer $b_token" \
-            "http://127.0.0.1:18080/records/$b_record_id/audio/upload-url")
-          b_key=$(echo "$b_presign" | python3 -c 'import json,sys; print(json.load(sys.stdin)["audio_s3_key"])')
-
-          code=$(curl -s -o /tmp/cross.txt -w '%{http_code}' \
-            -X PATCH \
-            -H "Authorization: Bearer $a_token" \
-            -H 'Content-Type: application/json' \
-            -d "{\"audio_s3_key\":\"$b_key\"}" \
-            "http://127.0.0.1:18080/records/$b_record_id")
-          # B's record is not A's, so A's PATCH should 404 (record not
-          # found in A's namespace) before we even reach key validation.
-          if [ "$code" != "404" ]; then
-            echo "expected 404 cross-user PATCH, got $code body=$(cat /tmp/cross.txt)"; exit 1
-          fi
-          echo "cross-user PATCH correctly rejected with 404"
+      # NOTE: cross-user PATCH protection (A cannot PATCH B's record)
+      # is exercised in backend/internal/records/handlers_test.go.
+      # We can no longer mint two sessions on demand from CI without a
+      # multi-user test-login endpoint, and we deliberately removed
+      # that endpoint to align with the production "single seeded test
+      # user" model. The unit tests cover the same invariant.
 
       - name: Full worker logs (debug)
         if: always()

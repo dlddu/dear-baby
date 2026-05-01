@@ -13,10 +13,12 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/dlddu/dear-baby/backend/internal/auth"
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
 	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 	"github.com/dlddu/dear-baby/backend/internal/tasks"
+	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
 // Run loads config, opens the DB, applies migrations, starts the HTTP server,
@@ -39,6 +41,29 @@ func Run() error {
 	if err := db.RunMigrations(sqlDB); err != nil {
 		return err
 	}
+
+	// Seed (or refresh) the password-backed test user. No-op when
+	// TEST_USER_EMAIL or TEST_USER_PASSWORD is unset, which is the
+	// expected state for environments that do not need the password
+	// sign-in path (local /health smoke tests, dev workstations).
+	seedCtx, cancelSeed := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := auth.SeedTestUser(
+		seedCtx,
+		sqlDB,
+		&users.Store{DB: sqlDB},
+		&auth.PasswordStore{DB: sqlDB},
+		&onboarding.Store{DB: sqlDB},
+		logger,
+		auth.TestUserSeed{
+			Email:    cfg.TestUser.Email,
+			Password: cfg.TestUser.Password,
+			Name:     cfg.TestUser.Name,
+		},
+	); err != nil {
+		cancelSeed()
+		return fmt.Errorf("seed test user: %w", err)
+	}
+	cancelSeed()
 
 	if cfg.RedisURL == "" {
 		return fmt.Errorf("REDIS_URL must be set")

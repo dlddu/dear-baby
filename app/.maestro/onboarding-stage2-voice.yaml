@@ -8,11 +8,10 @@ appId: com.dlddu.dearbaby
 #   B. 저장 후 업로드      — transcript on server, audio uploaded (or fixture)
 #   C. 저장 후 보관함 삭제  — transcript on server, local audio gone
 #
-# Requires:
-#   EXPO_PUBLIC_TEST_AUTH_ENABLED=1   (app)
-#   TEST_AUTH_ENABLED=1               (backend)
-#   EXPO_PUBLIC_E2E_AUDIO_FIXTURE=1   (app — swaps mic + whisper + S3
-#                                      with a deterministic fake)
+# Requires the seeded test user (TEST_USER_EMAIL / TEST_USER_PASSWORD)
+# in a fresh onboarding state — CI calls
+# `backend/reset-onboarding $TEST_USER_EMAIL` before this flow runs —
+# plus EXPO_PUBLIC_E2E_AUDIO_FIXTURE=1 in the app build.
 #
 # The fixture flag is critical: Maestro can't drive the microphone, the
 # whisper model would have to be downloaded on every run, and CI doesn't
@@ -31,10 +30,8 @@ appId: com.dlddu.dearbaby
     commands:
       - tapOn: "Wait"
 
-- assertVisible:
-    id: "test-login-button"
-- tapOn:
-    id: "test-login-button"
+- runFlow:
+    file: subflows/tester-login.yaml
 - assertVisible:
     id: "onboarding-welcome"
 - tapOn:

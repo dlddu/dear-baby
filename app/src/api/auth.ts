@@ -61,25 +61,25 @@ export async function me(): Promise<User> {
   return (await res.json()) as User;
 }
 
-// testLogin posts to the E2E-only /auth/test-login endpoint, which the
-// backend mounts only when TEST_AUTH_ENABLED=true. It bypasses Google OAuth
-// and returns a real session — use it from the Maestro flow only.
-export async function testLogin(opts?: {
-  email?: string;
-  name?: string;
-  onboarded?: boolean;
+// passwordLogin posts to /auth/password-login with the test user's
+// credentials. The endpoint is mounted in production too — access is
+// gated by the secret tap pattern on the landing screen, not by any
+// build flag, so the same code path serves both Apple beta review and
+// the Maestro E2E flow.
+export async function passwordLogin(input: {
+  email: string;
+  password: string;
 }): Promise<Session> {
-  const res = await fetch(`${API_URL}/auth/test-login`, {
+  const res = await fetch(`${API_URL}/auth/password-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      email: opts?.email ?? '',
-      name: opts?.name ?? '',
-      onboarded: opts?.onboarded ?? false,
+      email: input.email,
+      password: input.password,
     }),
   });
   if (!res.ok) {
-    throw new Error(`test login failed: ${res.status}`);
+    throw new Error(`password login failed: ${res.status}`);
   }
   const json = (await res.json()) as SessionResponse;
   return {

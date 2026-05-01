@@ -1,13 +1,17 @@
 appId: com.dlddu.dearbaby
 ---
-# Onboarding Stage 2 – E2E Tests
-# Verifies the home-screen voice-record coachmark + question card + dual CTAs
-# + blurred AI preview shown to users who just completed Stage 1. Requires
-# EXPO_PUBLIC_TEST_AUTH_ENABLED=true (app) and TEST_AUTH_ENABLED=true
-# (backend), same as Stage 1. Test-login with onboarded=false resets the
-# server-side Stage 2 state so each run starts from a blank slate.
-
-# ─── Path 1: due date → home shows full Stage 2 + coachmark persists ───
+# Onboarding Stage 2 – with-due-date path.
+#
+# Verifies the home-screen voice-record coachmark + question card +
+# dual CTAs + blurred AI preview shown to users who just completed
+# Stage 1 with a due date. Combines what was previously Path 1
+# (set due date → verify Stage 2 + coachmark dismissal) and Path 3
+# (voice CTA navigation, text CTA save → AI preview) of the legacy
+# multi-path flow — both paths consume the same onboarded-with-date
+# state, so they stay together.
+#
+# CI must reset the seeded test user's onboarding state before running
+# this flow; the undecided path lives in onboarding-stage2-undecided.yaml.
 
 - clearKeychain
 - launchApp:
@@ -18,10 +22,9 @@ appId: com.dlddu.dearbaby
     commands:
       - tapOn: "Wait"
 
-- assertVisible:
-    id: "test-login-button"
-- tapOn:
-    id: "test-login-button"
+- runFlow:
+    file: subflows/tester-login.yaml
+
 - assertVisible:
     id: "onboarding-welcome"
 
@@ -88,45 +91,7 @@ appId: com.dlddu.dearbaby
 - assertNotVisible:
     id: "stage2-coachmark"
 
-# ─── Path 2: "undecided" → no week badge on home ────────────────────
-
-- clearKeychain
-- launchApp:
-    clearState: true
-- runFlow:
-    when:
-      visible: "isn't responding"
-    commands:
-      - tapOn: "Wait"
-
-- assertVisible:
-    id: "test-login-button"
-- tapOn:
-    id: "test-login-button"
-- assertVisible:
-    id: "onboarding-welcome"
-
-- tapOn:
-    id: "onboarding-skip-button"
-- assertVisible:
-    id: "home-tab"
-
-- assertVisible:
-    id: "stage2-question-card"
-- assertVisible:
-    id: "stage2-voice-cta"
-- assertVisible:
-    id: "stage2-text-cta"
-- assertVisible:
-    id: "stage2-ai-preview"
-- assertNotVisible:
-    id: "stage2-week-badge"
-
-# ─── Path 3: voice CTA opens the recorder; text flow saves + AI preview ──
-# Voice happy-path is exercised end-to-end in onboarding-stage2-voice.yaml
-# (under EXPO_PUBLIC_E2E_AUDIO_FIXTURE=1). Here we only verify that the
-# CTA navigates somewhere and dismisses the coachmark, then back out.
-
+# Voice CTA opens the recorder; back out without recording.
 - tapOn:
     id: "stage2-voice-cta"
 - assertVisible:
@@ -135,8 +100,6 @@ appId: com.dlddu.dearbaby
     id: "record-audio-cancel"
 - assertVisible:
     id: "home-tab"
-
-# Voice tap also engages with the coachmark target → coachmark closes.
 - assertNotVisible:
     id: "stage2-coachmark"
 

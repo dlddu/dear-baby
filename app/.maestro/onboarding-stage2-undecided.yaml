@@ -1,0 +1,41 @@
+appId: com.dlddu.dearbaby
+---
+# Onboarding Stage 2 – undecided path.
+#
+# Verifies that skipping the due date still surfaces the Stage 2 home
+# (question card + coachmark + voice/text CTAs + AI preview) but
+# without the week badge, since week-of-pregnancy is undefined.
+#
+# CI must reset the seeded test user's onboarding state before running
+# this flow.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "onboarding-welcome"
+
+- tapOn:
+    id: "onboarding-skip-button"
+- assertVisible:
+    id: "home-tab"
+
+- assertVisible:
+    id: "stage2-question-card"
+- assertVisible:
+    id: "stage2-voice-cta"
+- assertVisible:
+    id: "stage2-text-cta"
+- assertVisible:
+    id: "stage2-ai-preview"
+- assertNotVisible:
+    id: "stage2-week-badge"

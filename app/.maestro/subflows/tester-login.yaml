@@ -1,0 +1,60 @@
+appId: com.dlddu.dearbaby
+---
+# Reusable tester-login subflow. Caller must launch the app and arrive
+# at the landing screen first. Drives the secret tap pattern (top-left
+# 5 times, then top-right 10 times) and submits the test credentials —
+# the same code path that ships in production.
+#
+# Required env (passed via `maestro test --env`):
+#   MAESTRO_TEST_USER_EMAIL
+#   MAESTRO_TEST_USER_PASSWORD
+
+- assertVisible:
+    id: "root"
+
+- tapOn:
+    id: "tester-corner-tl"
+- tapOn:
+    id: "tester-corner-tl"
+- tapOn:
+    id: "tester-corner-tl"
+- tapOn:
+    id: "tester-corner-tl"
+- tapOn:
+    id: "tester-corner-tl"
+
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+- tapOn:
+    id: "tester-corner-tr"
+
+- assertVisible:
+    id: "tester-login-modal"
+
+- tapOn:
+    id: "tester-login-email"
+- inputText: ${MAESTRO_TEST_USER_EMAIL}
+- tapOn:
+    id: "tester-login-password"
+- inputText: ${MAESTRO_TEST_USER_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "tester-login-submit"
+- assertNotVisible:
+    id: "tester-login-modal"

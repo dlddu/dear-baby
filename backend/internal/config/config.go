@@ -24,12 +24,13 @@ type Config struct {
 	// to work; if any is empty, POST /auth/apple returns 503 and the rest
 	// of the service still functions (Google sign-in, /me, etc).
 	Apple AppleConfig
-	// TestAuthEnabled, when true, causes the router to mount the
-	// POST /auth/test-login endpoint used by the Maestro E2E flow. It must
-	// NEVER be enabled in production — the endpoint issues a valid JWT
-	// session for any requested email without OAuth verification. Set via
-	// the TEST_AUTH_ENABLED env var ("1" or "true").
-	TestAuthEnabled bool
+	// TestUser is the single password-backed account seeded at boot to
+	// support Apple beta review and the Maestro E2E flow. The same
+	// /auth/password-login endpoint runs in production; access is gated
+	// by knowledge of the password (only distributed to the App Store
+	// reviewer and CI), not by a build flag. Email or Password unset
+	// = seeding skipped, no password account exists.
+	TestUser TestUserConfig
 	// RedisURL points at the shared queue/broker. Required: app boot
 	// fails if unset.
 	RedisURL string
@@ -39,6 +40,16 @@ type Config struct {
 	// is missing, so a misconfigured deploy never silently degrades to
 	// "audio routes disabled".
 	AWS AWSConfig
+}
+
+// TestUserConfig describes the seeded password-backed account. Email +
+// Password are required for seeding to run; Name is optional and falls
+// back to Email at insert time so the users row always has a non-null
+// display name.
+type TestUserConfig struct {
+	Email    string
+	Password string
+	Name     string
 }
 
 // AppleConfig holds the credentials Sign in with Apple needs to verify
@@ -108,9 +119,10 @@ func Load() (*Config, error) {
 		PrivateKey: appleKeyFromEnv(),
 	}
 
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("TEST_AUTH_ENABLED"))) {
-	case "1", "true", "yes", "on":
-		cfg.TestAuthEnabled = true
+	cfg.TestUser = TestUserConfig{
+		Email:    strings.TrimSpace(os.Getenv("TEST_USER_EMAIL")),
+		Password: os.Getenv("TEST_USER_PASSWORD"),
+		Name:     strings.TrimSpace(os.Getenv("TEST_USER_NAME")),
 	}
 
 	cfg.RedisURL = os.Getenv("REDIS_URL")

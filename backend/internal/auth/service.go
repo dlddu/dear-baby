@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,10 +18,13 @@ type AppleCodeVerifier interface {
 	Verify(ctx context.Context, code string) (*AppleClaims, error)
 }
 
-// Service orchestrates Google sign-in, Apple sign-in, token refresh, and
-// logout. It combines the verifiers, the users store, the refresh-token
-// store, and the JWT issuer. Apple is optional — leaving AppleVerifier nil
-// keeps the Apple endpoint disabled without affecting Google sign-in.
+// Service orchestrates Google sign-in, Apple sign-in, password sign-in,
+// token refresh, and logout. It combines the verifiers, the users
+// store, the refresh-token store, and the JWT issuer. Apple is optional
+// — leaving AppleVerifier nil keeps the Apple endpoint disabled without
+// affecting Google sign-in. Password is optional too: leaving Passwords
+// nil disables /auth/password-login implicitly because the seeder will
+// not have run.
 type Service struct {
 	Verifier      *GoogleVerifier
 	AppleVerifier AppleCodeVerifier
@@ -28,6 +32,7 @@ type Service struct {
 	Onboarding    users.OnboardingEnsurer
 	Refresh       *RefreshStore
 	Issuer        *Issuer
+	Passwords     *PasswordStore
 }
 
 // SessionResult bundles the artifacts returned by SignInWithGoogle and Refresh.
@@ -110,6 +115,27 @@ func joinName(given, family string) string {
 	default:
 		return family
 	}
+}
+
+// SignInWithPassword verifies the email + password against the
+// password_credentials table and issues a new session. Returns
+// ErrPasswordInvalid for both "user missing" and "password wrong" so
+// the endpoint cannot be used to enumerate accounts.
+func (s *Service) SignInWithPassword(ctx context.Context, email, password string) (*SessionResult, error) {
+	if s.Passwords == nil {
+		return nil, ErrPasswordInvalid
+	}
+	u, err := s.Users.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, users.ErrNotFound) {
+			return nil, ErrPasswordInvalid
+		}
+		return nil, fmt.Errorf("lookup: %w", err)
+	}
+	if err := s.Passwords.Verify(ctx, u.ID, password); err != nil {
+		return nil, err
+	}
+	return s.issueSession(ctx, u.ID)
 }
 
 // RefreshSession consumes and rotates a refresh token, returning a new pair.
