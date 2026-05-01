@@ -27,7 +27,7 @@ import (
 // Returns an error if S3 wiring fails — the records-audio pipeline is
 // a first-class feature, so a misconfigured AWS env should kill the
 // boot rather than silently disabling the routes.
-func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub) (http.Handler, error) {
+func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient *redis.Client, hub *tasks.Hub, testUserCreds *auth.TestUserCreds) (http.Handler, error) {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -38,7 +38,6 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	usersStore := &users.Store{DB: db}
 	onboardingStore := &onboarding.Store{DB: db}
 	refreshStore := &auth.RefreshStore{DB: db}
-	passwordStore := &auth.PasswordStore{DB: db}
 	issuer := &auth.Issuer{
 		Secret:     cfg.JWTSecret,
 		AccessTTL:  cfg.JWTAccessTTL,
@@ -58,7 +57,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		Onboarding:    onboardingStore,
 		Refresh:       refreshStore,
 		Issuer:        issuer,
-		Passwords:     passwordStore,
+		TestUser:      testUserCreds,
 	}
 	authHandlers := &auth.Handlers{
 		Cfg:     cfg,

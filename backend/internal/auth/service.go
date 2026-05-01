@@ -22,9 +22,9 @@ type AppleCodeVerifier interface {
 // token refresh, and logout. It combines the verifiers, the users
 // store, the refresh-token store, and the JWT issuer. Apple is optional
 // — leaving AppleVerifier nil keeps the Apple endpoint disabled without
-// affecting Google sign-in. Password is optional too: leaving Passwords
-// nil disables /auth/password-login implicitly because the seeder will
-// not have run.
+// affecting Google sign-in. TestUser is optional too: nil disables
+// password sign-in (every request returns 401), which is the seeded
+// state when TEST_USER_EMAIL/TEST_USER_PASSWORD are not configured.
 type Service struct {
 	Verifier      *GoogleVerifier
 	AppleVerifier AppleCodeVerifier
@@ -32,7 +32,7 @@ type Service struct {
 	Onboarding    users.OnboardingEnsurer
 	Refresh       *RefreshStore
 	Issuer        *Issuer
-	Passwords     *PasswordStore
+	TestUser      *TestUserCreds
 }
 
 // SessionResult bundles the artifacts returned by SignInWithGoogle and Refresh.
@@ -118,12 +118,16 @@ func joinName(given, family string) string {
 }
 
 // SignInWithPassword verifies the email + password against the
-// password_credentials table and issues a new session. Returns
-// ErrPasswordInvalid for both "user missing" and "password wrong" so
-// the endpoint cannot be used to enumerate accounts.
+// in-memory test-user credentials seeded at boot, then issues a new
+// session. Returns ErrPasswordInvalid for "no test user configured",
+// "wrong email", and "wrong password" alike so the endpoint cannot
+// be used to enumerate accounts.
 func (s *Service) SignInWithPassword(ctx context.Context, email, password string) (*SessionResult, error) {
-	if s.Passwords == nil {
+	if s.TestUser == nil || email != s.TestUser.Email {
 		return nil, ErrPasswordInvalid
+	}
+	if err := s.TestUser.Verify(password); err != nil {
+		return nil, err
 	}
 	u, err := s.Users.GetByEmail(ctx, email)
 	if err != nil {
@@ -131,9 +135,6 @@ func (s *Service) SignInWithPassword(ctx context.Context, email, password string
 			return nil, ErrPasswordInvalid
 		}
 		return nil, fmt.Errorf("lookup: %w", err)
-	}
-	if err := s.Passwords.Verify(ctx, u.ID, password); err != nil {
-		return nil, err
 	}
 	return s.issueSession(ctx, u.ID)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,7 +19,6 @@ func newTestHandlers(t *testing.T) (*Handlers, *sql.DB, func()) {
 	db := newTestDB(t)
 	usersStore := &users.Store{DB: db}
 	refreshStore := &RefreshStore{DB: db}
-	passwordStore := &PasswordStore{DB: db}
 	issuer := &Issuer{
 		Secret:     []byte("test-secret"),
 		AccessTTL:  5 * time.Minute,
@@ -30,36 +30,41 @@ func newTestHandlers(t *testing.T) (*Handlers, *sql.DB, func()) {
 		Onboarding: testEnsurer{},
 		Refresh:    refreshStore,
 		Issuer:     issuer,
-		Passwords:  passwordStore,
 	}
 	h := &Handlers{Service: svc}
 	return h, db, func() { db.Close() }
 }
 
-// seedPasswordUser creates a users row, links it to oauth_accounts under
-// provider="password", ensures an onboarding row, and stores a bcrypt
-// hash — the same shape SeedTestUser produces at boot.
-func seedPasswordUser(t *testing.T, db *sql.DB, email, password string) string {
+// configureTestUser drops the seeded user into the DB and stashes the
+// matching in-memory creds on the service — mirrors what app.go does
+// after SeedTestUser at boot.
+func configureTestUser(t *testing.T, h *Handlers, db *sql.DB, email, password string) string {
 	t.Helper()
-	ctx := context.Background()
-	usersStore := &users.Store{DB: db}
-	passwordStore := &PasswordStore{DB: db}
-	hash, err := HashPassword(password)
+	creds, err := SeedTestUser(
+		context.Background(),
+		db,
+		testEnsurer{},
+		slog.New(slog.NewTextHandler(nopWriter{}, nil)),
+		TestUserSeed{Email: email, Password: password, Name: "Tester"},
+	)
 	if err != nil {
-		t.Fatalf("hash: %v", err)
+		t.Fatalf("seed: %v", err)
 	}
-	id, err := upsertPasswordUser(ctx, db, usersStore, testEnsurer{}, TestUserSeed{
-		Email: email,
-		Name:  "Tester",
-	})
-	if err != nil {
-		t.Fatalf("upsert seed: %v", err)
+	if creds == nil {
+		t.Fatal("seed returned nil creds")
 	}
-	if err := passwordStore.Upsert(ctx, id, hash); err != nil {
-		t.Fatalf("password upsert: %v", err)
+	h.Service.TestUser = creds
+
+	var id string
+	if err := db.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&id); err != nil {
+		t.Fatalf("lookup id: %v", err)
 	}
 	return id
 }
+
+type nopWriter struct{}
+
+func (nopWriter) Write(p []byte) (int, error) { return len(p), nil }
 
 func postPasswordLogin(t *testing.T, h *Handlers, body string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -89,11 +94,23 @@ func TestPasswordLogin_MissingFieldsReturns400(t *testing.T) {
 	}
 }
 
-func TestPasswordLogin_UnknownEmailReturns401(t *testing.T) {
+func TestPasswordLogin_NoTestUserConfiguredReturns401(t *testing.T) {
 	h, _, cleanup := newTestHandlers(t)
 	defer cleanup()
+	// h.Service.TestUser is nil — the deploy did not configure
+	// TEST_USER_EMAIL/PASSWORD, so every login attempt must 401.
+	rec := postPasswordLogin(t, h, `{"email":"anyone@dear-baby.app","password":"hunter2"}`)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d want 401, resp=%s", rec.Code, rec.Body.String())
+	}
+}
 
-	rec := postPasswordLogin(t, h, `{"email":"nobody@dear-baby.app","password":"hunter2"}`)
+func TestPasswordLogin_WrongEmailReturns401(t *testing.T) {
+	h, db, cleanup := newTestHandlers(t)
+	defer cleanup()
+	configureTestUser(t, h, db, "tester@dear-baby.app", "correct-password")
+
+	rec := postPasswordLogin(t, h, `{"email":"someone-else@dear-baby.app","password":"correct-password"}`)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status: got %d want 401, resp=%s", rec.Code, rec.Body.String())
 	}
@@ -102,7 +119,7 @@ func TestPasswordLogin_UnknownEmailReturns401(t *testing.T) {
 func TestPasswordLogin_WrongPasswordReturns401(t *testing.T) {
 	h, db, cleanup := newTestHandlers(t)
 	defer cleanup()
-	seedPasswordUser(t, db, "tester@dear-baby.app", "correct-password")
+	configureTestUser(t, h, db, "tester@dear-baby.app", "correct-password")
 
 	rec := postPasswordLogin(t, h, `{"email":"tester@dear-baby.app","password":"wrong-password"}`)
 	if rec.Code != http.StatusUnauthorized {
@@ -114,7 +131,7 @@ func TestPasswordLogin_Success(t *testing.T) {
 	h, db, cleanup := newTestHandlers(t)
 	defer cleanup()
 	const email, pwd = "tester@dear-baby.app", "correct-password"
-	uid := seedPasswordUser(t, db, email, pwd)
+	uid := configureTestUser(t, h, db, email, pwd)
 
 	rec := postPasswordLogin(t, h, `{"email":"`+email+`","password":"`+pwd+`"}`)
 	if rec.Code != http.StatusOK {
@@ -147,7 +164,7 @@ func TestPasswordLogin_Idempotent(t *testing.T) {
 	h, db, cleanup := newTestHandlers(t)
 	defer cleanup()
 	const email, pwd = "tester@dear-baby.app", "correct-password"
-	uid := seedPasswordUser(t, db, email, pwd)
+	uid := configureTestUser(t, h, db, email, pwd)
 
 	body := `{"email":"` + email + `","password":"` + pwd + `"}`
 	for i := 0; i < 3; i++ {
@@ -162,5 +179,71 @@ func TestPasswordLogin_Idempotent(t *testing.T) {
 		if resp.User.ID != uid {
 			t.Errorf("iter %d: user id drifted: %q vs %q", i, resp.User.ID, uid)
 		}
+	}
+}
+
+func TestSeedTestUser_SkipsWhenUnconfigured(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	creds, err := SeedTestUser(
+		context.Background(),
+		db,
+		testEnsurer{},
+		slog.New(slog.NewTextHandler(nopWriter{}, nil)),
+		TestUserSeed{Email: "", Password: ""},
+	)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if creds != nil {
+		t.Errorf("expected nil creds, got %+v", creds)
+	}
+
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("expected no users seeded, found %d", n)
+	}
+}
+
+func TestSeedTestUser_IdempotentAcrossReboots(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	logger := slog.New(slog.NewTextHandler(nopWriter{}, nil))
+
+	first, err := SeedTestUser(context.Background(), db, testEnsurer{}, logger,
+		TestUserSeed{Email: "tester@dear-baby.app", Password: "first-secret", Name: "Tester"})
+	if err != nil {
+		t.Fatalf("first seed: %v", err)
+	}
+
+	// Simulate a secret rotation: same email, new password.
+	second, err := SeedTestUser(context.Background(), db, testEnsurer{}, logger,
+		TestUserSeed{Email: "tester@dear-baby.app", Password: "second-secret", Name: "Tester"})
+	if err != nil {
+		t.Fatalf("second seed: %v", err)
+	}
+
+	// Old hash must no longer verify; new one must.
+	if err := first.Verify("first-secret"); err != nil {
+		t.Errorf("first creds should still verify their original password: %v", err)
+	}
+	if err := second.Verify("second-secret"); err != nil {
+		t.Errorf("second creds should verify rotated password: %v", err)
+	}
+	if err := second.Verify("first-secret"); err == nil {
+		t.Error("second creds must not accept rotated-out password")
+	}
+
+	// Single users row, despite two seed calls.
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM users WHERE email = ?`, "tester@dear-baby.app").Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("expected exactly one users row, found %d", n)
 	}
 }

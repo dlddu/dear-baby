@@ -13,9 +13,11 @@ import (
 )
 
 // TestUserSeed describes the single password-backed account that boots
-// alongside the server. Empty Email or Password skip seeding, which is
-// the intended behaviour in environments that have no use for the
-// password sign-in path (CI without E2E, local /health smoke tests).
+// alongside the server. Empty Email or Password skip seeding entirely
+// — the password sign-in path stays mounted but every request gets
+// 401, which is the intended behaviour in environments that have no
+// use for the password path (local /health smoke tests, dev
+// workstations).
 type TestUserSeed struct {
 	Email    string
 	Password string
@@ -23,55 +25,51 @@ type TestUserSeed struct {
 }
 
 // SeedTestUser creates the password-backed test account if it does not
-// already exist, and refreshes the password hash on every boot so a
-// rotated secret takes effect without manual surgery. Returns nil
-// without doing any work when seed.Email or seed.Password is empty —
-// the deploy has opted out of the password sign-in path.
+// already exist, hashes TEST_USER_PASSWORD, and returns the credentials
+// for the auth Service to keep in memory. Returns (nil, nil) when
+// seed.Email or seed.Password is empty — the deploy has opted out.
 //
-// Idempotent: a returning boot finds the existing user via the
-// oauth_accounts(provider="password") link, leaves the users row
-// alone, and only re-upserts the bcrypt hash.
+// The database stores only the user identity (users + onboarding
+// rows). The password hash is intentionally not persisted: the env
+// var is the source of truth, and computing the hash once at boot
+// avoids drift on secret rotation (rotate the secret → restart the
+// pod → new hash takes effect, no DB surgery needed).
+//
+// Idempotent: a returning boot finds the existing user by email and
+// leaves the row alone (or refreshes the display name).
 func SeedTestUser(
 	ctx context.Context,
 	db *sql.DB,
-	usersStore *users.Store,
-	passwordStore *PasswordStore,
 	onboarding users.OnboardingEnsurer,
 	logger *slog.Logger,
 	seed TestUserSeed,
-) error {
+) (*TestUserCreds, error) {
 	if seed.Email == "" || seed.Password == "" {
 		logger.Info("test user seed skipped",
 			"reason", "TEST_USER_EMAIL or TEST_USER_PASSWORD unset")
-		return nil
+		return nil, nil
 	}
 
-	hash, err := HashPassword(seed.Password)
+	hash, err := hashPassword(seed.Password)
 	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
+		return nil, fmt.Errorf("hash password: %w", err)
 	}
 
-	userID, err := upsertPasswordUser(ctx, db, usersStore, onboarding, seed)
+	userID, err := upsertTestUser(ctx, db, onboarding, seed)
 	if err != nil {
-		return err
-	}
-	if err := passwordStore.Upsert(ctx, userID, hash); err != nil {
-		return err
+		return nil, err
 	}
 	logger.Info("test user seeded", "email", seed.Email, "user_id", userID)
-	return nil
+	return &TestUserCreds{Email: seed.Email, Hash: hash}, nil
 }
 
-// upsertPasswordUser links the seed email to a users row through an
-// oauth_accounts entry under provider=password. Mirrors users.Store
-// .UpsertByOAuth's "lookup-then-insert-or-update" flow but pinned to
-// the password provider so a returning seed boot always finds the
-// same user even if Apple/Google signed someone in with the same
-// email later.
-func upsertPasswordUser(
+// upsertTestUser ensures the users + onboarding rows exist for the
+// configured test email. No oauth_accounts link is created — password
+// sign-in keys off email alone, which keeps the table clean for the
+// real OAuth providers.
+func upsertTestUser(
 	ctx context.Context,
 	db *sql.DB,
-	usersStore *users.Store,
 	onboarding users.OnboardingEnsurer,
 	seed TestUserSeed,
 ) (string, error) {
@@ -82,13 +80,9 @@ func upsertPasswordUser(
 	defer tx.Rollback()
 
 	var userID string
-	err = tx.QueryRowContext(ctx, `
-		SELECT user_id FROM oauth_accounts WHERE provider = ? AND provider_user_id = ?
-	`, passwordProvider, seed.Email).Scan(&userID)
-
+	err = tx.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, seed.Email).Scan(&userID)
 	switch {
 	case err == nil:
-		// Existing seed link — refresh the display name if provided.
 		if seed.Name != "" {
 			if _, err := tx.ExecContext(ctx, `
 				UPDATE users SET name = ?, updated_at = datetime('now') WHERE id = ?
@@ -97,42 +91,21 @@ func upsertPasswordUser(
 			}
 		}
 	case errors.Is(err, sql.ErrNoRows):
-		// First-time seed (or first time this email is seeded). Match
-		// by email so a manual users-row insert in dev still hooks up
-		// to the password row instead of failing the UNIQUE(email)
-		// constraint.
-		err = tx.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, seed.Email).Scan(&userID)
-		if errors.Is(err, sql.ErrNoRows) {
-			userID = uuid.NewString()
-			name := seed.Name
-			if name == "" {
-				name = seed.Email
-			}
-			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO users (id, email, name) VALUES (?, ?, ?)
-			`, userID, seed.Email, name); err != nil {
-				return "", fmt.Errorf("insert user: %w", err)
-			}
-		} else if err != nil {
-			return "", fmt.Errorf("lookup by email: %w", err)
+		userID = uuid.NewString()
+		name := seed.Name
+		if name == "" {
+			name = seed.Email
 		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO oauth_accounts (provider, provider_user_id, user_id) VALUES (?, ?, ?)
-		`, passwordProvider, seed.Email, userID); err != nil {
-			return "", fmt.Errorf("insert oauth_account: %w", err)
+			INSERT INTO users (id, email, name) VALUES (?, ?, ?)
+		`, userID, seed.Email, name); err != nil {
+			return "", fmt.Errorf("insert user: %w", err)
 		}
 	default:
-		return "", fmt.Errorf("lookup oauth: %w", err)
+		return "", fmt.Errorf("lookup user: %w", err)
 	}
 
 	if err := onboarding.EnsureRowTx(ctx, tx, userID); err != nil {
-		return "", err
-	}
-
-	// Use the existing read helper to make sure the row is fully
-	// hydrated (catches cases where the insert raced with a parallel
-	// boot somehow).
-	if _, err := usersStore.GetByIDTx(ctx, tx, userID); err != nil {
 		return "", err
 	}
 

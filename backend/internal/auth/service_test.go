@@ -51,12 +51,6 @@ CREATE TABLE refresh_tokens (
   revoked_at  TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE TABLE password_credentials (
-  user_id       TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  password_hash TEXT NOT NULL,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
-);
 CREATE TABLE records (
   id         TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
