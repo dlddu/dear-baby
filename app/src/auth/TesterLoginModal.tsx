@@ -68,11 +68,16 @@ export function TesterLoginModal({ visible, onClose }: TesterLoginModalProps) {
       animationType="fade"
       transparent
       onRequestClose={close}
-      testID="tester-login-modal"
     >
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // testID lives on the inner KeyboardAvoidingView rather than
+        // the Modal itself: RN's Modal renders into a separate native
+        // window (UIWindow on iOS, Dialog on Android), and the
+        // accessibility identifier on the host doesn't always surface
+        // in the tree Maestro queries — a child View reliably does.
+        testID="tester-login-modal"
       >
         <Pressable style={styles.backdrop} onPress={close} />
         <Card style={styles.card} padding="lg">

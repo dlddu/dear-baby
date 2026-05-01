@@ -44,8 +44,10 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "tester-corner-tr"
 
-- assertVisible:
-    id: "tester-login-modal"
+- extendedWaitUntil:
+    visible:
+      id: "tester-login-modal"
+    timeout: 5000
 
 - tapOn:
     id: "tester-login-email"
