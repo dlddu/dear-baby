@@ -20,6 +20,13 @@ jobs:
       # MinIO instance set up below, so the records-audio backend
       # contract gets exercised end-to-end in CI.
       EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
+      # Strip the Apple Sign-In entitlement from the prebuild output. Once
+      # an entitlement carrying a capability is present, Xcode requires a
+      # valid code-signing identity — the macOS runner has none installed,
+      # so `expo run:ios` would fail with "No code signing certificates
+      # are available." TestFlight builds (deploy-testflight.yml) leave
+      # this unset and keep the entitlement intact.
+      EXPO_USES_APPLE_SIGNIN: "0"
 
     steps:
       - name: Checkout

@@ -16,7 +16,6 @@
     "ios": {
       "bundleIdentifier": "com.dlddu.dearbaby",
       "supportsTablet": true,
-      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "음성으로 기록을 남기실 때 마이크 사용 권한이 필요해요."
