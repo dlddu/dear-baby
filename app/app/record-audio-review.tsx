@@ -27,6 +27,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../src/components/Button';
+import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
 import { useAuth } from '../src/auth/AuthContext';
 import * as draftStore from '../src/drafts/draftStore';
@@ -46,9 +47,16 @@ export default function RecordAudioReviewScreen() {
   const params = useLocalSearchParams<{
     audio_path?: string;
     audio_duration_ms?: string;
+    question?: string;
+    week_label?: string;
   }>();
   const audioPath = typeof params.audio_path === 'string' ? params.audio_path : '';
   const audioDurationMs = Number(params.audio_duration_ms ?? '0') || 0;
+  const question = typeof params.question === 'string' ? params.question : '';
+  const weekLabel =
+    typeof params.week_label === 'string' && params.week_label.length > 0
+      ? params.week_label
+      : null;
 
   const { createVoiceRecord } = useAuth();
   const [content, setContent] = useState('');
@@ -123,7 +131,7 @@ export default function RecordAudioReviewScreen() {
     if (!canSave) return;
     setPhase('saving');
     try {
-      const record = await createVoiceRecord(trimmed);
+      const record = await createVoiceRecord(trimmed, question || undefined);
       await persistDraftOnSuccess(record.id, record.created_at);
       router.replace('/(tabs)');
     } catch (err) {
@@ -131,13 +139,13 @@ export default function RecordAudioReviewScreen() {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
-  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed]);
+  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question]);
 
   const handleSaveAndUpload = useCallback(async () => {
     if (!canSave) return;
     setPhase('saving_and_uploading');
     try {
-      const record = await createVoiceRecord(trimmed);
+      const record = await createVoiceRecord(trimmed, question || undefined);
       await persistDraftOnSuccess(record.id, record.created_at);
       // Fire the upload — uploadAudio handles its own errors and
       // marks the LocalAudio as 'failed' on the way out, so we don't
@@ -156,7 +164,7 @@ export default function RecordAudioReviewScreen() {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
-  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed]);
+  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question]);
 
   const handleCancel = useCallback(() => {
     router.back();
@@ -189,6 +197,11 @@ export default function RecordAudioReviewScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
+          <RecordQuestionHeader
+            question={question}
+            weekLabel={weekLabel}
+            testID="record-audio-review-question-header"
+          />
           <Text variant="h2" color="primary" style={styles.title}>
             방금 들려주신 말이에요
           </Text>

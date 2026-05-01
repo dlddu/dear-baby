@@ -38,12 +38,12 @@ type AuthContextValue = {
   setSession: (session: Session) => Promise<void>;
   completeOnboarding: (dueDate: string | null) => Promise<void>;
   dismissVoiceCoachmark: () => Promise<void>;
-  createTextRecord: (content: string) => Promise<void>;
+  createTextRecord: (content: string, questionText?: string) => Promise<void>;
   // createVoiceRecord saves the transcript with source="voice". The
   // returned Record is what the caller needs to either move on or
   // kick off the audio upload pipeline (record.id is the key for the
   // draft store + presigned URL).
-  createVoiceRecord: (content: string) => Promise<Record>;
+  createVoiceRecord: (content: string, questionText?: string) => Promise<Record>;
   applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -139,22 +139,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Responsibility is strictly storage + user cache update — the home
   // screen observes `first_record_at` to decide when to request an AI
   // preview and subscribe to the SSE stream.
-  const createTextRecord = useCallback(async (content: string) => {
-    const { user: updated } = await apiCreateTextRecord(content);
-    setUser(updated);
-    await cacheFromUser(updated);
-  }, []);
+  const createTextRecord = useCallback(
+    async (content: string, questionText?: string) => {
+      const { user: updated } = await apiCreateTextRecord(content, questionText);
+      setUser(updated);
+      await cacheFromUser(updated);
+    },
+    [],
+  );
 
   // createVoiceRecord saves the transcript half of a voice record. The
   // audio upload (or the decision to keep the audio local-only) is
   // handled by the review screen, which uses the returned record_id
   // to feed the draft store and/or uploadAudio orchestrator.
-  const createVoiceRecord = useCallback(async (content: string) => {
-    const { record, user: updated } = await apiCreateVoiceRecord(content);
-    setUser(updated);
-    await cacheFromUser(updated);
-    return record;
-  }, []);
+  const createVoiceRecord = useCallback(
+    async (content: string, questionText?: string) => {
+      const { record, user: updated } = await apiCreateVoiceRecord(
+        content,
+        questionText,
+      );
+      setUser(updated);
+      await cacheFromUser(updated);
+      return record;
+    },
+    [],
+  );
 
   // applyAiPreview is called by the home screen when the SSE stream
   // delivers a `ready` event. It merges the new preview text into the

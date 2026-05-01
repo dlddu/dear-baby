@@ -48,12 +48,13 @@ CREATE TABLE onboarding (
   updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (
-  id           TEXT PRIMARY KEY,
-  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  content      TEXT NOT NULL,
-  source       TEXT NOT NULL DEFAULT 'text' CHECK(source IN ('text','voice')),
-  audio_s3_key TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content       TEXT NOT NULL,
+  source        TEXT NOT NULL DEFAULT 'text' CHECK(source IN ('text','voice')),
+  audio_s3_key  TEXT,
+  question_text TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `
 	if _, err := db.Exec(schema); err != nil {
@@ -207,6 +208,116 @@ func TestCreate_InvalidSource_400(t *testing.T) {
 	rec := post(t, h, "u1", `{"content":"x","source":"audio"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
+
+func TestCreate_QuestionText_PersistedAndEchoed(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+
+	question := "요즘 아기가 가장 활발하게 움직인 순간은 언제였나요?"
+	body, _ := json.Marshal(map[string]string{
+		"content":       "오늘 처음으로 태동을 느꼈어요.",
+		"question_text": question,
+	})
+	rec := post(t, h, "u1", string(body))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got createResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Record == nil || got.Record.QuestionText == nil {
+		t.Fatalf("question_text missing in response: %+v", got.Record)
+	}
+	if *got.Record.QuestionText != question {
+		t.Errorf("question_text: got %q want %q", *got.Record.QuestionText, question)
+	}
+
+	// Re-query to verify persistence (not just echo).
+	var stored sql.NullString
+	if err := db.QueryRow(`SELECT question_text FROM records WHERE id=?`, got.Record.ID).Scan(&stored); err != nil {
+		t.Fatalf("requery: %v", err)
+	}
+	if !stored.Valid || stored.String != question {
+		t.Errorf("question_text not persisted: %v", stored)
+	}
+}
+
+func TestCreate_VoiceWithQuestion_PersistedAndEchoed(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+
+	question := "오늘 아기에게 어떤 노래를 들려주고 싶나요?"
+	body, _ := json.Marshal(map[string]string{
+		"content":       "방금 들려준 자장가가 마음에 드는 것 같아요.",
+		"source":        "voice",
+		"question_text": question,
+	})
+	rec := post(t, h, "u1", string(body))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got createResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Record.Source != SourceVoice {
+		t.Errorf("source: got %q want %q", got.Record.Source, SourceVoice)
+	}
+	if got.Record.QuestionText == nil || *got.Record.QuestionText != question {
+		t.Errorf("question_text: got %v want %q", got.Record.QuestionText, question)
+	}
+}
+
+func TestCreate_NoQuestion_QuestionTextIsNull(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+
+	rec := post(t, h, "u1", `{"content":"질문 없이 저장"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got createResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Record.QuestionText != nil {
+		t.Errorf("question_text: expected null, got %q", *got.Record.QuestionText)
+	}
+}
+
+func TestCreate_QuestionTextTooLong_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+
+	long := strings.Repeat("가", 501)
+	body, _ := json.Marshal(map[string]string{
+		"content":       "ok",
+		"question_text": long,
+	})
+	rec := post(t, h, "u1", string(body))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
+
+func TestCreate_QuestionTextWhitespaceOnly_StoredAsNull(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+
+	body := `{"content":"ok","question_text":"   \n\t  "}`
+	rec := post(t, h, "u1", body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got createResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Record.QuestionText != nil {
+		t.Errorf("whitespace-only question_text should collapse to null, got %q", *got.Record.QuestionText)
 	}
 }
 

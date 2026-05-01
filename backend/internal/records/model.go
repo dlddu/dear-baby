@@ -23,11 +23,15 @@ func (s Source) Valid() bool {
 // Record represents a single entry in the records table. Records are the
 // user's raw diary content. AudioS3Key is nullable and may stay nil
 // forever — the user can choose to keep audio local-only or delete it.
+// QuestionText is the daily question the home screen surfaced when this
+// record was created, persisted for context. Nullable because not all
+// entry points (deep links, future flows) supply one.
 type Record struct {
-	ID         string    `json:"id"`
-	UserID     string    `json:"user_id"`
-	Source     Source    `json:"source"`
-	Content    string    `json:"content"`
-	AudioS3Key *string   `json:"audio_s3_key"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	Source       Source    `json:"source"`
+	Content      string    `json:"content"`
+	QuestionText *string   `json:"question_text"`
+	AudioS3Key   *string   `json:"audio_s3_key"`
+	CreatedAt    time.Time `json:"created_at"`
 }

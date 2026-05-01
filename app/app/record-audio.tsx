@@ -6,7 +6,7 @@
 // 이 화면은 전송 / STT / 저장 어떤 것도 하지 않는다. 책임은 마이크 권한,
 // 녹음 토글, 시각적 피드백뿐이다.
 
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../src/components/Button';
+import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
 import { colors } from '../src/theme/colors';
 import { radius } from '../src/theme/radius';
@@ -37,6 +38,13 @@ function formatTime(ms: number): string {
 
 export default function RecordAudioScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ question?: string; week_label?: string }>();
+  const question = typeof params.question === 'string' ? params.question : '';
+  const weekLabel =
+    typeof params.week_label === 'string' && params.week_label.length > 0
+      ? params.week_label
+      : null;
+
   const [isRecording, setIsRecording] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   // recorderRef holds the active recorder instance for the lifetime
@@ -105,6 +113,8 @@ export default function RecordAudioScreen() {
         params: {
           audio_path: result.uri,
           audio_duration_ms: String(result.durationMs),
+          question,
+          week_label: weekLabel ?? '',
         },
       });
     } catch (err) {
@@ -112,7 +122,7 @@ export default function RecordAudioScreen() {
       Alert.alert('녹음 종료 실패', '잠시 후 다시 시도해 주세요.');
       setIsRecording(false);
     }
-  }, [router, stopTicker]);
+  }, [router, stopTicker, question, weekLabel]);
 
   const handleCancel = useCallback(async () => {
     stopTicker();
@@ -139,6 +149,13 @@ export default function RecordAudioScreen() {
           </Text>
         </Pressable>
       </View>
+
+      <RecordQuestionHeader
+        question={question}
+        weekLabel={weekLabel}
+        style={styles.questionHeader}
+        testID="record-audio-question-header"
+      />
 
       <View style={styles.body}>
         <Text variant="h2" color="primary" style={styles.title}>
@@ -197,6 +214,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: spacing[5],
     paddingVertical: spacing[3],
+  },
+  questionHeader: {
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[2],
+    paddingBottom: spacing[3],
   },
   body: {
     flex: 1,

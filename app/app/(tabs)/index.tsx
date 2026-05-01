@@ -140,13 +140,19 @@ export default function HomeTab() {
 
   const handleVoicePress = useCallback(() => {
     if (showCoachmark) handleDismissCoachmark();
-    router.push('/record-audio');
-  }, [router, showCoachmark, handleDismissCoachmark]);
+    router.push({
+      pathname: '/record-audio',
+      params: { question, week_label: pregnancy?.label ?? '' },
+    });
+  }, [router, showCoachmark, handleDismissCoachmark, question, pregnancy]);
 
   const handleTextPress = useCallback(() => {
     if (showCoachmark) handleDismissCoachmark();
-    router.push('/record-text');
-  }, [router, showCoachmark, handleDismissCoachmark]);
+    router.push({
+      pathname: '/record-text',
+      params: { question, week_label: pregnancy?.label ?? '' },
+    });
+  }, [router, showCoachmark, handleDismissCoachmark, question, pregnancy]);
 
   const handleDraftsPress = useCallback(() => {
     router.push('/drafts');

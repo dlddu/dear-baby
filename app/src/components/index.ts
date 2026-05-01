@@ -11,3 +11,5 @@ export { Badge } from './Badge';
 export type { BadgeProps } from './Badge';
 export { IconCircle } from './IconCircle';
 export type { IconCircleProps } from './IconCircle';
+export { RecordQuestionHeader } from './RecordQuestionHeader';
+export type { RecordQuestionHeaderProps } from './RecordQuestionHeader';
