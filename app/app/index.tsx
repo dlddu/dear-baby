@@ -156,6 +156,12 @@ function AppleSignInButton() {
 // in production — the Apple beta reviewer uses this gesture to log in
 // with the seeded test account, and the Maestro flows drive it via
 // the testIDs.
+//
+// They MUST stay in the accessibility tree (no `accessibilityElementsHidden`,
+// no `importantForAccessibility="no-hide-descendants"`) — Maestro's
+// element lookup uses the same accessibility identifiers Apple/Google
+// expose, so hiding the pressables there hides them from the test
+// harness too.
 export default function Landing() {
   const [status, setStatus] = useState('');
   const [testerLoginVisible, setTesterLoginVisible] = useState(false);
@@ -198,15 +204,15 @@ export default function Landing() {
 
       <Pressable
         testID="tester-corner-tl"
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
+        accessibilityRole="button"
+        accessibilityLabel="tester corner top left"
         onPress={onLeftPress}
         style={[styles.cornerHit, styles.cornerHitTopLeft]}
       />
       <Pressable
         testID="tester-corner-tr"
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
+        accessibilityRole="button"
+        accessibilityLabel="tester corner top right"
         onPress={onRightPress}
         style={[styles.cornerHit, styles.cornerHitTopRight]}
       />
