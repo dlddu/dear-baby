@@ -47,7 +47,7 @@ updated: 2026-04-15
 | 미디어 *(제안)* | `Media` | `media`, `mediaItem` | `media` / `media_id`, `media_type` | 기록에 첨부된 사진/영상/음성 메모 | PRD-005, V-007 |
 | 임신 주차 *(제안)* | `PregnancyWeek` (number) | `pregnancyWeek`, `currentWeek` | `pregnancy_week` | 출산 예정일 기반으로 계산된 현재 주차 | PRD-002, AC-002-02 |
 | 출산 예정일 *(제안)* | `DueDate` (ISO 8601 date string) | `dueDate` | `due_date` | EDD. 사용자가 입력하며 임신 주차 계산의 기준 | PRD-002, AC-002-02 |
-| OAuth 계정 연결 | — (DB only) | — | `oauth_accounts` / `provider`, `provider_user_id` | 사용자와 외부 OAuth 제공자(예: Google)의 연결 | `backend/internal/migrations/0001_users.up.sql` |
+| OAuth 계정 연결 | — (DB only) | — | `oauth_accounts` / `provider`, `provider_user_id` | 사용자와 외부 OAuth 제공자(Google, Apple)의 연결 | `backend/internal/migrations/0001_users.up.sql` |
 | 리프레시 토큰 저장소 | `RefreshStore` | `refreshStore` | `refresh_tokens` | 서버에 영속되는 리프레시 토큰 레코드 | `backend/internal/auth/store.go` |
 
 ## 문서 ID 체계

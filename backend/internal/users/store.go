@@ -57,10 +57,18 @@ func (s *Store) UpsertByOAuth(ctx context.Context, onb OnboardingEnsurer, provid
 
 	switch {
 	case err == nil:
-		// Existing oauth link — update profile.
+		// Existing oauth link — update profile. Empty incoming values
+		// preserve the previously stored name/picture rather than
+		// clobbering them: Apple withholds the display name on every
+		// sign-in after the first, so a naive overwrite would wipe it
+		// out for returning Apple users.
 		if _, err := tx.ExecContext(ctx, `
-			UPDATE users SET name = ?, picture_url = ?, updated_at = datetime('now') WHERE id = ?
-		`, name, picture, userID); err != nil {
+			UPDATE users SET
+			  name        = CASE WHEN ? = '' THEN name        ELSE ? END,
+			  picture_url = CASE WHEN ? = '' THEN picture_url ELSE ? END,
+			  updated_at  = datetime('now')
+			WHERE id = ?
+		`, name, name, picture, picture, userID); err != nil {
 			return nil, fmt.Errorf("update user: %w", err)
 		}
 	case errors.Is(err, sql.ErrNoRows):
@@ -76,9 +84,15 @@ func (s *Store) UpsertByOAuth(ctx context.Context, onb OnboardingEnsurer, provid
 		} else if err != nil {
 			return nil, fmt.Errorf("lookup by email: %w", err)
 		} else {
+			// Same empty-preserves-existing semantics as the
+			// oauth-link branch above.
 			if _, err := tx.ExecContext(ctx, `
-				UPDATE users SET name = ?, picture_url = ?, updated_at = datetime('now') WHERE id = ?
-			`, name, picture, userID); err != nil {
+				UPDATE users SET
+				  name        = CASE WHEN ? = '' THEN name        ELSE ? END,
+				  picture_url = CASE WHEN ? = '' THEN picture_url ELSE ? END,
+				  updated_at  = datetime('now')
+				WHERE id = ?
+			`, name, name, picture, picture, userID); err != nil {
 				return nil, fmt.Errorf("update user by email: %w", err)
 			}
 		}

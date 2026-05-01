@@ -28,6 +28,11 @@ rm -f dear-baby.db dear-baby.db-*
 | `JWT_ACCESS_TTL` | `15m` | Access token lifetime (`time.ParseDuration` format). |
 | `JWT_REFRESH_TTL` | `720h` | Refresh token lifetime (30 days). |
 | `GOOGLE_ALLOWED_AUDIENCES` | _empty_ | Comma-separated list of Google OAuth client IDs that `POST /auth/google` will accept. Usually the iOS, Android, and Web client IDs. If empty, `/auth/google` returns 500 but the rest of the service still works (this is why CI's health check still passes without Google env vars). |
+| `APPLE_TEAM_ID` | _empty_ | Apple Developer Team ID (10 chars). Required for Sign in with Apple. |
+| `APPLE_CLIENT_ID` | _empty_ | Bundle ID for the iOS app (or Services ID for web). Apple sets this as the `aud` claim on the id_token. |
+| `APPLE_KEY_ID` | _empty_ | 10-char Key ID of the .p8 private key. |
+| `APPLE_PRIVATE_KEY` | _empty_ | PEM contents of the .p8 file. Literal `\n` sequences are normalized to real newlines so the value round-trips through k8s/GitHub Actions secrets. |
+| `APPLE_PRIVATE_KEY_PATH` | _empty_ | Alternative to `APPLE_PRIVATE_KEY`: path to the .p8 file on disk. Ignored when `APPLE_PRIVATE_KEY` is set. |
 
 ## Endpoints
 
@@ -37,6 +42,13 @@ rm -f dear-baby.db dear-baby.db-*
 - `POST /auth/google` — body `{"id_token": "..."}`. Verifies the Google ID
   token via `google.golang.org/api/idtoken`, upserts the user, and returns
   `{"access_token","refresh_token","user"}`.
+- `POST /auth/apple` — body
+  `{"code": "...", "given_name": "...", "family_name": "..."}`. Exchanges
+  the Apple authorization code via
+  `github.com/Timothylock/go-signin-with-apple`, upserts the user under
+  `provider="apple"`, and returns the same session shape. `given_name`
+  / `family_name` are only present on the first sign-in. Returns 503 if
+  any of the `APPLE_*` env vars are unset.
 - `POST /auth/refresh` — body `{"refresh_token": "..."}`. Rotates the
   refresh token and returns a new pair.
 - `POST /auth/logout` — body `{"refresh_token": "..."}`. Idempotent, always

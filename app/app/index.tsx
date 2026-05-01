@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
@@ -6,7 +7,11 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '../src/components/Button';
 import { Text } from '../src/components/Text';
-import { exchangeGoogleIdToken, testLogin } from '../src/api/auth';
+import {
+  exchangeAppleAuthCode,
+  exchangeGoogleIdToken,
+  testLogin,
+} from '../src/api/auth';
 import { useAuth } from '../src/auth/AuthContext';
 import {
   API_URL,
@@ -73,6 +78,69 @@ function GoogleSignInButton() {
         Sign in with Google
       </Text>
     </Pressable>
+  );
+}
+
+// AppleSignInButton renders Apple's branded "Sign in with Apple" button on
+// iOS and exchanges the returned authorization code with the backend. Apple
+// only delivers the user's full name on the very first sign-in, so we
+// forward whatever we get and let the backend persist it; on subsequent
+// sign-ins Apple sends a null fullName and the backend keeps the previously
+// stored value (see users.Store.UpsertByOAuth).
+function AppleSignInButton() {
+  const { setSession } = useAuth();
+  const [available, setAvailable] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    AppleAuthentication.isAvailableAsync()
+      .then((ok) => {
+        if (!cancelled) setAvailable(ok);
+      })
+      .catch(() => {
+        // Older iOS or simulator without Apple ID — leave button hidden.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!available) return null;
+
+  const onPress = async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.authorizationCode) {
+        console.error('apple sign-in: missing authorizationCode');
+        return;
+      }
+      const session = await exchangeAppleAuthCode({
+        code: credential.authorizationCode,
+        givenName: credential.fullName?.givenName ?? null,
+        familyName: credential.fullName?.familyName ?? null,
+      });
+      await setSession(session);
+    } catch (e: any) {
+      // ERR_REQUEST_CANCELED is the user dismissing the modal — silent.
+      if (e?.code === 'ERR_REQUEST_CANCELED') return;
+      console.error('apple sign-in failed', e);
+    }
+  };
+
+  return (
+    <AppleAuthentication.AppleAuthenticationButton
+      testID="apple-signin-button"
+      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+      cornerRadius={radius.sm}
+      style={styles.appleButton}
+      onPress={onPress}
+    />
   );
 }
 
@@ -158,6 +226,7 @@ export default function Landing() {
         </Text>
       )}
       {hasGoogleConfig && <GoogleSignInButton />}
+      {Platform.OS === 'ios' && <AppleSignInButton />}
       {TEST_AUTH_ENABLED && <TestLoginButtons />}
       <StatusBar style="dark" />
     </View>
@@ -198,5 +267,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[5],
     alignSelf: 'stretch',
     alignItems: 'center',
+  },
+  // Apple HIG requires the proprietary AppleAuthenticationButton with a
+  // fixed height/width set via style. Background color and border radius
+  // must be controlled by buttonStyle/cornerRadius props (see component
+  // docs); we only set width + height here.
+  appleButton: {
+    alignSelf: 'stretch',
+    height: 48,
   },
 });

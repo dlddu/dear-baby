@@ -1,6 +1,13 @@
+require "json"
+
 default_platform(:ios)
 
-APPLE_TEAM_ID = "RBX39XRW2J".freeze
+# Single source of truth for the Apple Team ID lives in app.json under
+# ios.appleTeamId — Expo prebuild reads it from there to stamp
+# DEVELOPMENT_TEAM into the Xcode project, so this lane reuses the same
+# value to avoid drift between TestFlight and prebuild.
+APPLE_TEAM_ID = JSON.parse(File.read(File.expand_path("../app.json", __dir__))) \
+  .fetch("expo").fetch("ios").fetch("appleTeamId").freeze
 
 platform :ios do
   desc "Build the iOS app and upload it to TestFlight"

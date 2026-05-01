@@ -19,6 +19,11 @@ type Config struct {
 	JWTAccessTTL    time.Duration
 	JWTRefreshTTL   time.Duration
 	GoogleAudiences []string
+	// Apple holds the credentials needed to exchange an Apple authorization
+	// code for an id_token. All four values are required for Apple sign-in
+	// to work; if any is empty, POST /auth/apple returns 503 and the rest
+	// of the service still functions (Google sign-in, /me, etc).
+	Apple AppleConfig
 	// TestAuthEnabled, when true, causes the router to mount the
 	// POST /auth/test-login endpoint used by the Maestro E2E flow. It must
 	// NEVER be enabled in production — the endpoint issues a valid JWT
@@ -34,6 +39,20 @@ type Config struct {
 	// is missing, so a misconfigured deploy never silently degrades to
 	// "audio routes disabled".
 	AWS AWSConfig
+}
+
+// AppleConfig holds the credentials Sign in with Apple needs to verify
+// an authorization code: the Apple Developer Team ID, the bundle ID
+// (`aud` on the id_token Apple returns), the 10-character Key ID, and
+// the PEM-encoded contents of the .p8 private key downloaded from the
+// developer portal. Fields are loaded from env at boot and validated
+// lazily inside the auth handler so a deploy without Apple credentials
+// still serves the rest of the API.
+type AppleConfig struct {
+	TeamID     string
+	ClientID   string
+	KeyID      string
+	PrivateKey string
 }
 
 // AWSConfig groups the S3 settings the records-audio pipeline reads.
@@ -80,6 +99,13 @@ func Load() (*Config, error) {
 				cfg.GoogleAudiences = append(cfg.GoogleAudiences, s)
 			}
 		}
+	}
+
+	cfg.Apple = AppleConfig{
+		TeamID:     strings.TrimSpace(os.Getenv("APPLE_TEAM_ID")),
+		ClientID:   strings.TrimSpace(os.Getenv("APPLE_CLIENT_ID")),
+		KeyID:      strings.TrimSpace(os.Getenv("APPLE_KEY_ID")),
+		PrivateKey: appleKeyFromEnv(),
 	}
 
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("TEST_AUTH_ENABLED"))) {
@@ -134,6 +160,49 @@ func (c *Config) RequireAuthEnv() error {
 		return errors.New("GOOGLE_ALLOWED_AUDIENCES must be set")
 	}
 	return nil
+}
+
+// RequireAppleEnv returns an error if any of the Apple credentials are
+// missing. Called lazily inside the Apple sign-in handler so a deploy
+// without Apple credentials still serves the rest of the API.
+func (c *Config) RequireAppleEnv() error {
+	missing := []string{}
+	if c.Apple.TeamID == "" {
+		missing = append(missing, "APPLE_TEAM_ID")
+	}
+	if c.Apple.ClientID == "" {
+		missing = append(missing, "APPLE_CLIENT_ID")
+	}
+	if c.Apple.KeyID == "" {
+		missing = append(missing, "APPLE_KEY_ID")
+	}
+	if c.Apple.PrivateKey == "" {
+		missing = append(missing, "APPLE_PRIVATE_KEY")
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf("apple sign-in env missing: %s", strings.Join(missing, ", "))
+}
+
+// appleKeyFromEnv reads the Apple .p8 private key from one of two env
+// vars: APPLE_PRIVATE_KEY (PEM contents inline) or APPLE_PRIVATE_KEY_PATH
+// (path to the .p8 file). Inline keys may use literal "\n" sequences in
+// place of real newlines, which is the only way to round-trip a multi-line
+// secret through some secret stores (k8s Secret string-data, GitHub
+// Actions secrets) — we normalize them back to real newlines so the PEM
+// decoder accepts the value.
+func appleKeyFromEnv() string {
+	if raw := os.Getenv("APPLE_PRIVATE_KEY"); raw != "" {
+		return strings.ReplaceAll(raw, `\n`, "\n")
+	}
+	if path := os.Getenv("APPLE_PRIVATE_KEY_PATH"); path != "" {
+		b, err := os.ReadFile(path)
+		if err == nil {
+			return string(b)
+		}
+	}
+	return ""
 }
 
 func getenv(k, def string) string {

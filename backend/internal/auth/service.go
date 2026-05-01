@@ -8,15 +8,26 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
-// Service orchestrates Google sign-in, token refresh, and logout. It
-// combines the Google verifier, the users store, the refresh-token store,
-// and the JWT issuer.
+// AppleCodeVerifier is the contract Service relies on for Apple sign-in.
+// The production implementation is *AppleVerifier, which exchanges the
+// authorization code with Apple's token endpoint. Tests can substitute
+// a stub that returns canned claims without making a network call or
+// needing a real ECDSA private key.
+type AppleCodeVerifier interface {
+	Verify(ctx context.Context, code string) (*AppleClaims, error)
+}
+
+// Service orchestrates Google sign-in, Apple sign-in, token refresh, and
+// logout. It combines the verifiers, the users store, the refresh-token
+// store, and the JWT issuer. Apple is optional — leaving AppleVerifier nil
+// keeps the Apple endpoint disabled without affecting Google sign-in.
 type Service struct {
-	Verifier   *GoogleVerifier
-	Users      *users.Store
-	Onboarding users.OnboardingEnsurer
-	Refresh    *RefreshStore
-	Issuer     *Issuer
+	Verifier      *GoogleVerifier
+	AppleVerifier AppleCodeVerifier
+	Users         *users.Store
+	Onboarding    users.OnboardingEnsurer
+	Refresh       *RefreshStore
+	Issuer        *Issuer
 }
 
 // SessionResult bundles the artifacts returned by SignInWithGoogle and Refresh.
@@ -40,6 +51,65 @@ func (s *Service) SignInWithGoogle(ctx context.Context, idToken string) (*Sessio
 		return nil, fmt.Errorf("upsert: %w", err)
 	}
 	return s.issueSession(ctx, u.ID)
+}
+
+// AppleSignInInput carries the fields the iOS Sign in with Apple flow
+// returns to the client. Code is the authorization_code that the backend
+// exchanges with Apple. FullName is delivered by Apple only on the first
+// sign-in (and only if the user did not opt out), so we keep it optional
+// and let the caller pass empty strings.
+type AppleSignInInput struct {
+	Code       string
+	GivenName  string
+	FamilyName string
+}
+
+// SignInWithApple exchanges an Apple authorization code for an id_token,
+// upserts the user under provider="apple", and returns a fresh session.
+//
+// Apple's identity token never includes a display name — the client is the
+// only source. To preserve the name across re-installs we only overwrite
+// the stored name when the client sends a non-empty GivenName/FamilyName,
+// and we leave the previous value in place otherwise (handled inside
+// users.Store.UpsertByOAuth via the empty-string semantics it already uses
+// for Google's missing fields).
+func (s *Service) SignInWithApple(ctx context.Context, in AppleSignInInput) (*SessionResult, error) {
+	if s.AppleVerifier == nil {
+		return nil, fmt.Errorf("apple sign-in not configured")
+	}
+	claims, err := s.AppleVerifier.Verify(ctx, in.Code)
+	if err != nil {
+		return nil, fmt.Errorf("apple verify: %w", err)
+	}
+
+	email := claims.Email
+	if email == "" {
+		// Apple withholds email on subsequent sign-ins. Use a stable
+		// per-account placeholder so the unique-email constraint on
+		// the users table never blocks the upsert. The placeholder is
+		// scoped to Apple's `sub` so a returning user always lands on
+		// the same row.
+		email = claims.Sub + "@privaterelay.appleid.local"
+	}
+
+	name := joinName(in.GivenName, in.FamilyName)
+
+	u, err := s.Users.UpsertByOAuth(ctx, s.Onboarding, "apple", claims.Sub, email, name, "")
+	if err != nil {
+		return nil, fmt.Errorf("upsert: %w", err)
+	}
+	return s.issueSession(ctx, u.ID)
+}
+
+func joinName(given, family string) string {
+	switch {
+	case given != "" && family != "":
+		return given + " " + family
+	case given != "":
+		return given
+	default:
+		return family
+	}
 }
 
 // RefreshSession consumes and rotates a refresh token, returning a new pair.
