@@ -79,7 +79,16 @@ export function TesterLoginModal({ visible, onClose }: TesterLoginModalProps) {
         // in the tree Maestro queries — a child View reliably does.
         testID="tester-login-modal"
       >
-        <Pressable style={styles.backdrop} onPress={close} />
+        {/*
+          Plain View, not a Pressable — backdrop dims the screen but
+          does not act as a tap-to-close target. Maestro's iOS
+          `hideKeyboard` simulates a tap somewhere outside the
+          keyboard, and on a transparent modal that tap lands on the
+          backdrop. With onPress={close} attached, the modal would
+          get dismissed mid-flow and the next field tap would fail
+          (element gone). Cancel button is the explicit close path.
+        */}
+        <View style={styles.backdrop} pointerEvents="none" />
         <Card style={styles.card} padding="lg">
           <Text variant="h2" color="primary" style={styles.title}>
             테스터 로그인
