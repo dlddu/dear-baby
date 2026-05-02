@@ -25,16 +25,19 @@ platform :ios do
     )
   end
 
-  desc "Build the iOS app, upload it to TestFlight, and submit it to external Beta App Review"
+  desc "Promote an already-uploaded TestFlight build to the external group and submit it for Beta App Review"
   lane :external_beta do
     require_external_beta_env!
-    build_release_ipa
+
+    build_number = ENV["TESTFLIGHT_BUILD_NUMBER"]
+    UI.user_error!("TESTFLIGHT_BUILD_NUMBER must be set") if build_number.to_s.empty?
+
     api_key = load_app_store_connect_api_key
 
-    sha = ENV["GIT_SHA"].to_s
-    short_sha = sha[0, 7]
+    app_version = APP_JSON.fetch("version")
+    short_sha = ENV["GIT_SHA"].to_s[0, 7]
     whats_new = ENV["TESTFLIGHT_WHATS_NEW"].to_s.empty? \
-      ? "Build #{short_sha}" \
+      ? "Build #{short_sha} (#{build_number})" \
       : ENV["TESTFLIGHT_WHATS_NEW"]
 
     groups = ENV["TESTFLIGHT_EXTERNAL_GROUP"].to_s.split(",").map(&:strip).reject(&:empty?)
@@ -44,14 +47,19 @@ platform :ios do
     # Connect, otherwise the upload will be rejected.
     locale = ENV["TESTFLIGHT_REVIEW_LOCALE"]
 
+    # `distribute_only: true` skips the IPA upload entirely and just
+    # promotes the build identified by (app_version, build_number) — the
+    # one that `:beta` already pushed to TestFlight on the corresponding
+    # PR run — to the external group with review metadata applied.
     upload_to_testflight(
       api_key: api_key,
+      app_identifier: BUNDLE_IDENTIFIER,
+      app_version: app_version,
+      build_number: build_number,
+      distribute_only: true,
       distribute_external: true,
       notify_external_testers: true,
       groups: groups,
-      reject_build_waiting_for_review: true,
-      skip_waiting_for_build_processing: false,
-      changelog: whats_new,
       beta_app_review_info: {
         contact_email: ENV["TESTFLIGHT_BETA_CONTACT_EMAIL"],
         contact_first_name: ENV["TESTFLIGHT_BETA_CONTACT_FIRST_NAME"],
@@ -87,9 +95,10 @@ platform :ios do
   end
 end
 
-# Shared build pipeline: prepares signing material from CI secrets and
-# produces a Release IPA via gym. Used by both `:beta` (internal-only PR
-# previews) and `:external_beta` (external review submission).
+# Build pipeline: prepares signing material from CI secrets and produces
+# a Release IPA via gym. Used by `:beta` (internal-only PR previews).
+# `:external_beta` reuses the IPA `:beta` already pushed to TestFlight,
+# so it doesn't go through this helper.
 def build_release_ipa
   setup_ci
 
@@ -182,8 +191,8 @@ def load_app_store_connect_api_key
   )
 end
 
-# Fail fast at the start of the lane so we don't burn ~15 minutes on a
-# build only to discover a missing review-metadata secret at upload time.
+# Fail fast at the start of the lane so we surface missing review
+# metadata before hitting App Store Connect at all.
 EXTERNAL_BETA_REQUIRED_ENV = %w[
   TESTFLIGHT_EXTERNAL_GROUP
   TESTFLIGHT_BETA_CONTACT_FIRST_NAME
