@@ -1,0 +1,110 @@
+name: Submit iOS to TestFlight (Beta Review)
+
+# Triggered when a PR is labeled `testflight-beta`. Promotes the build
+# that `:beta` already pushed to TestFlight from that PR's CI run to
+# the external group and submits it for Beta App Review.
+#
+# A future App Store production release should use a separate label
+# (and workflow), so this label-name guard keeps the two paths from
+# colliding.
+on:
+  pull_request:
+    types: [labeled]
+
+# Per-SHA so different commits don't block each other; a re-label of
+# the same SHA queues behind any in-flight submission.
+concurrency:
+  group: testflight-beta-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    name: Submit to TestFlight Beta Review
+    if: github.event.label.name == 'testflight-beta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    defaults:
+      run:
+        working-directory: app
+    env:
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+      TESTFLIGHT_EXTERNAL_GROUP: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP }}
+      TESTFLIGHT_BETA_CONTACT_FIRST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_FIRST_NAME }}
+      TESTFLIGHT_BETA_CONTACT_LAST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_LAST_NAME }}
+      TESTFLIGHT_BETA_FEEDBACK_EMAIL: ${{ vars.TESTFLIGHT_BETA_FEEDBACK_EMAIL }}
+      TESTFLIGHT_BETA_PRIVACY_URL: ${{ vars.TESTFLIGHT_BETA_PRIVACY_URL }}
+      TESTFLIGHT_BETA_APP_DESCRIPTION: ${{ vars.TESTFLIGHT_BETA_APP_DESCRIPTION }}
+      TESTFLIGHT_BETA_CONTACT_EMAIL: ${{ secrets.TESTFLIGHT_BETA_CONTACT_EMAIL }}
+      TESTFLIGHT_BETA_CONTACT_PHONE: ${{ secrets.TESTFLIGHT_BETA_CONTACT_PHONE }}
+      TESTFLIGHT_DEMO_ACCOUNT_EMAIL: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_EMAIL }}
+      TESTFLIGHT_DEMO_ACCOUNT_PASSWORD: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_PASSWORD }}
+      TESTFLIGHT_REVIEW_LOCALE: ${{ vars.TESTFLIGHT_REVIEW_LOCALE }}
+      GIT_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Resolve TestFlight build number from deploy-testflight run
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        # The :beta lane stamps `GITHUB_RUN_NUMBER` of the ci.yml run as
+        # the iOS buildNumber (see app/app.config.ts). To find which
+        # TestFlight build corresponds to the PR head, we look up the
+        # ci.yml run that succeeded for that SHA and read its run_number.
+        run: |
+          set -euo pipefail
+
+          gh api -X GET \
+            "repos/${REPO}/actions/workflows/ci.yml/runs" \
+            -f head_sha="${SHA}" \
+            --jq '.workflow_runs' \
+            > /tmp/runs.json
+
+          if [ "$(jq 'length' /tmp/runs.json)" = "0" ]; then
+            echo "::error::No ci.yml run found for ${SHA}. Wait for CI to finish, or push a new commit and re-label."
+            exit 1
+          fi
+
+          RUN_NUMBER=""
+          for run_id in $(jq -r '.[].id' /tmp/runs.json); do
+            STATUS=$(gh api --paginate \
+              "repos/${REPO}/actions/runs/${run_id}/jobs" \
+              --jq '[.jobs[] | select(.name | test("Deploy iOS to TestFlight"))] | .[0].conclusion // empty')
+            if [ "$STATUS" = "success" ]; then
+              RUN_NUMBER=$(jq -r --arg id "$run_id" \
+                '.[] | select((.id|tostring) == $id) | .run_number' \
+                /tmp/runs.json)
+              break
+            fi
+          done
+
+          if [ -z "$RUN_NUMBER" ]; then
+            echo "::error::No successful deploy-testflight job found for ${SHA}. Wait for it to finish, or push a new commit and re-label."
+            exit 1
+          fi
+
+          echo "Resolved TestFlight build number ${RUN_NUMBER}"
+          echo "build_number=${RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: app
+
+      - name: Fastlane external_beta
+        env:
+          TESTFLIGHT_BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
+        run: bundle exec fastlane external_beta
