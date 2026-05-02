@@ -2,10 +2,9 @@ import { StatusBar } from 'expo-status-bar';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import { Button } from '../src/components/Button';
 import { Text } from '../src/components/Text';
 import {
   exchangeAppleAuthCode,
@@ -22,6 +21,7 @@ import {
 } from '../src/config/env';
 import { colors } from '../src/theme/colors';
 import { radius } from '../src/theme/radius';
+import { shadows } from '../src/theme/shadows';
 import { spacing } from '../src/theme/spacing';
 
 // Dismisses the in-app browser when the OAuth redirect returns.
@@ -146,9 +146,10 @@ function AppleSignInButton() {
 
 // Landing screen shown when the user is not authenticated. This screen is
 // load-bearing for the Maestro E2E flow at app/.maestro/health.yaml — it
-// must keep the exact testIDs `root`, `check-health-button`, and
-// `health-status`, and the health fetch must hit
-// `${EXPO_PUBLIC_API_URL}/health` returning `{"status":"ok"}`.
+// must keep the `root` testID, and the auto-fired health fetch must hit
+// `${EXPO_PUBLIC_API_URL}/health` returning `{"status":"ok"}`. When the
+// fetch fails or returns a non-ok status the `health-error-toast` testID
+// becomes visible; CI asserts the inverse to prove the backend is up.
 //
 // The two corner Pressables are intentionally invisible. Tapping the
 // top-left 5–7 times and then the top-right 10+ times opens the
@@ -162,23 +163,80 @@ function AppleSignInButton() {
 // element lookup uses the same accessibility identifiers Apple/Google
 // expose, so hiding the pressables there hides them from the test
 // harness too.
+const TOAST_VISIBLE_MS = 3500;
+const TOAST_FADE_MS = 200;
+const TOAST_OFFSET_PX = 12;
+
 export default function Landing() {
-  const [status, setStatus] = useState('');
   const [testerLoginVisible, setTesterLoginVisible] = useState(false);
+  const [errorVisible, setErrorVisible] = useState(false);
+  const [healthChecked, setHealthChecked] = useState(false);
+  const errorOpacity = useRef(new Animated.Value(0)).current;
+  const errorOffset = useRef(new Animated.Value(TOAST_OFFSET_PX)).current;
   const { onLeftPress, onRightPress } = useTesterLoginGesture(() => {
     setTesterLoginVisible(true);
   });
 
-  const checkHealth = async () => {
-    setStatus('');
-    try {
-      const res = await fetch(`${API_URL}/health`);
-      const json = (await res.json()) as { status: string };
-      setStatus(json.status);
-    } catch (e) {
-      console.error('health check failed', e);
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+    let dismissTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const showError = () => {
+      if (cancelled) return;
+      setErrorVisible(true);
+      Animated.parallel([
+        Animated.timing(errorOpacity, {
+          toValue: 1,
+          duration: TOAST_FADE_MS,
+          useNativeDriver: true,
+        }),
+        Animated.timing(errorOffset, {
+          toValue: 0,
+          duration: TOAST_FADE_MS,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      dismissTimer = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(errorOpacity, {
+            toValue: 0,
+            duration: TOAST_FADE_MS,
+            useNativeDriver: true,
+          }),
+          Animated.timing(errorOffset, {
+            toValue: TOAST_OFFSET_PX,
+            duration: TOAST_FADE_MS,
+            useNativeDriver: true,
+          }),
+        ]).start(({ finished }) => {
+          if (!cancelled && finished) setErrorVisible(false);
+        });
+      }, TOAST_VISIBLE_MS);
+    };
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/health`);
+        const json = (await res.json()) as { status: string };
+        if (json.status !== 'ok') showError();
+      } catch (e) {
+        console.error('health check failed', e);
+        showError();
+      } finally {
+        // `health-check-complete` is the positive signal Maestro waits on
+        // before asserting the error toast's absence. Without it the test
+        // would race the async fetch and pass before the toast had a chance
+        // to render. Set in finally so success and failure both flip the
+        // flag — the toast (or its absence) is the actual signal under test.
+        if (!cancelled) setHealthChecked(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (dismissTimer) clearTimeout(dismissTimer);
+    };
+  }, [errorOffset, errorOpacity]);
 
   return (
     <View style={styles.container} testID="root">
@@ -188,17 +246,6 @@ export default function Landing() {
       <Text variant="emotion" color="secondary" style={styles.tagline}>
         아기를 기다리는 소중한 시간, 함께 기록해볼까요?
       </Text>
-      <Button
-        title="Check health"
-        variant="primary"
-        onPress={checkHealth}
-        testID="check-health-button"
-      />
-      {status !== '' && (
-        <Text variant="body" color="primary" testID="health-status" style={styles.status}>
-          status: {status}
-        </Text>
-      )}
       {hasGoogleConfig && <GoogleSignInButton />}
       {Platform.OS === 'ios' && <AppleSignInButton />}
 
@@ -220,6 +267,33 @@ export default function Landing() {
         visible={testerLoginVisible}
         onClose={() => setTesterLoginVisible(false)}
       />
+      {errorVisible && (
+        <Animated.View
+          testID="health-error-toast"
+          accessibilityRole="alert"
+          pointerEvents="none"
+          style={[
+            styles.toast,
+            {
+              opacity: errorOpacity,
+              transform: [{ translateY: errorOffset }],
+            },
+          ]}
+        >
+          <Text variant="body" color="onPrimary" style={styles.toastText}>
+            서버에 연결할 수 없어요
+          </Text>
+        </Animated.View>
+      )}
+      {healthChecked && (
+        <View
+          testID="health-check-complete"
+          accessible
+          accessibilityLabel="health check complete"
+          pointerEvents="none"
+          style={styles.healthSentinel}
+        />
+      )}
       <StatusBar style="dark" />
     </View>
   );
@@ -236,7 +310,6 @@ const styles = StyleSheet.create({
   },
   title: { textAlign: 'center' },
   tagline: { textAlign: 'center', marginBottom: spacing[4] },
-  status: { color: colors.accent.sage, fontWeight: '600' },
   googleButton: {
     borderWidth: 1,
     borderColor: colors.bg.beige,
@@ -279,5 +352,34 @@ const styles = StyleSheet.create({
   appleButton: {
     alignSelf: 'stretch',
     height: 48,
+  },
+  toast: {
+    position: 'absolute',
+    bottom: spacing[8],
+    left: spacing[5],
+    right: spacing[5],
+    backgroundColor: colors.primary.coral,
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[4],
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    ...shadows.elevated,
+  },
+  toastText: {
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // Invisible 4×4 sentinel used by Maestro to know the auto-fired health
+  // fetch has settled. Sized large enough for Android's UI Automator to
+  // include in the accessibility tree (a bare 1×1 View without an
+  // accessibility role gets pruned). Tucked into the bottom-right corner
+  // so it cannot collide with the toast (which sits at `bottom: spacing[8]`)
+  // or the tester corner hit zones (anchored to the top).
+  healthSentinel: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 4,
+    height: 4,
   },
 });
