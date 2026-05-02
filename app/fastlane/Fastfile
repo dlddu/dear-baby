@@ -6,98 +6,15 @@ default_platform(:ios)
 # ios.appleTeamId — Expo prebuild reads it from there to stamp
 # DEVELOPMENT_TEAM into the Xcode project, so this lane reuses the same
 # value to avoid drift between TestFlight and prebuild.
-APPLE_TEAM_ID = JSON.parse(File.read(File.expand_path("../app.json", __dir__))) \
-  .fetch("expo").fetch("ios").fetch("appleTeamId").freeze
+APP_JSON = JSON.parse(File.read(File.expand_path("../app.json", __dir__))).fetch("expo").freeze
+APPLE_TEAM_ID = APP_JSON.fetch("ios").fetch("appleTeamId").freeze
+BUNDLE_IDENTIFIER = APP_JSON.fetch("ios").fetch("bundleIdentifier").freeze
 
 platform :ios do
-  desc "Build the iOS app and upload it to TestFlight"
+  desc "Build the iOS app and upload it to TestFlight (internal testers only)"
   lane :beta do
-    setup_ci
-
-    # Resolve the workspace (produced by `expo prebuild`) relative to this
-    # Fastfile so the lane is invariant to where it is invoked from.
-    ios_dir = File.expand_path("../ios", __dir__)
-    workspace = Dir.glob("#{ios_dir}/*.xcworkspace").first
-    UI.user_error!("No .xcworkspace found under #{ios_dir}. Did you run `expo prebuild`?") unless workspace
-    scheme = File.basename(workspace, ".xcworkspace")
-
-    tmp_dir = ENV["RUNNER_TEMP"] || Dir.mktmpdir("fastlane-signing")
-    FileUtils.mkdir_p(tmp_dir)
-    cert_path = File.join(tmp_dir, "ios_distribution.p12")
-    profile_path = File.join(tmp_dir, "profile.mobileprovision")
-
-    # Decode the distribution certificate and provisioning profile from the
-    # base64-encoded secrets injected by CI. Format matches PR #7's
-    # `testflight.yml` (reverted) so the existing GitHub Actions secrets can
-    # be reused verbatim.
-    sh("echo \"$IOS_DISTRIBUTION_CERTIFICATE_BASE64\" | base64 --decode -o #{cert_path.shellescape}")
-    sh("echo \"$IOS_PROVISIONING_PROFILE_BASE64\" | base64 --decode -o #{profile_path.shellescape}")
-
-    keychain_name = "fastlane_tmp_keychain"
-    keychain_password = ENV["MATCH_KEYCHAIN_PASSWORD"] || SecureRandom.hex(16)
-
-    create_keychain(
-      name: keychain_name,
-      password: keychain_password,
-      default_keychain: false,
-      unlock: true,
-      timeout: 3600,
-      lock_when_sleeps: false,
-    )
-
-    import_certificate(
-      certificate_path: cert_path,
-      certificate_password: ENV["IOS_DISTRIBUTION_CERTIFICATE_PASSWORD"],
-      keychain_name: keychain_name,
-      keychain_password: keychain_password,
-    )
-
-    install_provisioning_profile(path: profile_path)
-
-    # Derive the profile's display name at runtime so the Fastfile never
-    # hardcodes it. Mirrors the pattern from PR #7's testflight.yml.
-    profile_name = sh(
-      "security cms -D -i #{profile_path.shellescape} | plutil -extract Name raw -",
-      log: false,
-    ).strip
-
-    build_app(
-      workspace: workspace,
-      scheme: scheme,
-      configuration: "Release",
-      export_method: "app-store",
-      clean: true,
-      output_directory: File.expand_path("../build", __dir__),
-      xcargs: [
-        "CODE_SIGN_STYLE=Manual",
-        "CODE_SIGN_IDENTITY=#{'Apple Distribution'.shellescape}",
-        "DEVELOPMENT_TEAM=#{APPLE_TEAM_ID}",
-        "PROVISIONING_PROFILE_SPECIFIER=#{profile_name.shellescape}",
-      ].join(" "),
-      export_options: {
-        method: "app-store",
-        signingStyle: "manual",
-        teamID: APPLE_TEAM_ID,
-        provisioningProfiles: {
-          "com.dlddu.dearbaby" => profile_name,
-        },
-      },
-    )
-
-    # Write the App Store Connect API key to disk in the exact format PR #7
-    # used. The `APP_STORE_CONNECT_API_KEY` secret is the raw .p8 contents
-    # (NOT base64), so we must not decode it.
-    api_key_dir = File.expand_path("~/private_keys")
-    FileUtils.mkdir_p(api_key_dir)
-    api_key_path = File.join(api_key_dir, "AuthKey_#{ENV['APP_STORE_CONNECT_API_KEY_ID']}.p8")
-    File.write(api_key_path, ENV["APP_STORE_CONNECT_API_KEY"])
-
-    api_key = app_store_connect_api_key(
-      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
-      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-      key_filepath: api_key_path,
-      in_house: false,
-    )
+    build_release_ipa
+    api_key = load_app_store_connect_api_key
 
     changelog = "PR ##{ENV['PR_NUMBER']} · #{ENV['GIT_SHA'].to_s[0, 7]}"
 
@@ -108,6 +25,59 @@ platform :ios do
     )
   end
 
+  desc "Build the iOS app, upload it to TestFlight, and submit it to external Beta App Review"
+  lane :external_beta do
+    require_external_beta_env!
+    build_release_ipa
+    api_key = load_app_store_connect_api_key
+
+    sha = ENV["GIT_SHA"].to_s
+    short_sha = sha[0, 7]
+    whats_new = ENV["TESTFLIGHT_WHATS_NEW"].to_s.empty? \
+      ? "Build #{short_sha}" \
+      : ENV["TESTFLIGHT_WHATS_NEW"]
+
+    groups = ENV["TESTFLIGHT_EXTERNAL_GROUP"].to_s.split(",").map(&:strip).reject(&:empty?)
+
+    # Locale used for App Store Connect localized review metadata. The
+    # primary locale on the dear-baby app is Korean; if you change the
+    # primary locale on App Store Connect, update this value too.
+    locale = ENV["TESTFLIGHT_REVIEW_LOCALE"].to_s.empty? ? "ko" : ENV["TESTFLIGHT_REVIEW_LOCALE"]
+
+    upload_to_testflight(
+      api_key: api_key,
+      distribute_external: true,
+      notify_external_testers: true,
+      groups: groups,
+      reject_build_waiting_for_review: true,
+      skip_waiting_for_build_processing: false,
+      changelog: whats_new,
+      beta_app_review_info: {
+        contact_email: ENV["TESTFLIGHT_BETA_CONTACT_EMAIL"],
+        contact_first_name: ENV["TESTFLIGHT_BETA_CONTACT_FIRST_NAME"],
+        contact_last_name: ENV["TESTFLIGHT_BETA_CONTACT_LAST_NAME"],
+        contact_phone: ENV["TESTFLIGHT_BETA_CONTACT_PHONE"],
+        demo_account_name: ENV["TESTFLIGHT_DEMO_ACCOUNT_EMAIL"],
+        demo_account_password: ENV["TESTFLIGHT_DEMO_ACCOUNT_PASSWORD"],
+        demo_account_required: true,
+        notes: "Submitted from GitHub deployment for #{short_sha}.",
+      },
+      localized_app_info: {
+        locale => {
+          feedback_email: ENV["TESTFLIGHT_BETA_FEEDBACK_EMAIL"],
+          marketing_url: ENV["TESTFLIGHT_BETA_MARKETING_URL"],
+          privacy_policy_url: ENV["TESTFLIGHT_BETA_PRIVACY_URL"],
+          description: ENV["TESTFLIGHT_BETA_APP_DESCRIPTION"],
+        },
+      },
+      localized_build_info: {
+        locale => {
+          whats_new: whats_new,
+        },
+      },
+    )
+  end
+
   after_all do |lane|
     cleanup_signing_artifacts
   end
@@ -115,6 +85,124 @@ platform :ios do
   error do |lane, exception|
     cleanup_signing_artifacts
   end
+end
+
+# Shared build pipeline: prepares signing material from CI secrets and
+# produces a Release IPA via gym. Used by both `:beta` (internal-only PR
+# previews) and `:external_beta` (external review submission).
+def build_release_ipa
+  setup_ci
+
+  # Resolve the workspace (produced by `expo prebuild`) relative to this
+  # Fastfile so the lane is invariant to where it is invoked from.
+  ios_dir = File.expand_path("../ios", __dir__)
+  workspace = Dir.glob("#{ios_dir}/*.xcworkspace").first
+  UI.user_error!("No .xcworkspace found under #{ios_dir}. Did you run `expo prebuild`?") unless workspace
+  scheme = File.basename(workspace, ".xcworkspace")
+
+  tmp_dir = ENV["RUNNER_TEMP"] || Dir.mktmpdir("fastlane-signing")
+  FileUtils.mkdir_p(tmp_dir)
+  cert_path = File.join(tmp_dir, "ios_distribution.p12")
+  profile_path = File.join(tmp_dir, "profile.mobileprovision")
+
+  # Decode the distribution certificate and provisioning profile from the
+  # base64-encoded secrets injected by CI. Format matches PR #7's
+  # `testflight.yml` (reverted) so the existing GitHub Actions secrets can
+  # be reused verbatim.
+  sh("echo \"$IOS_DISTRIBUTION_CERTIFICATE_BASE64\" | base64 --decode -o #{cert_path.shellescape}")
+  sh("echo \"$IOS_PROVISIONING_PROFILE_BASE64\" | base64 --decode -o #{profile_path.shellescape}")
+
+  keychain_name = "fastlane_tmp_keychain"
+  keychain_password = ENV["MATCH_KEYCHAIN_PASSWORD"] || SecureRandom.hex(16)
+
+  create_keychain(
+    name: keychain_name,
+    password: keychain_password,
+    default_keychain: false,
+    unlock: true,
+    timeout: 3600,
+    lock_when_sleeps: false,
+  )
+
+  import_certificate(
+    certificate_path: cert_path,
+    certificate_password: ENV["IOS_DISTRIBUTION_CERTIFICATE_PASSWORD"],
+    keychain_name: keychain_name,
+    keychain_password: keychain_password,
+  )
+
+  install_provisioning_profile(path: profile_path)
+
+  # Derive the profile's display name at runtime so the Fastfile never
+  # hardcodes it. Mirrors the pattern from PR #7's testflight.yml.
+  profile_name = sh(
+    "security cms -D -i #{profile_path.shellescape} | plutil -extract Name raw -",
+    log: false,
+  ).strip
+
+  build_app(
+    workspace: workspace,
+    scheme: scheme,
+    configuration: "Release",
+    export_method: "app-store",
+    clean: true,
+    output_directory: File.expand_path("../build", __dir__),
+    xcargs: [
+      "CODE_SIGN_STYLE=Manual",
+      "CODE_SIGN_IDENTITY=#{'Apple Distribution'.shellescape}",
+      "DEVELOPMENT_TEAM=#{APPLE_TEAM_ID}",
+      "PROVISIONING_PROFILE_SPECIFIER=#{profile_name.shellescape}",
+    ].join(" "),
+    export_options: {
+      method: "app-store",
+      signingStyle: "manual",
+      teamID: APPLE_TEAM_ID,
+      provisioningProfiles: {
+        BUNDLE_IDENTIFIER => profile_name,
+      },
+    },
+  )
+end
+
+# Writes the App Store Connect API key to disk in the exact format PR #7
+# used and returns a fastlane-compatible api_key handle. The
+# `APP_STORE_CONNECT_API_KEY` secret is the raw .p8 contents (NOT base64),
+# so we must not decode it.
+def load_app_store_connect_api_key
+  api_key_dir = File.expand_path("~/private_keys")
+  FileUtils.mkdir_p(api_key_dir)
+  api_key_path = File.join(api_key_dir, "AuthKey_#{ENV['APP_STORE_CONNECT_API_KEY_ID']}.p8")
+  File.write(api_key_path, ENV["APP_STORE_CONNECT_API_KEY"])
+
+  app_store_connect_api_key(
+    key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+    issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+    key_filepath: api_key_path,
+    in_house: false,
+  )
+end
+
+# Fail fast at the start of the lane so we don't burn ~15 minutes on a
+# build only to discover a missing review-metadata secret at upload time.
+EXTERNAL_BETA_REQUIRED_ENV = %w[
+  TESTFLIGHT_EXTERNAL_GROUP
+  TESTFLIGHT_BETA_CONTACT_FIRST_NAME
+  TESTFLIGHT_BETA_CONTACT_LAST_NAME
+  TESTFLIGHT_BETA_CONTACT_EMAIL
+  TESTFLIGHT_BETA_CONTACT_PHONE
+  TESTFLIGHT_BETA_FEEDBACK_EMAIL
+  TESTFLIGHT_BETA_MARKETING_URL
+  TESTFLIGHT_BETA_PRIVACY_URL
+  TESTFLIGHT_BETA_APP_DESCRIPTION
+  TESTFLIGHT_DEMO_ACCOUNT_EMAIL
+  TESTFLIGHT_DEMO_ACCOUNT_PASSWORD
+].freeze
+
+def require_external_beta_env!
+  missing = EXTERNAL_BETA_REQUIRED_ENV.select { |k| ENV[k].to_s.empty? }
+  return if missing.empty?
+
+  UI.user_error!("Missing required env vars for external_beta: #{missing.join(', ')}")
 end
 
 def cleanup_signing_artifacts

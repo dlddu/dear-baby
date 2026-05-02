@@ -1,0 +1,145 @@
+name: Submit iOS to TestFlight (Beta Review)
+
+# Triggered by GitHub deployments. The `environment` of the deployment
+# selects which delivery flow runs:
+#
+#   testflight-beta     -> this workflow (external Beta App Review)
+#   app-store / production -> reserved for the future App Store
+#                              production release workflow
+#
+# The job-level `if` below is the guard that prevents this workflow from
+# running for any deployment whose environment is not exactly
+# `testflight-beta`, so future App Store deployments won't accidentally
+# trip the TestFlight submission path.
+on:
+  deployment:
+
+# Avoid running multiple TestFlight submissions in parallel against the
+# same App Store Connect app — Apple rejects overlapping uploads with the
+# same build number. Per-environment groups so a hypothetical concurrent
+# `app-store` deployment isn't blocked by an in-flight beta submission.
+concurrency:
+  group: deploy-${{ github.event.deployment.environment }}
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    name: Submit to TestFlight Beta Review
+    if: github.event.deployment.environment == 'testflight-beta'
+    runs-on: macos-26
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      deployments: write
+    defaults:
+      run:
+        working-directory: app
+    env:
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL_PRODUCTION || vars.EXPO_PUBLIC_API_URL_STAGING }}
+      EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
+      EXPO_PUBLIC_POSTHOG_HOST: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+      IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+      IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      TESTFLIGHT_EXTERNAL_GROUP: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP }}
+      TESTFLIGHT_BETA_CONTACT_FIRST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_FIRST_NAME }}
+      TESTFLIGHT_BETA_CONTACT_LAST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_LAST_NAME }}
+      TESTFLIGHT_BETA_FEEDBACK_EMAIL: ${{ vars.TESTFLIGHT_BETA_FEEDBACK_EMAIL }}
+      TESTFLIGHT_BETA_MARKETING_URL: ${{ vars.TESTFLIGHT_BETA_MARKETING_URL }}
+      TESTFLIGHT_BETA_PRIVACY_URL: ${{ vars.TESTFLIGHT_BETA_PRIVACY_URL }}
+      TESTFLIGHT_BETA_APP_DESCRIPTION: ${{ vars.TESTFLIGHT_BETA_APP_DESCRIPTION }}
+      TESTFLIGHT_BETA_CONTACT_EMAIL: ${{ secrets.TESTFLIGHT_BETA_CONTACT_EMAIL }}
+      TESTFLIGHT_BETA_CONTACT_PHONE: ${{ secrets.TESTFLIGHT_BETA_CONTACT_PHONE }}
+      TESTFLIGHT_DEMO_ACCOUNT_EMAIL: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_EMAIL }}
+      TESTFLIGHT_DEMO_ACCOUNT_PASSWORD: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_PASSWORD }}
+      TESTFLIGHT_REVIEW_LOCALE: ${{ vars.TESTFLIGHT_REVIEW_LOCALE }}
+      GIT_SHA: ${{ github.event.deployment.sha }}
+
+    steps:
+      - name: Mark deployment in_progress
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: context.payload.deployment.id,
+              state: 'in_progress',
+              log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              auto_inactive: false,
+            });
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - name: Setup JS
+        uses: ./.github/actions/setup-js
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: app
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app
+
+      - name: Generate one-shot keychain password
+        run: echo "MATCH_KEYCHAIN_PASSWORD=$(uuidgen)" >> "$GITHUB_ENV"
+
+      - name: Expo prebuild (iOS)
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods
+        working-directory: app/ios
+        run: pod install --repo-update
+
+      - name: Fastlane external_beta
+        run: bundle exec fastlane external_beta
+
+      - name: Mark deployment success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: context.payload.deployment.id,
+              state: 'success',
+              log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              auto_inactive: true,
+              description: 'Submitted to TestFlight Beta App Review.',
+            });
+
+      - name: Mark deployment failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: context.payload.deployment.id,
+              state: 'failure',
+              log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              auto_inactive: false,
+              description: 'TestFlight beta submission failed.',
+            });
+
+      - name: Upload build artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-beta-review-logs
+          path: |
+            app/fastlane/report.xml
+            app/build/
+            ~/Library/Logs/gym/
+          if-no-files-found: ignore
