@@ -43,6 +43,9 @@
 - [PRD-004: 실물 책 제작](prd/PRD-004-book-production.md)
 - [PRD-005: 기록 미디어 통합](prd/PRD-005-media-records.md)
 
+### 플로우
+- [Onboarding Flow — 케이스 분기 온보딩 전체 흐름도](flows/onboarding-flow.md)
+
 ### 테스트 문서
 - [TEST-001: 음성 일기 기록 테스트](tests/TEST-001-voice-diary.md)
 - [TEST-002: 매일 다른 질문 알림 테스트](tests/TEST-002-daily-questions.md)
