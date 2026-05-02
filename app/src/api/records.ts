@@ -16,13 +16,18 @@ export function platformAudioFormat(): AudioFormat {
 // createTextRecord POSTs a text entry to the backend. The response includes
 // the updated user (with first_record_at stamped) so AuthContext can refresh
 // local state in one round-trip — this is what unblurs the Stage 2 AI
-// preview on the home screen.
+// preview on the home screen. `questionText` is the daily question the
+// home screen showed when the user started writing; pass undefined when
+// no question is associated.
 export async function createTextRecord(
   content: string,
+  questionText?: string,
 ): Promise<CreateRecordResponse> {
+  const payload: { content: string; question_text?: string } = { content };
+  if (questionText) payload.question_text = questionText;
   const res = await apiFetch('/records', {
     method: 'POST',
-    body: JSON.stringify({ content }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     throw new Error(`createTextRecord failed: ${res.status}`);
@@ -36,10 +41,16 @@ export async function createTextRecord(
 // is the authoritative artifact and triggers first_record_at.
 export async function createVoiceRecord(
   content: string,
+  questionText?: string,
 ): Promise<CreateRecordResponse> {
+  const payload: { content: string; source: 'voice'; question_text?: string } = {
+    content,
+    source: 'voice',
+  };
+  if (questionText) payload.question_text = questionText;
   const res = await apiFetch('/records', {
     method: 'POST',
-    body: JSON.stringify({ content, source: 'voice' }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     throw new Error(`createVoiceRecord failed: ${res.status}`);

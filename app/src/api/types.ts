@@ -29,12 +29,15 @@ export type User = {
 // `source` and `audio_s3_key` are the Stage 2 voice-record additions:
 // `source` is "text" | "voice"; `audio_s3_key` is null until the
 // device finishes uploading the audio blob (and may stay null forever
-// when the user opts out of audio upload).
+// when the user opts out of audio upload). `question_text` is the
+// daily question the home screen surfaced when the entry was started;
+// null when the entry came from a path that doesn't carry a question.
 export type Record = {
   id: string;
   user_id: string;
   source: 'text' | 'voice';
   content: string;
+  question_text: string | null;
   audio_s3_key: string | null;
   created_at: string;
 };

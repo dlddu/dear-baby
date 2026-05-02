@@ -23,6 +23,11 @@ import (
 // keeping the payload small on low-end networks.
 const maxContentRunes = 2000
 
+// maxQuestionRunes caps the daily question stored alongside a record.
+// 500 UTF-8 code points is well above the longest Stage 2 prompt and
+// comfortably fits any future weekly-matched question text.
+const maxQuestionRunes = 500
+
 // AudioStorage is the subset of the storage.Client surface the handlers
 // need. Defining it as an interface here lets tests substitute a fake
 // without pulling in the AWS SDK at all.
@@ -54,6 +59,10 @@ type createBody struct {
 	// existing AC-001-04 path keeps working without the client opting
 	// in. Voice records must explicitly send "voice".
 	Source string `json:"source"`
+	// QuestionText is the daily question the home screen surfaced when
+	// the user started this record. Optional — non-home entry points
+	// (deep links, future flows) may omit it.
+	QuestionText string `json:"question_text"`
 }
 
 // createResponse returns the new record alongside the updated flat profile
@@ -102,7 +111,16 @@ func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 		source = s
 	}
 
-	res, err := h.Store.Create(r.Context(), h.Users, uid, content, source)
+	var questionText *string
+	if q := strings.TrimSpace(body.QuestionText); q != "" {
+		if utf8.RuneCountInString(q) > maxQuestionRunes {
+			httpx.WriteError(w, http.StatusBadRequest, "question_text too long")
+			return
+		}
+		questionText = &q
+	}
+
+	res, err := h.Store.Create(r.Context(), h.Users, uid, content, source, questionText)
 	if err != nil {
 		if errors.Is(err, users.ErrNotFound) {
 			httpx.WriteError(w, http.StatusNotFound, "user not found")

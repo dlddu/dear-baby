@@ -48,7 +48,9 @@ var ErrAudioAlreadyAttached = errors.New("audio already attached")
 
 // Create inserts a record (text or voice) for the given user. For voice
 // records, audio_s3_key starts as null; the device attaches the audio
-// later via PATCH /records/{id}.
+// later via PATCH /records/{id}. questionText is optional — pass nil
+// when the caller has no question to associate (e.g. legacy paths or
+// non-home entry points).
 //
 // In a single transaction it: (1) ensures the onboarding row exists,
 // (2) inserts the row, (3) re-derives onboarding.first_record_at from
@@ -58,7 +60,7 @@ var ErrAudioAlreadyAttached = errors.New("audio already attached")
 //
 // Returns the new record plus the updated flat profile so callers can
 // skip a /me round-trip.
-func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, content string, source Source) (*CreateResult, error) {
+func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, content string, source Source, questionText *string) (*CreateResult, error) {
 	if !source.Valid() {
 		return nil, fmt.Errorf("%w: source", ErrInvalidContent)
 	}
@@ -91,9 +93,13 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 	}
 
 	id := uuid.NewString()
+	var questionArg any
+	if questionText != nil {
+		questionArg = *questionText
+	}
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO records (id, user_id, content, source) VALUES (?, ?, ?, ?)
-	`, id, userID, content, string(source)); err != nil {
+		INSERT INTO records (id, user_id, content, source, question_text) VALUES (?, ?, ?, ?, ?)
+	`, id, userID, content, string(source), questionArg); err != nil {
 		return nil, fmt.Errorf("insert record: %w", err)
 	}
 
@@ -108,7 +114,7 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 		return nil, fmt.Errorf("stamp first_record_at: %w", err)
 	}
 
-	rec := &Record{ID: id, UserID: userID, Content: content, Source: source}
+	rec := &Record{ID: id, UserID: userID, Content: content, Source: source, QuestionText: questionText}
 	var createdAt string
 	if err := tx.QueryRowContext(ctx, `
 		SELECT created_at FROM records WHERE id = ?
@@ -138,7 +144,7 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 // callers and tests. New code paths should use Create with an explicit
 // source so the intent is visible at the call site.
 func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, content string) (*CreateResult, error) {
-	return s.Create(ctx, userStore, userID, content, SourceText)
+	return s.Create(ctx, userStore, userID, content, SourceText, nil)
 }
 
 // GetByIDForUser returns the record only if it belongs to userID. The
@@ -147,15 +153,16 @@ func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, 
 // can't accidentally skip the check.
 func (s *Store) GetByIDForUser(ctx context.Context, userID, recordID string) (*Record, error) {
 	var (
-		audioKey  sql.NullString
-		createdAt string
-		rec       Record
+		audioKey     sql.NullString
+		questionText sql.NullString
+		createdAt    string
+		rec          Record
 	)
 	err := s.DB.QueryRowContext(ctx, `
-		SELECT id, user_id, source, content, audio_s3_key, created_at
+		SELECT id, user_id, source, content, question_text, audio_s3_key, created_at
 		FROM records
 		WHERE id = ? AND user_id = ?
-	`, recordID, userID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &audioKey, &createdAt)
+	`, recordID, userID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -165,6 +172,10 @@ func (s *Store) GetByIDForUser(ctx context.Context, userID, recordID string) (*R
 	if audioKey.Valid {
 		v := audioKey.String
 		rec.AudioS3Key = &v
+	}
+	if questionText.Valid {
+		v := questionText.String
+		rec.QuestionText = &v
 	}
 	if t, err := time.Parse(sqliteTimeLayout, createdAt); err == nil {
 		rec.CreatedAt = t
@@ -213,19 +224,24 @@ func (s *Store) AttachAudio(ctx context.Context, userID, recordID, audioS3Key st
 	}
 
 	var (
-		audioKey  sql.NullString
-		createdAt string
-		rec       Record
+		audioKey     sql.NullString
+		questionText sql.NullString
+		createdAt    string
+		rec          Record
 	)
 	if err := tx.QueryRowContext(ctx, `
-		SELECT id, user_id, source, content, audio_s3_key, created_at
+		SELECT id, user_id, source, content, question_text, audio_s3_key, created_at
 		FROM records WHERE id = ?
-	`, recordID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &audioKey, &createdAt); err != nil {
+	`, recordID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, &createdAt); err != nil {
 		return nil, fmt.Errorf("fetch record: %w", err)
 	}
 	if audioKey.Valid {
 		v := audioKey.String
 		rec.AudioS3Key = &v
+	}
+	if questionText.Valid {
+		v := questionText.String
+		rec.QuestionText = &v
 	}
 	if t, err := time.Parse(sqliteTimeLayout, createdAt); err == nil {
 		rec.CreatedAt = t

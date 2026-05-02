@@ -5,7 +5,7 @@
 // 디자인 시스템 준수: 배경 cream, 입력 surface ivory + radius.md, Primary
 // Button, Text variant 토큰, spacing 토큰. 하드코딩된 색/숫자 없음.
 
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../src/components/Button';
+import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
 import { useAuth } from '../src/auth/AuthContext';
 import { colors } from '../src/theme/colors';
@@ -31,6 +32,13 @@ const MAX_CONTENT_LENGTH = 2000;
 
 export default function RecordTextScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ question?: string; week_label?: string }>();
+  const question = typeof params.question === 'string' ? params.question : '';
+  const weekLabel =
+    typeof params.week_label === 'string' && params.week_label.length > 0
+      ? params.week_label
+      : null;
+
   const { createTextRecord } = useAuth();
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
@@ -46,14 +54,14 @@ export default function RecordTextScreen() {
     if (!canSave) return;
     setSaving(true);
     try {
-      await createTextRecord(trimmed);
+      await createTextRecord(trimmed, question || undefined);
       router.back();
     } catch {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해주세요.');
     } finally {
       setSaving(false);
     }
-  }, [canSave, trimmed, createTextRecord, router]);
+  }, [canSave, trimmed, createTextRecord, router, question]);
 
   return (
     <SafeAreaView
@@ -82,12 +90,11 @@ export default function RecordTextScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          <Text variant="h2" color="primary" style={styles.title}>
-            오늘의 기록
-          </Text>
-          <Text variant="emotion" color="secondary" style={styles.subtitle}>
-            아기에게 전하고 싶은 말을 남겨보세요 🌷
-          </Text>
+          <RecordQuestionHeader
+            question={question}
+            weekLabel={weekLabel}
+            testID="record-text-question-header"
+          />
 
           <View style={styles.inputWrap}>
             <TextInput
@@ -95,14 +102,16 @@ export default function RecordTextScreen() {
               onChangeText={setContent}
               multiline
               autoFocus
-              placeholder="오늘 아기에게 가장 해주고 싶은 말은?"
+              placeholder="마음 가는 대로 적어보세요"
               placeholderTextColor={colors.text.muted}
               maxLength={MAX_CONTENT_LENGTH}
               style={styles.input}
               testID="record-text-input"
             />
           </View>
+        </ScrollView>
 
+        <View style={styles.footer}>
           <Button
             title={saving ? '저장 중…' : '저장'}
             variant="primary"
@@ -111,7 +120,7 @@ export default function RecordTextScreen() {
             onPress={handleSave}
             testID="record-text-save"
           />
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -127,11 +136,9 @@ const styles = StyleSheet.create({
   },
   container: {
     paddingHorizontal: spacing[5],
-    paddingBottom: spacing[8],
+    paddingBottom: spacing[5],
     gap: spacing[4],
   },
-  title: { marginTop: spacing[2] },
-  subtitle: { marginBottom: spacing[2] },
   inputWrap: {
     backgroundColor: colors.surface.ivory,
     borderRadius: radius.md,
@@ -145,5 +152,9 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     textAlignVertical: 'top',
     minHeight: 180,
+  },
+  footer: {
+    paddingHorizontal: spacing[5],
+    paddingBottom: spacing[5],
   },
 });
