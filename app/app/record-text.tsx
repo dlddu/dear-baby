@@ -109,7 +109,9 @@ export default function RecordTextScreen() {
               testID="record-text-input"
             />
           </View>
+        </ScrollView>
 
+        <View style={styles.footer}>
           <Button
             title={saving ? '저장 중…' : '저장'}
             variant="primary"
@@ -118,7 +120,7 @@ export default function RecordTextScreen() {
             onPress={handleSave}
             testID="record-text-save"
           />
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -134,7 +136,7 @@ const styles = StyleSheet.create({
   },
   container: {
     paddingHorizontal: spacing[5],
-    paddingBottom: spacing[8],
+    paddingBottom: spacing[5],
     gap: spacing[4],
   },
   inputWrap: {
@@ -150,5 +152,9 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     textAlignVertical: 'top',
     minHeight: 180,
+  },
+  footer: {
+    paddingHorizontal: spacing[5],
+    paddingBottom: spacing[5],
   },
 });
