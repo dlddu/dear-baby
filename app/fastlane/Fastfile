@@ -39,10 +39,10 @@ platform :ios do
 
     groups = ENV["TESTFLIGHT_EXTERNAL_GROUP"].to_s.split(",").map(&:strip).reject(&:empty?)
 
-    # Locale used for App Store Connect localized review metadata. The
-    # primary locale on the dear-baby app is Korean; if you change the
-    # primary locale on App Store Connect, update this value too.
-    locale = ENV["TESTFLIGHT_REVIEW_LOCALE"].to_s.empty? ? "ko" : ENV["TESTFLIGHT_REVIEW_LOCALE"]
+    # Locale used for App Store Connect localized review metadata. Must
+    # match the primary locale configured for the app on App Store
+    # Connect, otherwise the upload will be rejected.
+    locale = ENV["TESTFLIGHT_REVIEW_LOCALE"]
 
     upload_to_testflight(
       api_key: api_key,
@@ -196,6 +196,7 @@ EXTERNAL_BETA_REQUIRED_ENV = %w[
   TESTFLIGHT_BETA_APP_DESCRIPTION
   TESTFLIGHT_DEMO_ACCOUNT_EMAIL
   TESTFLIGHT_DEMO_ACCOUNT_PASSWORD
+  TESTFLIGHT_REVIEW_LOCALE
 ].freeze
 
 def require_external_beta_env!
