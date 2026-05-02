@@ -13,10 +13,13 @@ appId: com.dlddu.dearbaby
     id: "root"
 # The landing screen auto-fires GET /health on mount and only renders
 # `health-error-toast` when the call fails or returns a non-ok status.
-# CI runs against a live backend, so the toast must NOT appear — its
-# absence is the smoke-test signal that the API is reachable. The
-# timeout gives the fetch + animation enough time to settle on a slow
-# emulator.
+# `health-check-complete` flips on once the fetch settles (success or
+# failure) — wait for it first so the next assertion isn't racing the
+# async fetch. CI runs against a live backend, so the toast must NOT
+# appear; its absence is the smoke-test signal that the API is reachable.
+- extendedWaitUntil:
+    visible:
+      id: "health-check-complete"
+    timeout: 10000
 - assertNotVisible:
     id: "health-error-toast"
-    timeout: 10000

@@ -170,6 +170,7 @@ const TOAST_OFFSET_PX = 12;
 export default function Landing() {
   const [testerLoginVisible, setTesterLoginVisible] = useState(false);
   const [errorVisible, setErrorVisible] = useState(false);
+  const [healthChecked, setHealthChecked] = useState(false);
   const errorOpacity = useRef(new Animated.Value(0)).current;
   const errorOffset = useRef(new Animated.Value(TOAST_OFFSET_PX)).current;
   const { onLeftPress, onRightPress } = useTesterLoginGesture(() => {
@@ -221,6 +222,13 @@ export default function Landing() {
       } catch (e) {
         console.error('health check failed', e);
         showError();
+      } finally {
+        // `health-check-complete` is the positive signal Maestro waits on
+        // before asserting the error toast's absence. Without it the test
+        // would race the async fetch and pass before the toast had a chance
+        // to render. Set in finally so success and failure both flip the
+        // flag — the toast (or its absence) is the actual signal under test.
+        if (!cancelled) setHealthChecked(true);
       }
     })();
 
@@ -276,6 +284,13 @@ export default function Landing() {
             서버에 연결할 수 없어요
           </Text>
         </Animated.View>
+      )}
+      {healthChecked && (
+        <View
+          testID="health-check-complete"
+          pointerEvents="none"
+          style={styles.healthSentinel}
+        />
       )}
       <StatusBar style="dark" />
     </View>
@@ -351,5 +366,15 @@ const styles = StyleSheet.create({
   toastText: {
     fontWeight: '600',
     textAlign: 'center',
+  },
+  // Invisible 1×1 sentinel used by Maestro to know the auto-fired health
+  // fetch has settled. Kept off-screen so it cannot collide with any
+  // visual element or the corner hit zones.
+  healthSentinel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 1,
+    height: 1,
   },
 });
