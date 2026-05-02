@@ -288,6 +288,8 @@ export default function Landing() {
       {healthChecked && (
         <View
           testID="health-check-complete"
+          accessible
+          accessibilityLabel="health check complete"
           pointerEvents="none"
           style={styles.healthSentinel}
         />
@@ -367,14 +369,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-  // Invisible 1×1 sentinel used by Maestro to know the auto-fired health
-  // fetch has settled. Kept off-screen so it cannot collide with any
-  // visual element or the corner hit zones.
+  // Invisible 4×4 sentinel used by Maestro to know the auto-fired health
+  // fetch has settled. Sized large enough for Android's UI Automator to
+  // include in the accessibility tree (a bare 1×1 View without an
+  // accessibility role gets pruned). Tucked into the bottom-right corner
+  // so it cannot collide with the toast (which sits at `bottom: spacing[8]`)
+  // or the tester corner hit zones (anchored to the top).
   healthSentinel: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 1,
-    height: 1,
+    bottom: 0,
+    right: 0,
+    width: 4,
+    height: 4,
   },
 });
