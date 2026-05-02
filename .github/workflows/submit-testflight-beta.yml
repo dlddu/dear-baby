@@ -1,36 +1,31 @@
 name: Submit iOS to TestFlight (Beta Review)
 
-# Triggered by GitHub deployments. The `environment` of the deployment
-# selects which delivery flow runs:
+# Triggered when a PR is labeled `testflight-beta`. Promotes the build
+# that `:beta` already pushed to TestFlight from that PR's CI run to
+# the external group and submits it for Beta App Review.
 #
-#   testflight-beta     -> this workflow (external Beta App Review)
-#   app-store / production -> reserved for the future App Store
-#                              production release workflow
-#
-# The job-level `if` below is the guard that prevents this workflow from
-# running for any deployment whose environment is not exactly
-# `testflight-beta`, so future App Store deployments won't accidentally
-# trip the TestFlight submission path.
+# A future App Store production release should use a separate label
+# (and workflow), so this label-name guard keeps the two paths from
+# colliding.
 on:
-  deployment:
+  pull_request:
+    types: [labeled]
 
-# Per-environment concurrency so a hypothetical concurrent `app-store`
-# deployment isn't blocked by an in-flight beta submission.
+# Per-SHA so different commits don't block each other; a re-label of
+# the same SHA queues behind any in-flight submission.
 concurrency:
-  group: deploy-${{ github.event.deployment.environment }}
+  group: testflight-beta-${{ github.event.pull_request.head.sha }}
   cancel-in-progress: false
 
 jobs:
   submit:
     name: Submit to TestFlight Beta Review
-    if: github.event.deployment.environment == 'testflight-beta'
+    if: github.event.label.name == 'testflight-beta'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
-      deployments: write
       actions: read
-      pull-requests: read
     defaults:
       run:
         working-directory: app
@@ -50,94 +45,58 @@ jobs:
       TESTFLIGHT_DEMO_ACCOUNT_EMAIL: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_EMAIL }}
       TESTFLIGHT_DEMO_ACCOUNT_PASSWORD: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_PASSWORD }}
       TESTFLIGHT_REVIEW_LOCALE: ${{ vars.TESTFLIGHT_REVIEW_LOCALE }}
-      GIT_SHA: ${{ github.event.deployment.sha }}
+      GIT_SHA: ${{ github.event.pull_request.head.sha }}
 
     steps:
-      - name: Mark deployment in_progress
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.repos.createDeploymentStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              deployment_id: context.payload.deployment.id,
-              state: 'in_progress',
-              log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              auto_inactive: false,
-            });
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.deployment.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Resolve TestFlight build number from deploy-testflight run
         id: build
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          SHA: ${{ github.event.deployment.sha }}
+          SHA: ${{ github.event.pull_request.head.sha }}
         # The :beta lane stamps `GITHUB_RUN_NUMBER` of the ci.yml run as
         # the iOS buildNumber (see app/app.config.ts). To find which
-        # TestFlight build corresponds to this commit, we look up the
-        # ci.yml run that succeeded for the deployment SHA and read its
-        # run_number.
-        #
-        # Squash-merges produce a fresh SHA on main that ci.yml never
-        # ran on; in that case we fall back to the merged PR's HEAD SHA,
-        # which is the SHA :beta actually built against.
+        # TestFlight build corresponds to the PR head, we look up the
+        # ci.yml run that succeeded for that SHA and read its run_number.
         run: |
           set -euo pipefail
 
-          find_run_number() {
-            local target_sha="$1"
-            gh api -X GET \
-              "repos/${REPO}/actions/workflows/ci.yml/runs" \
-              -f head_sha="${target_sha}" \
-              --jq '.workflow_runs' \
-              > /tmp/runs.json
+          gh api -X GET \
+            "repos/${REPO}/actions/workflows/ci.yml/runs" \
+            -f head_sha="${SHA}" \
+            --jq '.workflow_runs' \
+            > /tmp/runs.json
 
-            if [ "$(jq 'length' /tmp/runs.json)" = "0" ]; then
-              return 1
-            fi
-
-            local run_id
-            for run_id in $(jq -r '.[].id' /tmp/runs.json); do
-              local status
-              status=$(gh api --paginate \
-                "repos/${REPO}/actions/runs/${run_id}/jobs" \
-                --jq '[.jobs[] | select(.name | test("Deploy iOS to TestFlight"))] | .[0].conclusion // empty')
-              if [ "$status" = "success" ]; then
-                jq -r --arg id "$run_id" \
-                  '.[] | select((.id|tostring) == $id) | .run_number' \
-                  /tmp/runs.json
-                return 0
-              fi
-            done
-            return 1
-          }
-
-          if RUN_NUMBER=$(find_run_number "$SHA"); then
-            BUILD_SHA="$SHA"
-          else
-            echo "No deploy-testflight build found at ${SHA}; checking associated PRs..."
-            PR_HEAD_SHA=$(gh api "repos/${REPO}/commits/${SHA}/pulls" \
-              --jq '[.[] | select(.merged_at != null)] | sort_by(.merged_at) | last.head.sha // empty')
-            if [ -z "$PR_HEAD_SHA" ]; then
-              echo "::error::No deploy-testflight build for ${SHA} and no merged PR points at it. Deploy the PR head SHA instead."
-              exit 1
-            fi
-            echo "Falling back to merged PR head SHA ${PR_HEAD_SHA}"
-            if ! RUN_NUMBER=$(find_run_number "$PR_HEAD_SHA"); then
-              echo "::error::No successful deploy-testflight job found for ${SHA} or its PR head ${PR_HEAD_SHA}."
-              exit 1
-            fi
-            BUILD_SHA="$PR_HEAD_SHA"
+          if [ "$(jq 'length' /tmp/runs.json)" = "0" ]; then
+            echo "::error::No ci.yml run found for ${SHA}. Wait for CI to finish, or push a new commit and re-label."
+            exit 1
           fi
 
-          echo "Resolved TestFlight build number ${RUN_NUMBER} (built at ${BUILD_SHA})"
+          RUN_NUMBER=""
+          for run_id in $(jq -r '.[].id' /tmp/runs.json); do
+            STATUS=$(gh api --paginate \
+              "repos/${REPO}/actions/runs/${run_id}/jobs" \
+              --jq '[.jobs[] | select(.name | test("Deploy iOS to TestFlight"))] | .[0].conclusion // empty')
+            if [ "$STATUS" = "success" ]; then
+              RUN_NUMBER=$(jq -r --arg id "$run_id" \
+                '.[] | select((.id|tostring) == $id) | .run_number' \
+                /tmp/runs.json)
+              break
+            fi
+          done
+
+          if [ -z "$RUN_NUMBER" ]; then
+            echo "::error::No successful deploy-testflight job found for ${SHA}. Wait for it to finish, or push a new commit and re-label."
+            exit 1
+          fi
+
+          echo "Resolved TestFlight build number ${RUN_NUMBER}"
           echo "build_number=${RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-          echo "build_sha=${BUILD_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -150,33 +109,3 @@ jobs:
         env:
           TESTFLIGHT_BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
         run: bundle exec fastlane external_beta
-
-      - name: Mark deployment success
-        if: success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.repos.createDeploymentStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              deployment_id: context.payload.deployment.id,
-              state: 'success',
-              log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              auto_inactive: true,
-              description: 'Submitted to TestFlight Beta App Review.',
-            });
-
-      - name: Mark deployment failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.repos.createDeploymentStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              deployment_id: context.payload.deployment.id,
-              state: 'failure',
-              log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              auto_inactive: false,
-              description: 'TestFlight beta submission failed.',
-            });
