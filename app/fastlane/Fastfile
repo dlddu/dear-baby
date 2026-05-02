@@ -53,6 +53,7 @@ platform :ios do
     # PR run — to the external group with review metadata applied.
     upload_to_testflight(
       api_key: api_key,
+      app_platform: "ios",
       app_identifier: BUNDLE_IDENTIFIER,
       app_version: app_version,
       build_number: build_number,
