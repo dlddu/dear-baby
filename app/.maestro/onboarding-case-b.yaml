@@ -70,6 +70,12 @@ appId: com.dlddu.dearbaby
           duration: 400
       - tapOn:
           id: "b-child-0-birth-date-done"
+# Form is taller than the visible viewport once photo + 4 fields are
+# stacked, and Maestro's tapOn does not auto-scroll. Bring the CTA
+# into view explicitly before tapping.
+- scrollUntilVisible:
+    element:
+      id: "case-b-child-next"
 - tapOn:
     id: "case-b-child-next"
 
@@ -87,6 +93,9 @@ appId: com.dlddu.dearbaby
     id: "case-b-fetus"
 - tapOn:
     id: "b-fetus-1-due-date-undecided"
+- scrollUntilVisible:
+    element:
+      id: "case-b-fetus-next"
 - tapOn:
     id: "case-b-fetus-next"
 
@@ -95,8 +104,14 @@ appId: com.dlddu.dearbaby
 # 양육 아이는 성장 일기, 태아는 편지. 아이별로 서로 다른 목적이 저장됨을 검증.
 - tapOn:
     id: "case-b-purpose-0-growth_diary"
+- scrollUntilVisible:
+    element:
+      id: "case-b-purpose-1-letter"
 - tapOn:
     id: "case-b-purpose-1-letter"
+- scrollUntilVisible:
+    element:
+      id: "case-b-finish"
 - tapOn:
     id: "case-b-finish"
 

@@ -64,6 +64,10 @@ appId: com.dlddu.dearbaby
           duration: 400
       - tapOn:
           id: "child-0-birth-date-done"
+# CTA sits below the bio field; Maestro's tapOn does not auto-scroll.
+- scrollUntilVisible:
+    element:
+      id: "case-c-child-next"
 - tapOn:
     id: "case-c-child-next"
 
@@ -71,6 +75,9 @@ appId: com.dlddu.dearbaby
     id: "case-c-purpose"
 - tapOn:
     id: "purpose-growth_diary"
+- scrollUntilVisible:
+    element:
+      id: "case-c-finish"
 - tapOn:
     id: "case-c-finish"
 
