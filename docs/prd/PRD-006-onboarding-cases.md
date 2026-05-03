@@ -241,7 +241,7 @@ flowchart TD
 ## 관련 문서
 
 - [Onboarding Flow — 케이스 분기 온보딩 전체 흐름도](../flows/onboarding-flow.md)
-- [디자인 시스템 — 점진적 공개 온보딩](../design-system/onboarding.md)
+- [와이어프레임 — 온보딩](../wireframes/onboarding.md)
 - [PRD-001: 음성 일기 기록](PRD-001-voice-diary.md) — 활성 아이 기준 기록 작성
 - [PRD-002: 매일 다른 질문 알림](PRD-002-daily-questions.md) — 활성 아이의 주차 기반 질문
 - [PRD-004: 실물 책 제작](PRD-004-book-production.md) — 활성 아이별 책 제작

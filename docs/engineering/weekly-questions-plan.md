@@ -66,6 +66,6 @@ PRD-002 의 **AC-002-02 (임신 주차별 질문 매칭)** 본 구현은 **프�
 
 - PRD: [`docs/prd/PRD-002-daily-questions.md`](../prd/PRD-002-daily-questions.md)
   (AC-002-01 ~ AC-002-04)
-- 디자인: [`docs/design-system/onboarding.md`](../design-system/onboarding.md) Stage 2
+- 와이어프레임: [`docs/wireframes/onboarding.md`](../wireframes/onboarding.md)
 - 주차 계산: [`docs/engineering/pregnancy-week-calc.md`](./pregnancy-week-calc.md)
 - AI 피처 경계: [`docs/engineering/ai-preview-scopes.md`](./ai-preview-scopes.md)

@@ -1,6 +1,6 @@
 // Text record modal — Stage 2 "첫 기록" 경로. 사용자가 텍스트로 짧은 기록을
 // 남기고, 저장 시 백엔드가 users.first_record_at 를 스탬프 → 홈 화면의 AI
-// 미리보기가 언블러된다 (docs/design-system/onboarding.md L104-106).
+// 미리보기가 언블러된다 (docs/wireframes/onboarding.md L104-106).
 //
 // 디자인 시스템 준수: 배경 cream, 입력 surface ivory + radius.md, Primary
 // Button, Text variant 토큰, spacing 토큰. 하드코딩된 색/숫자 없음.

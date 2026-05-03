@@ -13,7 +13,7 @@ export function toIsoDate(d: Date): string {
 }
 
 // formatKoreanDate → "2025년 9월 15일" per the Stage 1 wireframe in
-// docs/design-system/onboarding.md.
+// docs/wireframes/onboarding.md.
 export function formatKoreanDate(d: Date): string {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }

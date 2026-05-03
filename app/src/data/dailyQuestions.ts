@@ -1,5 +1,5 @@
 // Mock pool of daily questions shown on the Stage 2 home card. Copy follows
-// the warm/emotional tone from docs/design-system/onboarding.md — no
+// the warm/emotional tone from docs/wireframes/onboarding.md — no
 // functional phrasing.
 //
 // Placeholder only: pregnancy-week-aware selection (PRD-002 AC-002-02) is

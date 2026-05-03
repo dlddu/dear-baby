@@ -1,5 +1,5 @@
 // QuestionCard — the Stage 2 home-screen prompt card
-// (docs/design-system/onboarding.md). Layout:
+// (docs/wireframes/onboarding.md). Layout:
 //   [week badge]  (only when dueDate is known)
 //   question text (h3)
 //   soft encouragement (emotion, secondary)

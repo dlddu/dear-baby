@@ -1,5 +1,5 @@
 // Onboarding Stage 1 — 감성 웰컴 + 예정일 입력
-// docs/design-system/onboarding.md:17-59
+// docs/wireframes/onboarding.md:17-59
 //
 // 단일 목적: 예정일 하나만 받고(혹은 "아직 정해지지 않았어요"로 스킵) 즉시
 // 홈으로 보낸다. 프로필/닉네임/알림 등 다른 입력은 이 단계에서 묻지 않는다.

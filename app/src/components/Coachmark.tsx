@@ -1,5 +1,5 @@
 // Coachmark — single-shot tooltip used on the home screen
-// (docs/design-system/onboarding.md).
+// (docs/wireframes/onboarding.md).
 //
 // Shape: rounded ivory card with the hint text and a close button, plus a
 // downward-pointing arrow beneath it so the reader connects the tip to the
