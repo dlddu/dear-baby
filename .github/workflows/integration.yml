@@ -314,11 +314,31 @@ jobs:
           # the seeded user does not have by default — the seeder
           # leaves onboarding state untouched on every boot to mirror a
           # fresh sign-up).
-          curl -fsS -X PATCH \
+          #
+          # PRD-006 onwards onboarding completion is the
+          # case → children → complete sequence rather than a single
+          # PATCH /me. We post the smallest valid payload (Case A 단태,
+          # 예정일 미정) — enough to flip onboarded_at without spending
+          # time on per-child validation that the integration job does
+          # not exercise.
+          curl -fsS -X POST \
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
-            -d '{"due_date":"2026-09-01"}' \
-            http://127.0.0.1:18080/me >/dev/null
+            -d '{"is_pregnant":true,"has_children":false}' \
+            http://127.0.0.1:18080/onboarding/case
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"value":false}' \
+            http://127.0.0.1:18080/onboarding/multiple-pregnancy
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"children":[{"status":"pregnancy","gender":"unknown","name":null,"birth_date":null,"due_date":null,"pregnancy_week":null,"bio":null,"photo_s3_key":null,"is_due_date_undecided":true,"purposes":["letter"]}]}' \
+            http://127.0.0.1:18080/onboarding/children
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $access_token" \
+            http://127.0.0.1:18080/onboarding/complete
           echo "::endgroup::"
 
           echo "::group::create record"
