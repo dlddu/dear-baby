@@ -20,5 +20,4 @@ DearBaby의 디자인 시스템은 **따뜻함(Warmth)**, **부드러움(Softnes
 - [Typography — 타이포그래피](typography.md)
 - [Components — 컴포넌트](components.md)
 - [Patterns — UI/UX 패턴](patterns.md)
-- [Onboarding — 점진적 공개 온보딩](onboarding.md)
 - [Tokens — 디자인 토큰](tokens.md)

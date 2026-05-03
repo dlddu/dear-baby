@@ -47,6 +47,9 @@
 ### 플로우
 - [Onboarding Flow — 케이스 분기 온보딩 전체 흐름도](flows/onboarding-flow.md)
 
+### 와이어프레임
+- [Onboarding Wireframes — 온보딩 화면 와이어프레임](wireframes/onboarding.md)
+
 ### 테스트 문서
 - [TEST-001: 음성 일기 기록 테스트](tests/TEST-001-voice-diary.md)
 - [TEST-002: 매일 다른 질문 알림 테스트](tests/TEST-002-daily-questions.md)
@@ -64,5 +67,4 @@
 - [Typography — 타이포그래피](design-system/typography.md)
 - [Components — 컴포넌트](design-system/components.md)
 - [Patterns — UI/UX 패턴](design-system/patterns.md)
-- [Onboarding — 점진적 공개 온보딩](design-system/onboarding.md)
 - [Tokens — 디자인 토큰](design-system/tokens.md)

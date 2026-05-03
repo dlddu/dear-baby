@@ -16,6 +16,7 @@ updated: 2026-05-02
 - Acceptance Criteria: **35개** (모두 가치 연결됨)
 - 테스트 문서: **6개** (TEST-001 ~ TEST-006), 모든 PRD 커버됨
 - 흐름도: **1개** (onboarding-flow.md)
+- 와이어프레임: **1개** (wireframes/onboarding.md)
 - 용어집: **1개** (GLOSSARY-001)
 - **건강 상태**: ✅ 건강함
 
@@ -76,6 +77,7 @@ updated: 2026-05-02
 | 2026-05-02 | PRD-006 (케이스 분기 온보딩 + 출산 전환 + 다자녀) 추가 | PRD 5, AC 25 (대략) | PRD 6, AC 35 |
 | 2026-05-02 | TEST-006 추가 (19 TC) | TEST 5 | TEST 6 |
 | 2026-05-02 | docs/README.md 의 PRD/테스트 목록 갱신 | — | — |
+| 2026-05-03 | 온보딩 와이어프레임 신설(`wireframes/onboarding.md`) 및 기존 `design-system/onboarding.md` 폐기 | 와이어프레임 0 | 와이어프레임 1 |
 
 ## 향후 검토 항목 (PRD-006에서 도출됨)
 
