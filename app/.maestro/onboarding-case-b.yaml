@@ -41,22 +41,33 @@ appId: com.dlddu.dearbaby
     id: "case-b-child"
 - tapOn:
     id: "b-child-0-name"
-- inputText: "서윤"
+# Maestro's inputText does not support Unicode on Android
+# (mobile-dev-inc/maestro#146), so the seeded name is ASCII. Backend
+# treats it as plain text — no client-side validation requires Hangul.
+- inputText: "Seo-yoon"
 - pressKey: Enter
 - tapOn:
     id: "b-child-0-gender-female"
 - tapOn:
     id: "b-child-0-birth-date"
+# Android: native picker — confirm default date.
 - runFlow:
     when:
       visible: "OK"
     commands:
       - tapOn: "OK"
+# iOS: inline spinner — must spin the wheel to fire onChange (tapping
+# `done` alone leaves the field null and the next button disabled),
+# then collapse the picker.
 - runFlow:
     when:
       visible:
         id: "b-child-0-birth-date-done"
     commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
       - tapOn:
           id: "b-child-0-birth-date-done"
 - tapOn:
