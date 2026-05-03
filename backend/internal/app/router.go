@@ -12,6 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/dlddu/dear-baby/backend/internal/auth"
+	"github.com/dlddu/dear-baby/backend/internal/children"
 	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/httpx"
 	"github.com/dlddu/dear-baby/backend/internal/onboarding"
@@ -35,8 +36,9 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	r.Use(httpx.Logger(logger))
 	r.Use(httpx.CORS())
 
-	usersStore := &users.Store{DB: db}
 	onboardingStore := &onboarding.Store{DB: db}
+	childrenStore := &children.Store{DB: db}
+	usersStore := &users.Store{DB: db, Children: &childrenLister{Store: childrenStore}}
 	refreshStore := &auth.RefreshStore{DB: db}
 	issuer := &auth.Issuer{
 		Secret:     cfg.JWTSecret,
@@ -137,12 +139,22 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
 
+	caseHandlers := &onboarding.CaseHandlers{
+		Onboarding:      onboardingStore,
+		Children:        childrenStore,
+		UserIDFromCtxFn: auth.UserIDFromRequest,
+	}
+
 	// Authenticated onboarding routes. The SSE route permits query
 	// token fallback because some RN EventSource shims cannot set
 	// headers reliably.
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuth(issuer))
 		pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
+		pr.Post("/onboarding/case", caseHandlers.SetCase)
+		pr.Post("/onboarding/multiple-pregnancy", caseHandlers.SetMultiplePregnancy)
+		pr.Post("/onboarding/children", caseHandlers.SubmitChildren)
+		pr.Post("/onboarding/complete", caseHandlers.Complete)
 	})
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuthWithQueryFallback(issuer))
@@ -150,4 +162,50 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	})
 
 	return r, nil
+}
+
+// childrenLister adapts children.Store to the users.ChildrenLister
+// interface. The conversion is a fresh slice rather than a typed alias
+// so the children package is not a transitive dependency of users —
+// keeping the import direction one-way (app → both, users ↛ children).
+type childrenLister struct {
+	Store *children.Store
+}
+
+func (l *childrenLister) ListByUser(ctx context.Context, userID string) ([]users.ChildRow, map[string][]string, error) {
+	rows, purposes, err := l.Store.ListByUser(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return convertChildRows(rows), purposes, nil
+}
+
+func (l *childrenLister) ListByUserTx(ctx context.Context, tx *sql.Tx, userID string) ([]users.ChildRow, map[string][]string, error) {
+	rows, purposes, err := l.Store.ListByUserTx(ctx, tx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return convertChildRows(rows), purposes, nil
+}
+
+func convertChildRows(rows []children.Child) []users.ChildRow {
+	out := make([]users.ChildRow, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, users.ChildRow{
+			ID:                 r.ID,
+			Status:             string(r.Status),
+			Name:               r.Name,
+			Gender:             string(r.Gender),
+			BirthDate:          r.BirthDate,
+			DueDate:            r.DueDate,
+			PregnancyWeek:      r.PregnancyWeek,
+			Bio:                r.Bio,
+			PhotoS3Key:         r.PhotoS3Key,
+			IsDueDateUndecided: r.IsDueDateUndecided,
+			DisplayOrder:       r.DisplayOrder,
+			CreatedAt:          r.CreatedAt,
+			UpdatedAt:          r.UpdatedAt,
+		})
+	}
+	return out
 }

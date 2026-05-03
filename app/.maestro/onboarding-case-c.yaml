@@ -1,0 +1,71 @@
+appId: com.dlddu.dearbaby
+---
+# TEST-006 TC-006-03 + TC-006-06 — Case C 단일 양육자.
+#
+# 임신 X · 양육 O → Case C. 본 플로우는 1명만 입력하는 가장 짧은 경로를
+# 검증한다 (다자녀 입력은 별도 테스트로 분리 가능). 생년월일은
+# DateField 의 OK/완료 버튼 탭으로 기본값을 채택한다.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "onboarding-intro"
+- tapOn:
+    id: "onboarding-intro-start"
+
+- tapOn:
+    id: "onboarding-pregnant-no"
+- tapOn:
+    id: "onboarding-children-yes"
+
+- assertVisible:
+    id: "case-c-count"
+- tapOn:
+    id: "case-c-count-1"
+
+- assertVisible:
+    id: "case-c-child"
+- tapOn:
+    id: "child-0-name"
+- inputText: "서윤"
+- pressKey: Enter
+- tapOn:
+    id: "child-0-gender-female"
+- tapOn:
+    id: "child-0-birth-date"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "child-0-birth-date-done"
+    commands:
+      - tapOn:
+          id: "child-0-birth-date-done"
+- tapOn:
+    id: "case-c-child-next"
+
+- assertVisible:
+    id: "case-c-purpose"
+- tapOn:
+    id: "purpose-growth_diary"
+- tapOn:
+    id: "case-c-finish"
+
+- extendedWaitUntil:
+    visible:
+      id: "home-tab"
+    timeout: 8000

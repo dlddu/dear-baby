@@ -56,9 +56,18 @@ export default function HomeTab() {
 
   const prevFirstRecordAtRef = useRef<string | null>(null);
 
+  // PRD-006 onwards user.due_date is null; the per-child due date lives
+  // on user.children[i].due_date. Until the multi-child context tab
+  // (AC-006-08) lands, we surface the first pregnancy child's due date —
+  // single-child Case A users see the same badge they did on Stage 1.
+  const primaryDueDate = useMemo(() => {
+    if (!user) return null;
+    const pregnancy = (user.children ?? []).find((c) => c.status === 'pregnancy');
+    return pregnancy?.due_date ?? null;
+  }, [user]);
   const pregnancy = useMemo(
-    () => calcPregnancy(user?.due_date ?? null),
-    [user?.due_date],
+    () => calcPregnancy(primaryDueDate),
+    [primaryDueDate],
   );
   const question = useMemo(() => pickDailyQuestion(), []);
 

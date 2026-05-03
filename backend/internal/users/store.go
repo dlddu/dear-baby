@@ -13,9 +13,40 @@ import (
 // ErrNotFound is returned when a lookup does not match any row.
 var ErrNotFound = errors.New("user not found")
 
+// ChildRow is the per-child shape GetProfile flattens into Profile.Children.
+// Kept inside the users package so the JSON view is owned by the same
+// package that owns the rest of the /me response. The router converts
+// children.Child rows into this view before passing them in via the
+// ChildrenLister hook.
+type ChildRow struct {
+	ID                 string
+	Status             string
+	Name               *string
+	Gender             string
+	BirthDate          *string
+	DueDate            *string
+	PregnancyWeek      *int
+	Bio                *string
+	PhotoS3Key         *string
+	IsDueDateUndecided bool
+	DisplayOrder       int
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+// ChildrenLister is the slice of children.Store that GetProfile needs to
+// hydrate Profile.Children. Declared as an interface so the users package
+// stays independent of the children import (the router wires the concrete
+// store via a tiny adapter in app/router.go).
+type ChildrenLister interface {
+	ListByUser(ctx context.Context, userID string) ([]ChildRow, map[string][]string, error)
+	ListByUserTx(ctx context.Context, tx *sql.Tx, userID string) ([]ChildRow, map[string][]string, error)
+}
+
 // Store is a thin data-access layer over the users and oauth_accounts tables.
 type Store struct {
-	DB *sql.DB
+	DB       *sql.DB
+	Children ChildrenLister
 }
 
 // OnboardingEnsurer inserts an empty onboarding row for a new user inside
@@ -180,31 +211,88 @@ func getByID(ctx context.Context, q rowScanner, id string) (*User, error) {
 // so a missing onboarding row still yields a Profile (with null onboarding
 // fields) rather than a 404 — this mirrors the pre-move behavior where all
 // fields lived on users.
+//
+// Children are fetched via the injected ChildrenLister (nil-safe: when the
+// store is constructed without one, Profile.Children comes back as an empty
+// slice instead of crashing — useful for tests that don't care about the
+// case-branching surface).
 func (s *Store) GetProfile(ctx context.Context, id string) (*Profile, error) {
-	return getProfile(ctx, s.DB, id)
+	p, err := getProfile(ctx, s.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	if s.Children != nil {
+		rows, purposes, err := s.Children.ListByUser(ctx, id)
+		if err != nil {
+			return nil, fmt.Errorf("list children: %w", err)
+		}
+		p.Children = mapChildren(rows, purposes)
+	}
+	return p, nil
 }
 
 // GetProfileTx mirrors GetProfile inside an existing transaction — used by
 // the records package to return a consistent view alongside the new record.
 func (s *Store) GetProfileTx(ctx context.Context, tx *sql.Tx, id string) (*Profile, error) {
-	return getProfile(ctx, tx, id)
+	p, err := getProfile(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	if s.Children != nil {
+		rows, purposes, err := s.Children.ListByUserTx(ctx, tx, id)
+		if err != nil {
+			return nil, fmt.Errorf("list children: %w", err)
+		}
+		p.Children = mapChildren(rows, purposes)
+	}
+	return p, nil
+}
+
+func mapChildren(rows []ChildRow, purposes map[string][]string) []ChildView {
+	out := make([]ChildView, 0, len(rows))
+	for _, r := range rows {
+		ps := purposes[r.ID]
+		if ps == nil {
+			ps = []string{}
+		}
+		out = append(out, ChildView{
+			ID:                 r.ID,
+			Status:             r.Status,
+			Name:               r.Name,
+			Gender:             r.Gender,
+			BirthDate:          r.BirthDate,
+			DueDate:            r.DueDate,
+			PregnancyWeek:      r.PregnancyWeek,
+			Bio:                r.Bio,
+			PhotoS3Key:         r.PhotoS3Key,
+			IsDueDateUndecided: r.IsDueDateUndecided,
+			DisplayOrder:       r.DisplayOrder,
+			Purposes:           ps,
+			CreatedAt:          r.CreatedAt,
+			UpdatedAt:          r.UpdatedAt,
+		})
+	}
+	return out
 }
 
 func getProfile(ctx context.Context, q rowScanner, id string) (*Profile, error) {
-	p := &Profile{}
+	p := &Profile{Children: []ChildView{}}
 	var name, picture, dueDate, onboardedAt, voiceDismissedAt, firstRecordAt, aiPreview sql.NullString
+	var isPregnant, hasChildren, multiplePregnancy sql.NullBool
 	var createdAt, updatedAt string
 	err := q.QueryRowContext(ctx, `
 		SELECT u.id, u.email, u.name, u.picture_url,
-		       o.due_date, o.onboarded_at, o.voice_coachmark_dismissed_at,
+		       o.onboarded_at, o.voice_coachmark_dismissed_at,
 		       o.first_record_at, o.ai_preview,
+		       o.is_pregnant, o.has_children, o.multiple_pregnancy,
 		       u.created_at, u.updated_at
 		FROM users u
 		LEFT JOIN onboarding o ON o.user_id = u.id
 		WHERE u.id = ?
 	`, id).Scan(&p.ID, &p.Email, &name, &picture,
-		&dueDate, &onboardedAt, &voiceDismissedAt,
+		&onboardedAt, &voiceDismissedAt,
 		&firstRecordAt, &aiPreview,
+		&isPregnant, &hasChildren, &multiplePregnancy,
 		&createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -214,10 +302,10 @@ func getProfile(ctx context.Context, q rowScanner, id string) (*Profile, error) 
 	}
 	p.Name = name.String
 	p.PictureURL = picture.String
-	if dueDate.Valid {
-		v := dueDate.String
-		p.DueDate = &v
-	}
+	// DueDate is intentionally left nil: see Profile.DueDate godoc. Reading
+	// the column out of the DB is skipped entirely so removing the column
+	// later is just a schema change.
+	_ = dueDate
 	if onboardedAt.Valid {
 		if t, err := time.Parse(sqliteTimeLayout, onboardedAt.String); err == nil {
 			p.OnboardedAt = &t
@@ -236,6 +324,18 @@ func getProfile(ctx context.Context, q rowScanner, id string) (*Profile, error) 
 	if aiPreview.Valid {
 		v := aiPreview.String
 		p.AIPreview = &v
+	}
+	if isPregnant.Valid {
+		v := isPregnant.Bool
+		p.IsPregnant = &v
+	}
+	if hasChildren.Valid {
+		v := hasChildren.Bool
+		p.HasChildren = &v
+	}
+	if multiplePregnancy.Valid {
+		v := multiplePregnancy.Bool
+		p.MultiplePregnancy = &v
 	}
 	p.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
 	p.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)

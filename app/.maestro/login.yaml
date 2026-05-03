@@ -24,7 +24,7 @@ appId: com.dlddu.dearbaby
     file: subflows/tester-login.yaml
 
 # Newly seeded user has no onboarded_at, so login lands on the
-# onboarding welcome screen. The dedicated onboarding flows verify the
-# rest of the funnel.
+# PRD-006 onboarding intro screen. The dedicated onboarding flows verify
+# the rest of the funnel.
 - assertVisible:
-    id: "onboarding-welcome"
+    id: "onboarding-intro"

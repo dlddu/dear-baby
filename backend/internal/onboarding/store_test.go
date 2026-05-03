@@ -35,6 +35,9 @@ CREATE TABLE onboarding (
   voice_coachmark_dismissed_at TEXT,
   first_record_at              TEXT,
   ai_preview                   TEXT,
+  is_pregnant                  BOOLEAN,
+  has_children                 BOOLEAN,
+  multiple_pregnancy           BOOLEAN,
   updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (
@@ -312,5 +315,150 @@ func TestEnsureRowTx_Idempotent(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("rows: got %d want 1", n)
+	}
+}
+
+func TestSetCase_SetsBothFlags(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	yes, no := true, false
+	if err := store.SetCase(ctx, "u1", &yes, &no); err != nil {
+		t.Fatalf("set case: %v", err)
+	}
+	o, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if o.IsPregnant == nil || !*o.IsPregnant {
+		t.Errorf("is_pregnant: %v", o.IsPregnant)
+	}
+	if o.HasChildren == nil || *o.HasChildren {
+		t.Errorf("has_children: %v", o.HasChildren)
+	}
+}
+
+func TestSetCase_PartialUpdatePreserves(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	yes := true
+	if err := store.SetCase(ctx, "u1", &yes, &yes); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	// Re-submit only is_pregnant=false; has_children should keep its prior value.
+	no := false
+	if err := store.SetCase(ctx, "u1", &no, nil); err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	o, _ := store.GetByID(ctx, "u1")
+	if o.IsPregnant == nil || *o.IsPregnant {
+		t.Errorf("is_pregnant: %v", o.IsPregnant)
+	}
+	if o.HasChildren == nil || !*o.HasChildren {
+		t.Errorf("has_children should be preserved: %v", o.HasChildren)
+	}
+}
+
+func TestSetCase_NotFound(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	store := &Store{DB: db}
+	yes := true
+	err := store.SetCase(context.Background(), "missing", &yes, nil)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err: %v want ErrNotFound", err)
+	}
+}
+
+func TestSetMultiplePregnancy(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	if err := store.SetMultiplePregnancy(ctx, "u1", true); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	o, _ := store.GetByID(ctx, "u1")
+	if o.MultiplePregnancy == nil || !*o.MultiplePregnancy {
+		t.Errorf("multiple_pregnancy: %v", o.MultiplePregnancy)
+	}
+	// Re-submit with single value.
+	if err := store.SetMultiplePregnancy(ctx, "u1", false); err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	o, _ = store.GetByID(ctx, "u1")
+	if o.MultiplePregnancy == nil || *o.MultiplePregnancy {
+		t.Errorf("multiple_pregnancy after toggle: %v", o.MultiplePregnancy)
+	}
+}
+
+func TestComplete_StampsOnce(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	if err := store.Complete(ctx, "u1"); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	first, _ := store.GetByID(ctx, "u1")
+	if first.OnboardedAt == nil {
+		t.Fatal("onboarded_at should be set")
+	}
+	stamped := *first.OnboardedAt
+	if err := store.Complete(ctx, "u1"); err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	second, _ := store.GetByID(ctx, "u1")
+	if second.OnboardedAt == nil || !second.OnboardedAt.Equal(stamped) {
+		t.Errorf("timestamp changed: got %v want %v", second.OnboardedAt, stamped)
+	}
+}
+
+func TestComplete_NotFound(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	store := &Store{DB: db}
+	err := store.Complete(context.Background(), "missing")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err: %v want ErrNotFound", err)
+	}
+}
+
+func TestReset_ClearsCaseFlags(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	yes := true
+	if err := store.SetCase(ctx, "u1", &yes, &yes); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if err := store.SetMultiplePregnancy(ctx, "u1", true); err != nil {
+		t.Fatalf("multi: %v", err)
+	}
+	if err := store.Complete(ctx, "u1"); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if err := store.Reset(ctx, "u1"); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	o, _ := store.GetByID(ctx, "u1")
+	if o.IsPregnant != nil || o.HasChildren != nil || o.MultiplePregnancy != nil || o.OnboardedAt != nil {
+		t.Errorf("reset should clear case flags: %+v", o)
 	}
 }

@@ -1,0 +1,52 @@
+appId: com.dlddu.dearbaby
+---
+# Drives the shortest valid PRD-006 onboarding path so downstream stage 2
+# flows can land on the home tab. Caller must arrive on the landing screen
+# pre-login (this subflow handles the rest, including tester-login).
+#
+#   intro → 임신 X → 양육 X → Case A 단태 → 태아(예정일 미정) → letter 목적 → 홈
+#
+# Mirrors TC-006-01 (case branch) + a minimal AC-006-02 fetus payload.
+
+- runFlow:
+    file: tester-login.yaml
+
+- assertVisible:
+    id: "onboarding-intro"
+- tapOn:
+    id: "onboarding-intro-start"
+
+- assertVisible:
+    id: "onboarding-case-pregnancy"
+- tapOn:
+    id: "onboarding-pregnant-no"
+
+- assertVisible:
+    id: "onboarding-case-children"
+- tapOn:
+    id: "onboarding-children-no"
+
+- assertVisible:
+    id: "case-a-multiple"
+- tapOn:
+    id: "case-a-single"
+
+- assertVisible:
+    id: "case-a-fetus"
+# 예정일 미정 체크박스 — 가장 빠른 통과 루트
+- tapOn:
+    id: "fetus-0-due-date-undecided"
+- tapOn:
+    id: "case-a-fetus-next"
+
+- assertVisible:
+    id: "case-a-purpose"
+- tapOn:
+    id: "purpose-letter"
+- tapOn:
+    id: "case-a-finish"
+
+- extendedWaitUntil:
+    visible:
+      id: "home-tab"
+    timeout: 8000

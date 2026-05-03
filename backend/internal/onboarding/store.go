@@ -49,11 +49,14 @@ func (s *Store) GetByIDTx(ctx context.Context, tx *sql.Tx, userID string) (*Onbo
 func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, error) {
 	o := &Onboarding{UserID: userID}
 	var dueDate, onboardedAt, voiceDismissedAt, firstRecordAt, aiPreview sql.NullString
+	var isPregnant, hasChildren, multiplePregnancy sql.NullBool
 	var updatedAt string
 	err := q.QueryRowContext(ctx, `
-		SELECT due_date, onboarded_at, voice_coachmark_dismissed_at, first_record_at, ai_preview, updated_at
+		SELECT due_date, onboarded_at, voice_coachmark_dismissed_at, first_record_at, ai_preview,
+		       is_pregnant, has_children, multiple_pregnancy, updated_at
 		FROM onboarding WHERE user_id = ?
-	`, userID).Scan(&dueDate, &onboardedAt, &voiceDismissedAt, &firstRecordAt, &aiPreview, &updatedAt)
+	`, userID).Scan(&dueDate, &onboardedAt, &voiceDismissedAt, &firstRecordAt, &aiPreview,
+		&isPregnant, &hasChildren, &multiplePregnancy, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -83,12 +86,99 @@ func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, err
 		s := aiPreview.String
 		o.AIPreview = &s
 	}
+	if isPregnant.Valid {
+		v := isPregnant.Bool
+		o.IsPregnant = &v
+	}
+	if hasChildren.Valid {
+		v := hasChildren.Bool
+		o.HasChildren = &v
+	}
+	if multiplePregnancy.Valid {
+		v := multiplePregnancy.Bool
+		o.MultiplePregnancy = &v
+	}
 	o.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
 	return o, nil
 }
 
+// SetCase stores the two independent answers from AC-006-01 (임신 여부 / 양육
+// 여부) idempotently. Each call replaces the prior values; passing nil for a
+// flag preserves it. The pair acts as the routing key for Case A/B/C — the
+// client decides which case it is from these flags, so the store does not
+// validate combinations.
+func (s *Store) SetCase(ctx context.Context, userID string, isPregnant, hasChildren *bool) error {
+	if err := s.ensureRow(ctx, userID); err != nil {
+		return err
+	}
+	res, err := s.DB.ExecContext(ctx, `
+		UPDATE onboarding
+		SET is_pregnant  = COALESCE(?, is_pregnant),
+		    has_children = COALESCE(?, has_children),
+		    updated_at   = datetime('now')
+		WHERE user_id = ?
+	`, nullableBool(isPregnant), nullableBool(hasChildren), userID)
+	if err != nil {
+		return fmt.Errorf("set case: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetMultiplePregnancy persists the 단태(false)/다태(true) answer for Case A.
+// Idempotent — the client may resubmit the same value when re-entering the
+// step. Cleared by Reset.
+func (s *Store) SetMultiplePregnancy(ctx context.Context, userID string, value bool) error {
+	if err := s.ensureRow(ctx, userID); err != nil {
+		return err
+	}
+	if _, err := s.DB.ExecContext(ctx, `
+		UPDATE onboarding
+		SET multiple_pregnancy = ?, updated_at = datetime('now')
+		WHERE user_id = ?
+	`, value, userID); err != nil {
+		return fmt.Errorf("set multiple pregnancy: %w", err)
+	}
+	return nil
+}
+
+// Complete stamps onboarded_at, marking the case-branching funnel finished.
+// Called from POST /onboarding/complete after the children batch has been
+// persisted. Idempotent — a second call preserves the original timestamp.
+func (s *Store) Complete(ctx context.Context, userID string) error {
+	if _, err := s.GetByID(ctx, userID); err != nil {
+		return err
+	}
+	if _, err := s.DB.ExecContext(ctx, `
+		UPDATE onboarding
+		SET onboarded_at = datetime('now'), updated_at = datetime('now')
+		WHERE user_id = ? AND onboarded_at IS NULL
+	`, userID); err != nil {
+		return fmt.Errorf("complete onboarding: %w", err)
+	}
+	return nil
+}
+
+func nullableBool(b *bool) any {
+	if b == nil {
+		return nil
+	}
+	return *b
+}
+
 // UpdateDueDateAndOnboardedAt persists the user's due date (nullable) and
 // marks onboarding Stage 1 complete by stamping onboarded_at.
+//
+// Deprecated: PRD-006 케이스 분기 온보딩으로 대체됨. Per-child due dates
+// 는 children.due_date 에 저장되며, complete 도 SetCase + ReplaceAll +
+// Complete 시퀀스로 분리됐다. 본 메서드는 기존 테스트 호환을 위해 남아
+// 있으며 신규 코드 경로에서 호출하지 않는다.
 func (s *Store) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error {
 	if err := s.ensureRow(ctx, userID); err != nil {
 		return err
@@ -152,7 +242,10 @@ func (s *Store) UpdateAIPreview(ctx context.Context, userID, preview string) err
 
 // Reset clears all onboarding state for the given user. Used by the
 // test-login handler so successive E2E runs re-enter the onboarding
-// funnel. Records themselves are preserved.
+// funnel. Records themselves are preserved. Children rows are not
+// touched here — callers (reset-onboarding) clear them separately via
+// children.Store.DeleteAll so this store's responsibility stays scoped
+// to its own table.
 func (s *Store) Reset(ctx context.Context, userID string) error {
 	res, err := s.DB.ExecContext(ctx, `
 		UPDATE onboarding
@@ -161,6 +254,9 @@ func (s *Store) Reset(ctx context.Context, userID string) error {
 		    voice_coachmark_dismissed_at = NULL,
 		    first_record_at = NULL,
 		    ai_preview = NULL,
+		    is_pregnant = NULL,
+		    has_children = NULL,
+		    multiple_pregnancy = NULL,
 		    updated_at = datetime('now')
 		WHERE user_id = ?
 	`, userID)
@@ -178,7 +274,9 @@ func (s *Store) Reset(ctx context.Context, userID string) error {
 }
 
 // ResetByEmail clears onboarding state for the user with the given email.
-// Returns ErrNotFound if no user or onboarding row matches.
+// Returns ErrNotFound if no user or onboarding row matches. As with Reset,
+// children rows are out of scope — the reset-onboarding command wipes
+// them via children.Store.DeleteAll.
 func (s *Store) ResetByEmail(ctx context.Context, email string) error {
 	res, err := s.DB.ExecContext(ctx, `
 		UPDATE onboarding
@@ -187,6 +285,9 @@ func (s *Store) ResetByEmail(ctx context.Context, email string) error {
 		    voice_coachmark_dismissed_at = NULL,
 		    first_record_at = NULL,
 		    ai_preview = NULL,
+		    is_pregnant = NULL,
+		    has_children = NULL,
+		    multiple_pregnancy = NULL,
 		    updated_at = datetime('now')
 		WHERE user_id = (SELECT id FROM users WHERE email = ?)
 	`, email)

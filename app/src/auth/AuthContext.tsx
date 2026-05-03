@@ -9,11 +9,19 @@ import React, {
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
 import {
+  completeOnboarding as apiCompleteOnboarding,
+  setCase as apiSetCase,
+  setMultiplePregnancy as apiSetMultiplePregnancy,
+  submitChildren as apiSubmitChildren,
+  type ChildSubmit,
+} from '../api/onboarding';
+import {
   createTextRecord as apiCreateTextRecord,
   createVoiceRecord as apiCreateVoiceRecord,
 } from '../api/records';
 import type { Record, Session, User } from '../api/types';
 import { patchMe } from '../api/users';
+import { clearOnboardingDraft, loadOnboardingDraft } from './onboardingDraft';
 import {
   clearOnboardingCache,
   getCachedOnboardedAt,
@@ -36,7 +44,12 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   setSession: (session: Session) => Promise<void>;
-  completeOnboarding: (dueDate: string | null) => Promise<void>;
+  // PRD-006: completeOnboarding reads the SecureStore draft and replays
+  // it as four backend calls (case → multiple-pregnancy → children →
+  // complete), then refreshes /me and clears the draft. No arguments —
+  // every screen is responsible for persisting its slice of the draft
+  // before navigating, so this method is the funnel's atomic submit.
+  completeOnboarding: () => Promise<void>;
   dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string, questionText?: string) => Promise<void>;
   // createVoiceRecord saves the transcript with source="voice". The
@@ -118,11 +131,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(session.user);
   }, []);
 
-  const completeOnboarding = useCallback(async (dueDate: string | null) => {
-    const updated = await patchMe({ due_date: dueDate });
+  const completeOnboarding = useCallback(async () => {
+    const draft = await loadOnboardingDraft();
+    if (!draft.case) {
+      throw new Error('onboarding draft missing case answers');
+    }
+    if (draft.children.length === 0) {
+      throw new Error('onboarding draft missing children');
+    }
+
+    await apiSetCase({
+      is_pregnant: draft.case.isPregnant,
+      has_children: draft.case.hasChildren,
+    });
+    if (draft.multiplePregnancy !== null) {
+      await apiSetMultiplePregnancy(draft.multiplePregnancy);
+    }
+
+    const submitChildren: ChildSubmit[] = draft.children.map((c, i) => ({
+      ...c,
+      purposes: draft.purposes[i] ?? [],
+    }));
+    await apiSubmitChildren(submitChildren);
+    await apiCompleteOnboarding();
+
+    const updated = await apiMe();
     setUser(updated);
     setStatus(statusForUser(updated));
     await cacheFromUser(updated);
+    await clearOnboardingDraft();
   }, []);
 
   // dismissVoiceCoachmark is called when the user taps the close button on
@@ -184,6 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await clearTokens();
     await clearOnboardingCache();
+    await clearOnboardingDraft();
     setUser(null);
     setStatus('unauthenticated');
   }, []);

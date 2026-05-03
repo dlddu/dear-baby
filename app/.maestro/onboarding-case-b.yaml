@@ -1,0 +1,95 @@
+appId: com.dlddu.dearbaby
+---
+# TEST-006 TC-006-02 + TC-006-05 — Case B 양육 → 임신 순서 통과.
+#
+# 양육 1명 → 임신 단태 → 아이별 목적 (서로 다른 셋) → 홈. AC-006-03 의
+# "양육 → 임신 순서 강제" 가 화면 흐름으로 강제됨을 검증한다.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "onboarding-intro"
+- tapOn:
+    id: "onboarding-intro-start"
+
+- tapOn:
+    id: "onboarding-pregnant-yes"
+- tapOn:
+    id: "onboarding-children-yes"
+
+- assertVisible:
+    id: "case-b-intro"
+- tapOn:
+    id: "case-b-intro-next"
+
+- assertVisible:
+    id: "case-b-count"
+- tapOn:
+    id: "case-b-count-1"
+
+- assertVisible:
+    id: "case-b-child"
+- tapOn:
+    id: "b-child-0-name"
+- inputText: "서윤"
+- pressKey: Enter
+- tapOn:
+    id: "b-child-0-gender-female"
+- tapOn:
+    id: "b-child-0-birth-date"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "b-child-0-birth-date-done"
+    commands:
+      - tapOn:
+          id: "b-child-0-birth-date-done"
+- tapOn:
+    id: "case-b-child-next"
+
+- assertVisible:
+    id: "case-b-pregnancy-intro"
+- tapOn:
+    id: "case-b-pregnancy-intro-next"
+
+- assertVisible:
+    id: "case-b-multiple"
+- tapOn:
+    id: "case-b-single"
+
+- assertVisible:
+    id: "case-b-fetus"
+- tapOn:
+    id: "b-fetus-1-due-date-undecided"
+- tapOn:
+    id: "case-b-fetus-next"
+
+- assertVisible:
+    id: "case-b-purposes"
+# 양육 아이는 성장 일기, 태아는 편지. 아이별로 서로 다른 목적이 저장됨을 검증.
+- tapOn:
+    id: "case-b-purpose-0-growth_diary"
+- tapOn:
+    id: "case-b-purpose-1-letter"
+- tapOn:
+    id: "case-b-finish"
+
+- extendedWaitUntil:
+    visible:
+      id: "home-tab"
+    timeout: 8000

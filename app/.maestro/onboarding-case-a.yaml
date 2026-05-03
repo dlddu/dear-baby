@@ -1,0 +1,59 @@
+appId: com.dlddu.dearbaby
+---
+# TEST-006 TC-006-01 + TC-006-04 — Case A 단태 입력 후 홈 진입.
+#
+# Verifies AC-006-01 의 분기 (임신 O · 양육 X → Case A) and AC-006-02
+# 의 입력 흐름 (단태 → 태아 정보 → 목적 → 홈). Pregnancy week + 예정일은
+# 입력하지 않고 "예정일 미정" 체크박스로 통과 — 본 테스트는 분기 흐름만
+# 검증한다 (필드 검증은 단위 테스트가 담당).
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "onboarding-intro"
+- tapOn:
+    id: "onboarding-intro-start"
+
+- assertVisible:
+    id: "onboarding-case-pregnancy"
+- tapOn:
+    id: "onboarding-pregnant-yes"
+
+- assertVisible:
+    id: "onboarding-case-children"
+- tapOn:
+    id: "onboarding-children-no"
+
+- assertVisible:
+    id: "case-a-multiple"
+- tapOn:
+    id: "case-a-single"
+
+- assertVisible:
+    id: "case-a-fetus"
+- tapOn:
+    id: "fetus-0-due-date-undecided"
+- tapOn:
+    id: "case-a-fetus-next"
+
+- assertVisible:
+    id: "case-a-purpose"
+- tapOn:
+    id: "purpose-letter"
+- tapOn:
+    id: "case-a-finish"
+
+- extendedWaitUntil:
+    visible:
+      id: "home-tab"
+    timeout: 8000

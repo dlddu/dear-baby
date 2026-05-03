@@ -1,12 +1,37 @@
+// Child mirrors backend users.ChildView 1:1 — the per-child slice the
+// /me response surfaces inside `User.children`. Status discriminates
+// pregnancies from already-born children; the rest is the union of
+// fields the wireframe collects across both cases.
+export type Child = {
+  id: string;
+  status: 'parenting' | 'pregnancy';
+  name: string | null;
+  gender: 'female' | 'male' | 'unknown';
+  birth_date: string | null;
+  due_date: string | null;
+  pregnancy_week: number | null;
+  bio: string | null;
+  photo_s3_key: string | null;
+  is_due_date_undecided: boolean;
+  display_order: number;
+  purposes: string[];
+  created_at: string;
+  updated_at: string;
+};
+
 export type User = {
   id: string;
   email: string;
   name: string;
   picture_url: string;
-  // Onboarding fields — null until the user completes Stage 1 of onboarding.
-  // `due_date` is "YYYY-MM-DD" (nullable so "undecided" users can still finish
-  // onboarding). `onboarded_at` is an ISO timestamp set by the backend.
+  // PRD-006 — due_date is deprecated and always null. Per-child due
+  // dates live on `children[i].due_date`. Kept on the type for backward
+  // compatibility with code paths that haven't migrated yet (notably
+  // the home screen pregnancy-week badge — see the known-regression
+  // note in the PR description).
   due_date: string | null;
+  // `onboarded_at` is an ISO timestamp set by the backend when the
+  // user finishes the case-branching funnel (POST /onboarding/complete).
   onboarded_at: string | null;
   // Voice-record coachmark dismissal timestamp (shown on the home screen).
   // Null until the user closes the coachmark; once stamped, the coachmark
@@ -21,6 +46,14 @@ export type User = {
   // first record. The home screen subscribes to an SSE stream that
   // notifies when this flips from null → string.
   ai_preview: string | null;
+  // PRD-006 case-branching answers. All three are null until the user
+  // answers the relevant onboarding step.
+  is_pregnant: boolean | null;
+  has_children: boolean | null;
+  multiple_pregnancy: boolean | null;
+  // Children — empty array until POST /onboarding/children succeeds.
+  // Order mirrors the user's input order via `display_order`.
+  children: Child[];
   created_at: string;
   updated_at: string;
 };

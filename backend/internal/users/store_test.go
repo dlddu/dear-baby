@@ -39,6 +39,9 @@ CREATE TABLE onboarding (
   voice_coachmark_dismissed_at TEXT,
   first_record_at              TEXT,
   ai_preview                   TEXT,
+  is_pregnant                  BOOLEAN,
+  has_children                 BOOLEAN,
+  multiple_pregnancy           BOOLEAN,
   updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (
@@ -108,7 +111,8 @@ func TestGetProfile_MergesOnboardingFields(t *testing.T) {
 	seedUser(t, db, "u1", "a@b.com")
 
 	if _, err := db.Exec(`
-		UPDATE onboarding SET due_date = '2025-09-15', onboarded_at = datetime('now')
+		UPDATE onboarding SET onboarded_at = datetime('now'),
+		                      is_pregnant = 1, has_children = 0, multiple_pregnancy = 0
 		WHERE user_id = 'u1'
 	`); err != nil {
 		t.Fatalf("stamp onboarding: %v", err)
@@ -119,11 +123,22 @@ func TestGetProfile_MergesOnboardingFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get profile: %v", err)
 	}
-	if p.DueDate == nil || *p.DueDate != "2025-09-15" {
-		t.Errorf("due_date: got %v", p.DueDate)
+	// PRD-006: due_date is no longer surfaced from onboarding — it lives
+	// per-child on Profile.Children.
+	if p.DueDate != nil {
+		t.Errorf("due_date should always be nil after PRD-006: got %v", *p.DueDate)
 	}
 	if p.OnboardedAt == nil {
 		t.Error("onboarded_at should be set")
+	}
+	if p.IsPregnant == nil || !*p.IsPregnant {
+		t.Errorf("is_pregnant: %v", p.IsPregnant)
+	}
+	if p.HasChildren == nil || *p.HasChildren {
+		t.Errorf("has_children: %v", p.HasChildren)
+	}
+	if p.MultiplePregnancy == nil || *p.MultiplePregnancy {
+		t.Errorf("multiple_pregnancy: %v", p.MultiplePregnancy)
 	}
 }
 

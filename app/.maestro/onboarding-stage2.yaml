@@ -4,11 +4,10 @@ appId: com.dlddu.dearbaby
 #
 # Verifies the home-screen voice-record coachmark + question card +
 # dual CTAs + blurred AI preview shown to users who just completed
-# Stage 1 with a due date. Combines what was previously Path 1
-# (set due date → verify Stage 2 + coachmark dismissal) and Path 3
-# (voice CTA navigation, text CTA save → AI preview) of the legacy
-# multi-path flow — both paths consume the same onboarded-with-date
-# state, so they stay together.
+# Stage 1. PRD-006 onwards Stage 1 is the case-branching funnel; we use
+# the Case A fast-path subflow to land on home with one pregnancy child
+# (예정일 미정) without re-asserting the funnel itself — that lives in
+# onboarding-case-a.yaml.
 #
 # CI must reset the seeded test user's onboarding state before running
 # this flow; the undecided path lives in onboarding-stage2-undecided.yaml.
@@ -23,36 +22,8 @@ appId: com.dlddu.dearbaby
       - tapOn: "Wait"
 
 - runFlow:
-    file: subflows/tester-login.yaml
+    file: subflows/case-a-fastpath.yaml
 
-- assertVisible:
-    id: "onboarding-welcome"
-
-- tapOn:
-    id: "onboarding-due-date-field"
-
-# Android: native date-picker dialog — confirm the default date.
-- runFlow:
-    when:
-      visible: "OK"
-    commands:
-      - tapOn: "OK"
-
-# iOS: inline spinner — scroll wheel + Done, same pattern as stage1.
-- runFlow:
-    when:
-      visible:
-        id: "onboarding-date-picker-done"
-    commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
-      - tapOn:
-          id: "onboarding-date-picker-done"
-
-- tapOn:
-    id: "onboarding-start-button"
 - assertVisible:
     id: "home-tab"
 

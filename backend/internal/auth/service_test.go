@@ -41,6 +41,9 @@ CREATE TABLE onboarding (
   voice_coachmark_dismissed_at TEXT,
   first_record_at              TEXT,
   ai_preview                   TEXT,
+  is_pregnant                  BOOLEAN,
+  has_children                 BOOLEAN,
+  multiple_pregnancy           BOOLEAN,
   updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE refresh_tokens (

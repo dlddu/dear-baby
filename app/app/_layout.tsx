@@ -49,7 +49,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (status === 'authenticated' && !inTabs && !inAuthedModal) {
       router.replace('/(tabs)');
     } else if (status === 'onboarding' && !inOnboarding) {
-      router.replace('/(onboarding)/welcome');
+      router.replace('/(onboarding)/intro');
     } else if (
       status === 'unauthenticated' &&
       (inTabs || inOnboarding || inAuthedModal)

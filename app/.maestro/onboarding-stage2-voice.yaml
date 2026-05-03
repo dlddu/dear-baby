@@ -31,11 +31,7 @@ appId: com.dlddu.dearbaby
       - tapOn: "Wait"
 
 - runFlow:
-    file: subflows/tester-login.yaml
-- assertVisible:
-    id: "onboarding-welcome"
-- tapOn:
-    id: "onboarding-skip-button"
+    file: subflows/case-a-fastpath.yaml
 - assertVisible:
     id: "home-tab"
 
