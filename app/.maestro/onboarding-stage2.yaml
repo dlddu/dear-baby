@@ -22,7 +22,7 @@ appId: com.dlddu.dearbaby
       - tapOn: "Wait"
 
 - runFlow:
-    file: subflows/case-a-fastpath.yaml
+    file: subflows/case-a-fastpath-with-date.yaml
 
 - assertVisible:
     id: "home-tab"
