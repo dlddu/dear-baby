@@ -94,6 +94,7 @@ export function ChildForm({ values, onChange, testIDPrefix = 'child' }: ChildFor
           onChangeText={(t) => update({ display_name: t })}
           placeholder="아이 이름"
           placeholderTextColor={colors.text.muted}
+          returnKeyType="done"
           style={styles.input}
           testID={`${testIDPrefix}-name`}
         />
@@ -149,6 +150,7 @@ export function ChildForm({ values, onChange, testIDPrefix = 'child' }: ChildFor
           onChangeText={(t) => update({ introduction: t })}
           placeholder="우리 아이를 한 줄로 소개해 주세요"
           placeholderTextColor={colors.text.muted}
+          returnKeyType="done"
           style={styles.input}
           maxLength={120}
           testID={`${testIDPrefix}-intro`}

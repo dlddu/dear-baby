@@ -82,6 +82,7 @@ export function FetusForm({ values, onChange, testIDPrefix = 'fetus' }: FetusFor
           onChangeText={(t) => update({ display_name: t })}
           placeholder="아기에게 부르는 이름이 있다면"
           placeholderTextColor={colors.text.muted}
+          returnKeyType="done"
           style={styles.input}
           testID={`${testIDPrefix}-display-name`}
         />
@@ -101,7 +102,12 @@ export function FetusForm({ values, onChange, testIDPrefix = 'fetus' }: FetusFor
           onChangeText={(t) => update({ pregnancy_weeks: t.replace(/[^\d]/g, '') })}
           placeholder="예: 17"
           placeholderTextColor={colors.text.muted}
-          keyboardType="number-pad"
+          // numeric (not number-pad) so the iOS keyboard exposes a
+          // Return key — Maestro's `pressKey: Enter` then triggers
+          // submit/blur and dismisses the keyboard. number-pad has no
+          // Return and Maestro's hideKeyboard is unreliable on iOS.
+          keyboardType="numeric"
+          returnKeyType="done"
           maxLength={2}
           style={styles.input}
           testID={`${testIDPrefix}-weeks`}

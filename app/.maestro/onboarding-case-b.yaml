@@ -50,7 +50,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "case-b-child-name"
 - inputText: "Jiyu"
-- hideKeyboard
+- pressKey: Enter
 - tapOn:
     id: "case-b-child-gender-female"
 - tapOn:
@@ -90,13 +90,13 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "case-b-fetus-display-name"
 - inputText: "Tunggi"
-- hideKeyboard
+- pressKey: Enter
 - tapOn:
     id: "case-b-fetus-gender-undecided"
 - tapOn:
     id: "case-b-fetus-weeks"
 - inputText: "20"
-- hideKeyboard
+- pressKey: Enter
 - tapOn:
     id: "case-b-fetus-due-date-field"
 - runFlow:

@@ -45,7 +45,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "case-c-child-name"
 - inputText: "Jiyu"
-- hideKeyboard
+- pressKey: Enter
 - tapOn:
     id: "case-c-child-gender-female"
 - tapOn:
