@@ -132,7 +132,15 @@ export function ChildForm({ values, onChange, testIDPrefix = 'child' }: ChildFor
         )}
         {Platform.OS === 'ios' && pickerOpen && (
           <Pressable
-            onPress={() => setPickerOpen(false)}
+            onPress={() => {
+              // See FetusForm for the rationale — commit the spinner's
+              // displayed value when the user taps 완료 without
+              // spinning the wheel.
+              if (!values.birth_date) {
+                update({ birth_date: toIsoDate(birth) });
+              }
+              setPickerOpen(false);
+            }}
             accessibilityRole="button"
             testID={`${testIDPrefix}-birth-date-done`}
             style={styles.pickerDone}

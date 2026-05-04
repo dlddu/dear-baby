@@ -138,7 +138,17 @@ export function FetusForm({ values, onChange, testIDPrefix = 'fetus' }: FetusFor
         )}
         {Platform.OS === 'ios' && pickerOpen && (
           <Pressable
-            onPress={() => setPickerOpen(false)}
+            onPress={() => {
+              // iOS spinner only fires onChange when the user actually
+              // spins the wheel — if they tap 완료 without touching it
+              // (or Maestro never spins), due_date stays null and the
+              // 계속하기 button stays disabled. Commit the displayed
+              // value here as the user-confirmed default.
+              if (!values.due_date) {
+                update({ due_date: toIsoDate(dueDate) });
+              }
+              setPickerOpen(false);
+            }}
             accessibilityRole="button"
             testID={`${testIDPrefix}-due-date-done`}
             style={styles.pickerDone}
