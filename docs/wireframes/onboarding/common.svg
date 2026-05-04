@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 476 500" width="476" height="500" role="img" aria-labelledby="title">
+<title id="title">공통 진입 — 두 개의 독립 체크</title>
+<rect width="476" height="500" fill="#FFFFFF"/>
+  <text x="28" y="32" font-size="16" font-weight="500" fill="#2C2C2A" font-family="sans-serif">공통 진입 — 두 개의 독립 체크</text>
+  <text x="28" y="52" font-size="12" fill="#5F5E5A" font-family="sans-serif">임신 여부와 양육 여부의 조합으로 케이스 결정</text>
+<g transform="translate(28,92)"><g>
+  <rect x="0.5" y="0.5" width="199" height="379" rx="16" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="1"/>
+  <rect x="78" y="8" width="44" height="6" rx="3" fill="#F1EFE8"/>
+  <rect x="20" y="32" width="160" height="3" rx="1.5" fill="#F1EFE8"/>
+  <rect x="20" y="32" width="53" height="3" rx="1.5" fill="#888780"/>
+  
+  <text x="20" y="56" font-size="12" fill="#888780" font-family="sans-serif">1 / 3</text>
+  <text x="20" y="86" font-size="14" font-weight="500" fill="#2C2C2A" font-family="sans-serif">현재 임신 중</text>
+  <text x="20" y="105" font-size="14" font-weight="500" fill="#2C2C2A" font-family="sans-serif">이신가요?</text>
+  <text x="20" y="128" font-size="11" fill="#5F5E5A" font-family="sans-serif">맞춤 안내를 위한 첫 번째 질문</text>
+  <rect x="20" y="160" width="160" height="64" rx="10" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="1"/>
+  <text x="100" y="197" font-size="13" fill="#2C2C2A" text-anchor="middle" font-family="sans-serif">예, 임신 중이에요</text>
+  <rect x="20" y="232" width="160" height="64" rx="10" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="1"/>
+  <text x="100" y="269" font-size="13" fill="#2C2C2A" text-anchor="middle" font-family="sans-serif">아니요</text>
+
+  <rect x="20" y="324" width="160" height="40" rx="10" fill="#F1EFE8"/>
+  <text x="100" y="349" font-size="12" fill="#888780" text-anchor="middle" font-family="sans-serif">다음</text>
+</g></g>
+<text x="28" y="492" font-size="12" font-weight="500" fill="#2C2C2A" font-family="sans-serif">Q1</text><text x="52" y="492" font-size="12" fill="#5F5E5A" font-family="sans-serif">임신 여부 체크</text>
+<g transform="translate(248,92)"><g>
+  <rect x="0.5" y="0.5" width="199" height="379" rx="16" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="1"/>
+  <rect x="78" y="8" width="44" height="6" rx="3" fill="#F1EFE8"/>
+  <rect x="20" y="32" width="160" height="3" rx="1.5" fill="#F1EFE8"/>
+  <rect x="20" y="32" width="107" height="3" rx="1.5" fill="#888780"/>
+  
+  <text x="20" y="56" font-size="12" fill="#888780" font-family="sans-serif">2 / 3</text>
+  <text x="20" y="86" font-size="14" font-weight="500" fill="#2C2C2A" font-family="sans-serif">이미 태어난 아이가</text>
+  <text x="20" y="105" font-size="14" font-weight="500" fill="#2C2C2A" font-family="sans-serif">있나요?</text>
+  <text x="20" y="128" font-size="11" fill="#5F5E5A" font-family="sans-serif">현재 양육 중인 아이를 알려주세요</text>
+  <rect x="20" y="160" width="160" height="64" rx="10" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="1"/>
+  <text x="100" y="197" font-size="13" fill="#2C2C2A" text-anchor="middle" font-family="sans-serif">예, 양육 중이에요</text>
+  <rect x="20" y="232" width="160" height="64" rx="10" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="1"/>
+  <text x="100" y="269" font-size="13" fill="#2C2C2A" text-anchor="middle" font-family="sans-serif">아니요</text>
+
+  <rect x="20" y="324" width="160" height="40" rx="10" fill="#F1EFE8"/>
+  <text x="100" y="349" font-size="12" fill="#888780" text-anchor="middle" font-family="sans-serif">다음</text>
+</g></g>
+<text x="248" y="492" font-size="12" font-weight="500" fill="#2C2C2A" font-family="sans-serif">Q2</text><text x="272" y="492" font-size="12" fill="#5F5E5A" font-family="sans-serif">양육 여부 체크</text>
+</svg>
