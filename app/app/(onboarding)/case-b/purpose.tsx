@@ -175,6 +175,7 @@ function ChildTabs({
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.tabs}
+      style={styles.tabsScroll}
     >
       {draft.children.map((c, i) => {
         const selected = i === activeIdx;
@@ -219,7 +220,13 @@ const styles = StyleSheet.create({
   },
   hero: { gap: spacing[2] },
   heading: { textAlign: 'left' },
-  tabs: { gap: spacing[2], paddingVertical: spacing[1] },
+  // Horizontal ScrollView's outer container otherwise stretches its
+  // children vertically (cross-axis = vertical when horizontal=true) —
+  // observed on Android emulator where each tab inflated to ~225 px,
+  // pushing the second row of PurposePicker chips off-screen and
+  // breaking the case-b Maestro flow.
+  tabsScroll: { flexGrow: 0, flexShrink: 0 },
+  tabs: { gap: spacing[2], paddingVertical: spacing[1], alignItems: 'flex-start' },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
