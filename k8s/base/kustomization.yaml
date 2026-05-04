@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base manifests are environment-agnostic — overlays in
+# k8s/overlays/{production,staging} bind them to a namespace per
+# environment. CI's integration job applies the base directly into the
+# kind cluster's default namespace.
+resources:
+  - deployment.yaml
+  - service.yaml
+  - pvc.yaml
+  - redis-deployment.yaml
+  - redis-service.yaml
+  - worker-deployment.yaml

@@ -1,0 +1,94 @@
+name: Build iOS for TestFlight
+
+# Reusable workflow that bakes a Release IPA, signs it, and uploads it
+# to TestFlight via Fastlane's `:beta` lane. Callers select which
+# backend the build talks to by passing `expo-public-api-url` —
+# staging from the PR-preview path (deploy-testflight.yml) and
+# production from the external-beta path (submit-testflight-beta.yml).
+#
+# `build-number` mirrors the run number that `app/app.config.ts` stamps
+# into Info.plist's CFBundleVersion, so callers can promote the upload
+# without a separate App Store Connect lookup.
+
+on:
+  workflow_call:
+    inputs:
+      expo-public-api-url:
+        type: string
+        required: true
+        description: Backend base URL baked into the IPA via EXPO_PUBLIC_API_URL.
+      ref:
+        type: string
+        required: false
+        default: ""
+        description: Git ref to check out. Empty checks out the workflow's default ref.
+    outputs:
+      build-number:
+        description: TestFlight buildNumber stamped into the IPA.
+        value: ${{ jobs.build.outputs.build-number }}
+
+jobs:
+  build:
+    name: Build & upload to TestFlight
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: app
+    outputs:
+      build-number: ${{ github.run_number }}
+    env:
+      EXPO_PUBLIC_API_URL: ${{ inputs.expo-public-api-url }}
+      EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
+      EXPO_PUBLIC_POSTHOG_HOST: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+      IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+      IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      GIT_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup JS
+        uses: ./.github/actions/setup-js
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: app
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app
+
+      - name: Generate one-shot keychain password
+        run: echo "MATCH_KEYCHAIN_PASSWORD=$(uuidgen)" >> "$GITHUB_ENV"
+
+      - name: Expo prebuild (iOS)
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods
+        working-directory: app/ios
+        run: pod install --repo-update
+
+      - name: Fastlane beta
+        run: bundle exec fastlane beta
+
+      - name: Upload build artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            app/fastlane/report.xml
+            app/build/
+            ~/Library/Logs/gym/
+          if-no-files-found: ignore

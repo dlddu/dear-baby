@@ -1,7 +1,7 @@
 services:
   # Volatile Redis — no PVC, no AOF, no RDB. AI-preview jobs recover from
   # the onboarding table on worker boot, so losing the queue on a restart
-  # is acceptable. See k8s/redis-deployment.yaml for the mirroring prod
+  # is acceptable. See k8s/base/redis-deployment.yaml for the mirroring prod
   # configuration.
   redis:
     image: redis:7-alpine
