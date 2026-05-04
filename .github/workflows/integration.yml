@@ -496,6 +496,101 @@ jobs:
           echo "second PATCH correctly rejected with 409"
           echo "::endgroup::"
 
+      # ─── reset-onboarding CLI inside the backend pod ─────────────────
+      #
+      # The /reset-onboarding binary ships in the backend image alongside
+      # the server (see backend/Dockerfile) and is what the e2e-android /
+      # e2e-ios maestro flows use to put the seeded test user back to its
+      # Q1 entry between case A/B/C runs. Production reaches it via an
+      # ephemeral debug container + nsenter; in kind we can `kubectl exec`
+      # into the backend container directly since the binary inherits
+      # DATABASE_URL + AWS_* from the container's env.
+      #
+      # By the time this step runs the AI preview e2e step above has left
+      # case_kind=A + onboarded_at + ai_preview populated, so we can
+      # observe the reset by polling /me before/after.
+      - name: reset-onboarding CLI clears onboarding state
+        run: |
+          set -euo pipefail
+
+          echo "::group::password-login"
+          session=$(curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"integration@dear-baby.test","password":"integration-password"}' \
+            http://127.0.0.1:18080/auth/password-login)
+          access_token=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          echo "::endgroup::"
+
+          echo "::group::pre-reset /me must reflect AI preview test state"
+          pre=$(curl -fsS -H "Authorization: Bearer $access_token" \
+            http://127.0.0.1:18080/me)
+          echo "$pre" | head -c 400; echo
+          pre_case=$(echo "$pre" | python3 -c 'import json,sys; v=json.load(sys.stdin).get("case_kind") or ""; print(v)')
+          pre_onb=$(echo "$pre"  | python3 -c 'import json,sys; v=json.load(sys.stdin).get("onboarded_at") or ""; print(v)')
+          pre_aip=$(echo "$pre"  | python3 -c 'import json,sys; v=json.load(sys.stdin).get("ai_preview") or ""; print(v)')
+          if [ -z "$pre_case" ] || [ -z "$pre_onb" ] || [ -z "$pre_aip" ]; then
+            echo "expected case_kind/onboarded_at/ai_preview all set before reset"
+            echo "case_kind=$pre_case onboarded_at=$pre_onb ai_preview=$pre_aip"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::run /reset-onboarding via kubectl exec"
+          kubectl exec deployment/dear-baby -- \
+            /reset-onboarding integration@dear-baby.test
+          echo "::endgroup::"
+
+          echo "::group::post-reset /me must show cleared onboarding fields"
+          post=$(curl -fsS -H "Authorization: Bearer $access_token" \
+            http://127.0.0.1:18080/me)
+          echo "$post" | head -c 400; echo
+          post_case=$(echo "$post" | python3 -c 'import json,sys; v=json.load(sys.stdin).get("case_kind"); print("null" if v is None else v)')
+          post_onb=$(echo "$post"  | python3 -c 'import json,sys; v=json.load(sys.stdin).get("onboarded_at"); print("null" if v is None else v)')
+          post_aip=$(echo "$post"  | python3 -c 'import json,sys; v=json.load(sys.stdin).get("ai_preview"); print("null" if v is None else v)')
+          if [ "$post_case" != "null" ] || [ "$post_onb" != "null" ] || [ "$post_aip" != "null" ]; then
+            echo "reset did not clear onboarding state"
+            echo "case_kind=$post_case onboarded_at=$post_onb ai_preview=$post_aip"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::user can re-submit /onboarding/case after reset"
+          # Re-onboarding proves the children + purposes rows were
+          # actually wiped (otherwise the unique constraints inside
+          # SaveCaseOnboarding would surface). We use Case B this time so
+          # the integration flow exercises a different branch shape on
+          # rerun.
+          code=$(curl -s -o /tmp/reonb.txt -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "case": "B",
+              "children": [
+                {
+                  "kind": "child",
+                  "display_name": "지유",
+                  "gender": "female",
+                  "birth_date": "2023-04-12",
+                  "purposes": ["book_making"]
+                },
+                {
+                  "kind": "fetus",
+                  "gender": "undecided",
+                  "pregnancy_weeks": 12,
+                  "due_date": "2026-12-01",
+                  "purposes": ["emotion_diary"]
+                }
+              ]
+            }' \
+            http://127.0.0.1:18080/onboarding/case)
+          if [ "$code" != "201" ]; then
+            echo "re-onboard expected 201, got $code body=$(cat /tmp/reonb.txt)"
+            exit 1
+          fi
+          echo "re-onboard accepted (201)"
+          echo "::endgroup::"
+
       # NOTE: cross-user PATCH protection (A cannot PATCH B's record)
       # is exercised in backend/internal/records/handlers_test.go.
       # We can no longer mint two sessions on demand from CI without a
