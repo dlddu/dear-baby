@@ -3,7 +3,7 @@ package users
 import "time"
 
 // User represents a row in the users table. Core identity only — all
-// onboarding-related state (due_date, onboarded_at, voice coachmark
+// onboarding-related state (case_kind, onboarded_at, voice coachmark
 // dismissal, first_record_at, ai_preview) lives in the `onboarding` table
 // and is merged into Profile for the /me response.
 type User struct {
@@ -17,13 +17,15 @@ type User struct {
 
 // Profile is the flat view returned by GET /me and POST /records. It
 // preserves the shape the client had before the onboarding-table move so
-// the app can keep treating the response as a single object.
+// the app can keep treating the response as a single object. CaseKind
+// reflects the AC-006-01 branch the user took during onboarding (or null
+// if onboarding has not finished yet).
 type Profile struct {
 	ID                        string     `json:"id"`
 	Email                     string     `json:"email"`
 	Name                      string     `json:"name"`
 	PictureURL                string     `json:"picture_url"`
-	DueDate                   *string    `json:"due_date"`
+	CaseKind                  *string    `json:"case_kind"`
 	OnboardedAt               *time.Time `json:"onboarded_at"`
 	VoiceCoachmarkDismissedAt *time.Time `json:"voice_coachmark_dismissed_at"`
 	FirstRecordAt             *time.Time `json:"first_record_at"`

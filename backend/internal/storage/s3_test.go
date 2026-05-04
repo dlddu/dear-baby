@@ -109,6 +109,101 @@ func TestParseAudioFormat(t *testing.T) {
 	}
 }
 
+func TestParseImageFormat(t *testing.T) {
+	cases := []struct {
+		in       string
+		want     ImageFormat
+		wantOK   bool
+		wantExt  string
+		wantType string
+	}{
+		{"", ImageFormatJPEG, true, ".jpg", "image/jpeg"},
+		{"jpeg", ImageFormatJPEG, true, ".jpg", "image/jpeg"},
+		{"jpg", ImageFormatJPEG, true, ".jpg", "image/jpeg"},
+		{"heic", ImageFormatHEIC, true, ".heic", "image/heic"},
+		{"png", ImageFormatPNG, true, ".png", "image/png"},
+		{"PNG", "", false, "", ""},
+		{"gif", "", false, "", ""},
+	}
+	for _, tc := range cases {
+		got, ok := ParseImageFormat(tc.in)
+		if ok != tc.wantOK || got != tc.want {
+			t.Errorf("ParseImageFormat(%q) = (%q,%v) want (%q,%v)", tc.in, got, ok, tc.want, tc.wantOK)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		if ext := got.Extension(); ext != tc.wantExt {
+			t.Errorf("Extension(%q) = %q want %q", got, ext, tc.wantExt)
+		}
+		if ct := got.ContentType(); ct != tc.wantType {
+			t.Errorf("ContentType(%q) = %q want %q", got, ct, tc.wantType)
+		}
+	}
+}
+
+func TestBuildChildPhotoKeys(t *testing.T) {
+	c := &Client{Config: Config{KeyPrefix: "prod/"}}
+	tmp := c.BuildChildPhotoTmpKey("u1", "abcd-1234", ImageFormatJPEG)
+	if want := "prod/users/u1/onboarding-tmp/abcd-1234.jpg"; tmp != want {
+		t.Errorf("tmp: got %q want %q", tmp, want)
+	}
+	final := c.BuildChildPhotoKey("u1", "child-1", ImageFormatHEIC)
+	if want := "prod/users/u1/children/child-1/photo.heic"; final != want {
+		t.Errorf("final: got %q want %q", final, want)
+	}
+}
+
+func TestIsValidChildPhotoTmpKey(t *testing.T) {
+	c := &Client{Config: Config{KeyPrefix: "prod/"}}
+	good := c.BuildChildPhotoTmpKey("u1", "abcd", ImageFormatJPEG)
+	if !c.IsValidChildPhotoTmpKey("u1", good) {
+		t.Errorf("expected %q valid for u1", good)
+	}
+	// Other user.
+	if c.IsValidChildPhotoTmpKey("u2", good) {
+		t.Errorf("expected %q invalid for u2", good)
+	}
+	// Wrong prefix.
+	if c.IsValidChildPhotoTmpKey("u1", "users/u1/onboarding-tmp/abcd.jpg") {
+		t.Error("missing configured key prefix should be invalid")
+	}
+	// Subpath traversal.
+	if c.IsValidChildPhotoTmpKey("u1", "prod/users/u1/onboarding-tmp/sub/abcd.jpg") {
+		t.Error("nested path should be invalid")
+	}
+	// Wrong extension.
+	if c.IsValidChildPhotoTmpKey("u1", "prod/users/u1/onboarding-tmp/abcd.gif") {
+		t.Error("unsupported extension should be invalid")
+	}
+	// Empty.
+	if c.IsValidChildPhotoTmpKey("u1", "") {
+		t.Error("empty key should be invalid")
+	}
+}
+
+func TestImageFormatFromExtension(t *testing.T) {
+	cases := []struct {
+		in     string
+		want   ImageFormat
+		wantOK bool
+	}{
+		{".jpg", ImageFormatJPEG, true},
+		{".jpeg", ImageFormatJPEG, true},
+		{".heic", ImageFormatHEIC, true},
+		{".png", ImageFormatPNG, true},
+		{".gif", "", false},
+		{"", "", false},
+	}
+	for _, tc := range cases {
+		got, ok := ImageFormatFromExtension(tc.in)
+		if got != tc.want || ok != tc.wantOK {
+			t.Errorf("ImageFormatFromExtension(%q) = (%q,%v) want (%q,%v)", tc.in, got, ok, tc.want, tc.wantOK)
+		}
+	}
+}
+
 func TestConfigValidate(t *testing.T) {
 	cases := []struct {
 		name    string

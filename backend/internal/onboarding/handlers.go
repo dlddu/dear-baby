@@ -1,6 +1,7 @@
 package onboarding
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -12,13 +13,15 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/tasks"
 )
 
-// Handlers exposes the onboarding endpoints — today just the AI-preview
-// request and SSE stream. Keeping them on a single struct lets the
-// router wire everything through one constructor.
+// Handlers exposes the onboarding endpoints — case submission, photo
+// upload, AI-preview request, AI-preview SSE stream. Keeping them on a
+// single struct lets the router wire everything through one constructor.
 type Handlers struct {
 	Store           *Store
 	Tasks           *tasks.Client
 	Hub             *tasks.Hub
+	Photos          PhotoStorage
+	ProfileFn       func(ctx context.Context, userID string) (any, error)
 	UserIDFromCtxFn func(r *http.Request) (string, bool)
 	// SSEHeartbeat controls the keepalive cadence for GET
 	// /onboarding/ai-preview/events. Zero disables heartbeats — keep it

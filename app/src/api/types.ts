@@ -3,10 +3,12 @@ export type User = {
   email: string;
   name: string;
   picture_url: string;
-  // Onboarding fields — null until the user completes Stage 1 of onboarding.
-  // `due_date` is "YYYY-MM-DD" (nullable so "undecided" users can still finish
-  // onboarding). `onboarded_at` is an ISO timestamp set by the backend.
-  due_date: string | null;
+  // Onboarding fields — null until the user finishes the case-branching
+  // onboarding (PRD-006). `case_kind` is "A" | "B" | "C" once decided
+  // (Case A: pregnancy only, Case B: caregiver + pregnancy, Case C:
+  // caregiver only). `onboarded_at` is an ISO timestamp set by the
+  // backend when POST /onboarding/case commits successfully.
+  case_kind: 'A' | 'B' | 'C' | null;
   onboarded_at: string | null;
   // Voice-record coachmark dismissal timestamp (shown on the home screen).
   // Null until the user closes the coachmark; once stamped, the coachmark
@@ -26,12 +28,11 @@ export type User = {
 };
 
 // Record mirrors the backend `records` row returned by POST /records.
-// `source` and `audio_s3_key` are the Stage 2 voice-record additions:
-// `source` is "text" | "voice"; `audio_s3_key` is null until the
-// device finishes uploading the audio blob (and may stay null forever
-// when the user opts out of audio upload). `question_text` is the
-// daily question the home screen surfaced when the entry was started;
-// null when the entry came from a path that doesn't carry a question.
+// `source` is "text" | "voice"; `audio_s3_key` is null until the device
+// finishes uploading the audio blob (and may stay null forever when the
+// user opts out of audio upload). `question_text` is the daily question
+// the home screen surfaced when the entry was started; null when the
+// entry came from a path that doesn't carry a question.
 export type Record = {
   id: string;
   user_id: string;

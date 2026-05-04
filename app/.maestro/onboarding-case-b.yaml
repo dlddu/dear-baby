@@ -1,0 +1,133 @@
+appId: com.dlddu.dearbaby
+---
+# Case B 온보딩 플로우 — 임신 O · 양육 O (PRD-006 AC-006-03 / TC-006-05).
+#
+# 흐름:
+#   Q1 (예) → Q2 (예) → B0 안내 → B1 양육 1명 → B2 아이 정보 → B3 안내 →
+#   B4 단태 → B5 태아 정보 → B6 아이별 기록 목적 → 홈.
+#
+# 사진 없이 진행. CI 는 reset-onboarding 으로 사용자 상태 초기화 필요.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1 / Q2
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "q1-yes"
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "q2-yes"
+
+# B0 안내
+- assertVisible:
+    id: "onboarding-case-b-intro1"
+- tapOn:
+    id: "case-b-intro1-next"
+
+# B1 양육 아이 수 (1명)
+- assertVisible:
+    id: "onboarding-case-b-count1"
+- tapOn:
+    id: "case-b-count1-1"
+- tapOn:
+    id: "case-b-count1-next"
+
+# B2 양육 아이 정보 (사진은 건너뜀)
+- assertVisible:
+    id: "onboarding-case-b-child"
+- tapOn:
+    id: "case-b-child-name"
+- inputText: "Jiyu"
+- hideKeyboard
+- tapOn:
+    id: "case-b-child-gender-female"
+- tapOn:
+    id: "case-b-child-birth-date-field"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "case-b-child-birth-date-done"
+    commands:
+      - tapOn:
+          id: "case-b-child-birth-date-done"
+- tapOn:
+    id: "case-b-child-next"
+
+# B3 안내
+- assertVisible:
+    id: "onboarding-case-b-intro2"
+- tapOn:
+    id: "case-b-intro2-next"
+
+# B4 임신 아이 수 (단태)
+- assertVisible:
+    id: "onboarding-case-b-count2"
+- tapOn:
+    id: "case-b-count2-1"
+- tapOn:
+    id: "case-b-count2-next"
+
+# B5 태아 정보
+- assertVisible:
+    id: "onboarding-case-b-fetus"
+- tapOn:
+    id: "case-b-fetus-display-name"
+- inputText: "Tunggi"
+- hideKeyboard
+- tapOn:
+    id: "case-b-fetus-gender-undecided"
+- tapOn:
+    id: "case-b-fetus-weeks"
+- inputText: "20"
+- hideKeyboard
+- tapOn:
+    id: "case-b-fetus-due-date-field"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "case-b-fetus-due-date-done"
+    commands:
+      - tapOn:
+          id: "case-b-fetus-due-date-done"
+- tapOn:
+    id: "case-b-fetus-next"
+
+# B6 아이별 기록 목적 — 첫 번째 아이부터 선택
+- assertVisible:
+    id: "onboarding-case-b-purpose"
+- tapOn:
+    id: "case-b-purpose-tab-0"
+- tapOn:
+    id: "case-b-purpose-0-book_making"
+- tapOn:
+    id: "case-b-purpose-tab-1"
+- tapOn:
+    id: "case-b-purpose-1-emotion_diary"
+- tapOn:
+    id: "case-b-purpose-submit"
+
+# 홈 진입
+- assertVisible:
+    id: "home-tab"

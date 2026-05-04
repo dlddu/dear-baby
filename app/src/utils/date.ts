@@ -12,15 +12,15 @@ export function toIsoDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-// formatKoreanDate → "2025년 9월 15일" per the Stage 1 wireframe in
-// docs/wireframes/onboarding.md.
+// formatKoreanDate → "2025년 9월 15일" — used by the case-branching
+// onboarding date pickers (FetusForm 예정일, ChildForm 생년월일).
 export function formatKoreanDate(d: Date): string {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
-// defaultDueDate returns a sensible default for the Stage 1 picker when the
-// user hasn't chosen yet: 40 weeks from today, matching the average gestation
-// period.
+// defaultDueDate returns a sensible default for the fetus due-date
+// picker when the user hasn't chosen yet: 40 weeks from today, matching
+// the average gestation period.
 export function defaultDueDate(now: Date = new Date()): Date {
   const d = new Date(now);
   d.setDate(d.getDate() + 7 * 40);

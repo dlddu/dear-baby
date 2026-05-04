@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // ErrNotFound is returned when no onboarding row matches the given user id.
@@ -14,13 +16,17 @@ var ErrNotFound = errors.New("onboarding row not found")
 // sqliteTimeLayout is the format SQLite emits for datetime('now').
 const sqliteTimeLayout = "2006-01-02 15:04:05"
 
-// Store is a data-access layer over the onboarding table.
+// Store is a data-access layer over the onboarding + children tables.
 type Store struct {
 	DB *sql.DB
 }
 
 type rowScanner interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+type rowsScanner interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 // EnsureRowTx inserts an empty onboarding row for the given user if one
@@ -48,21 +54,21 @@ func (s *Store) GetByIDTx(ctx context.Context, tx *sql.Tx, userID string) (*Onbo
 
 func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, error) {
 	o := &Onboarding{UserID: userID}
-	var dueDate, onboardedAt, voiceDismissedAt, firstRecordAt, aiPreview sql.NullString
+	var caseKind, onboardedAt, voiceDismissedAt, firstRecordAt, aiPreview sql.NullString
 	var updatedAt string
 	err := q.QueryRowContext(ctx, `
-		SELECT due_date, onboarded_at, voice_coachmark_dismissed_at, first_record_at, ai_preview, updated_at
+		SELECT case_kind, onboarded_at, voice_coachmark_dismissed_at, first_record_at, ai_preview, updated_at
 		FROM onboarding WHERE user_id = ?
-	`, userID).Scan(&dueDate, &onboardedAt, &voiceDismissedAt, &firstRecordAt, &aiPreview, &updatedAt)
+	`, userID).Scan(&caseKind, &onboardedAt, &voiceDismissedAt, &firstRecordAt, &aiPreview, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("select onboarding: %w", err)
 	}
-	if dueDate.Valid {
-		s := dueDate.String
-		o.DueDate = &s
+	if caseKind.Valid {
+		v := caseKind.String
+		o.CaseKind = &v
 	}
 	if onboardedAt.Valid {
 		if t, err := time.Parse(sqliteTimeLayout, onboardedAt.String); err == nil {
@@ -87,34 +93,251 @@ func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, err
 	return o, nil
 }
 
-// UpdateDueDateAndOnboardedAt persists the user's due date (nullable) and
-// marks onboarding Stage 1 complete by stamping onboarded_at.
-func (s *Store) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error {
-	if err := s.ensureRow(ctx, userID); err != nil {
-		return err
+// ChildPhotoFinalizer is invoked once per child that submitted a
+// photo_tmp_key, inside the case-submission DB transaction. Implementers
+// should validate the tmp key, confirm the S3 object exists, and Copy
+// it to its permanent location, returning the permanent key. The tmp
+// object is reaped by the caller AFTER the transaction commits so a
+// rollback never leaves the user without a way to retry — the tmp blob
+// remains addressable by the same key the client already holds.
+//
+// Returning an error rolls back the entire submission.
+type ChildPhotoFinalizer func(ctx context.Context, childID string, child *ChildInput) (finalKey string, err error)
+
+// SaveCaseOnboarding persists a complete case-branching onboarding
+// submission in a single transaction:
+//
+//   - INSERT one children row per submitted entry, with a server-issued id
+//   - Invoke finalizer for any child carrying a photo_tmp_key, and write
+//     the returned permanent key into children.photo_s3_key
+//   - INSERT child_record_purposes (M:N) for every selected purpose
+//   - UPDATE onboarding.case_kind + stamp onboarded_at
+//
+// The submission is assumed to have passed Validate(); the store does
+// not re-run cross-field validation. If finalizer is nil, photo_tmp_key
+// fields are ignored — useful for tests and Case A flows where photos
+// aren't part of the funnel.
+func (s *Store) SaveCaseOnboarding(
+	ctx context.Context,
+	userID string,
+	sub *CaseSubmission,
+	finalizer ChildPhotoFinalizer,
+) ([]ChildRow, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
 	}
-	var dueArg any
-	if dueDate != nil {
-		dueArg = *dueDate
-	} else {
-		dueArg = nil
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM users WHERE id = ?`, userID); err != nil {
+		return nil, fmt.Errorf("user lookup: %w", err)
 	}
-	res, err := s.DB.ExecContext(ctx, `
+
+	var rowExists int
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE id = ?`, userID).Scan(&rowExists)
+	if err != nil {
+		return nil, fmt.Errorf("user lookup: %w", err)
+	}
+	if rowExists == 0 {
+		return nil, ErrNotFound
+	}
+
+	// Defensive: ensure the onboarding row exists. UpsertByOAuth seeds
+	// it, but Reset can be called on a row that pre-dates the case
+	// schema and an admin tool might create rogue users without one.
+	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO onboarding (user_id) VALUES (?)`, userID); err != nil {
+		return nil, fmt.Errorf("ensure onboarding: %w", err)
+	}
+
+	rows := make([]ChildRow, 0, len(sub.Children))
+	for i, c := range sub.Children {
+		id := uuid.NewString()
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO children (
+				id, user_id, kind, display_name, gender, introduction,
+				birth_date, pregnancy_weeks, due_date, sort_order
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`,
+			id, userID, string(c.Kind),
+			nullableString(c.DisplayName), string(c.Gender), nullableString(c.Introduction),
+			nullableString(c.BirthDate), nullableInt(c.PregnancyWeeks),
+			nullableString(c.DueDate), i,
+		); err != nil {
+			return nil, fmt.Errorf("insert child[%d]: %w", i, err)
+		}
+
+		var photoKey *string
+		if c.PhotoTmpKey != "" && finalizer != nil {
+			finalKey, err := finalizer(ctx, id, &sub.Children[i])
+			if err != nil {
+				return nil, err
+			}
+			if finalKey != "" {
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE children SET photo_s3_key = ?, updated_at = datetime('now') WHERE id = ?
+				`, finalKey, id); err != nil {
+					return nil, fmt.Errorf("update child photo: %w", err)
+				}
+				k := finalKey
+				photoKey = &k
+			}
+		}
+
+		for _, p := range c.Purposes {
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO child_record_purposes (child_id, purpose) VALUES (?, ?)
+			`, id, string(p)); err != nil {
+				return nil, fmt.Errorf("insert purpose: %w", err)
+			}
+		}
+
+		row := ChildRow{
+			ID:        id,
+			UserID:    userID,
+			Kind:      c.Kind,
+			Gender:    c.Gender,
+			SortOrder: i,
+			Purposes:  append([]RecordPurpose(nil), c.Purposes...),
+		}
+		if c.DisplayName != "" {
+			v := c.DisplayName
+			row.DisplayName = &v
+		}
+		if c.Introduction != "" {
+			v := c.Introduction
+			row.Introduction = &v
+		}
+		row.PhotoS3Key = photoKey
+		if c.BirthDate != "" {
+			v := c.BirthDate
+			row.BirthDate = &v
+		}
+		if c.PregnancyWeeks != nil {
+			w := *c.PregnancyWeeks
+			row.PregnancyWeeks = &w
+		}
+		if c.DueDate != "" {
+			v := c.DueDate
+			row.DueDate = &v
+		}
+		rows = append(rows, row)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
 		UPDATE onboarding
-		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
+		SET case_kind = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
 		WHERE user_id = ?
-	`, dueArg, userID)
+	`, string(sub.Case), userID); err != nil {
+		return nil, fmt.Errorf("update onboarding: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return rows, nil
+}
+
+// ListChildren returns every child belonging to the given user, sorted
+// by sort_order. Purposes are populated in a separate query. Used by
+// admin tooling and the reset path's S3 cleanup.
+func (s *Store) ListChildren(ctx context.Context, userID string) ([]ChildRow, error) {
+	rows, err := s.DB.QueryContext(ctx, `
+		SELECT id, user_id, kind, display_name, gender, introduction,
+		       photo_s3_key, birth_date, pregnancy_weeks, due_date,
+		       sort_order, created_at, updated_at
+		FROM children
+		WHERE user_id = ?
+		ORDER BY sort_order
+	`, userID)
 	if err != nil {
-		return fmt.Errorf("update due date: %w", err)
+		return nil, fmt.Errorf("list children: %w", err)
 	}
-	n, err := res.RowsAffected()
+	defer rows.Close()
+
+	var out []ChildRow
+	ids := make([]string, 0)
+	for rows.Next() {
+		var (
+			c                                                                                ChildRow
+			displayName, introduction, photoKey, birthDate, dueDate, kindStr, genderStr      string
+			displayNameValid, introductionValid, photoKeyValid, birthDateValid, dueDateValid bool
+			pregnancyWeeks                                                                   sql.NullInt64
+			createdAt, updatedAt                                                             string
+		)
+		if err := rows.Scan(
+			&c.ID, &c.UserID, &kindStr,
+			nullableScan(&displayName, &displayNameValid),
+			&genderStr,
+			nullableScan(&introduction, &introductionValid),
+			nullableScan(&photoKey, &photoKeyValid),
+			nullableScan(&birthDate, &birthDateValid),
+			&pregnancyWeeks,
+			nullableScan(&dueDate, &dueDateValid),
+			&c.SortOrder, &createdAt, &updatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan child: %w", err)
+		}
+		c.Kind = ChildKind(kindStr)
+		c.Gender = Gender(genderStr)
+		if displayNameValid {
+			c.DisplayName = &displayName
+		}
+		if introductionValid {
+			c.Introduction = &introduction
+		}
+		if photoKeyValid {
+			c.PhotoS3Key = &photoKey
+		}
+		if birthDateValid {
+			c.BirthDate = &birthDate
+		}
+		if dueDateValid {
+			c.DueDate = &dueDate
+		}
+		if pregnancyWeeks.Valid {
+			w := int(pregnancyWeeks.Int64)
+			c.PregnancyWeeks = &w
+		}
+		c.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
+		c.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
+		ids = append(ids, c.ID)
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate: %w", err)
+	}
+	if len(out) == 0 {
+		return out, nil
+	}
+
+	purposes, err := loadPurposesForChildren(ctx, s.DB, ids)
 	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
+		return nil, err
 	}
-	if n == 0 {
-		return ErrNotFound
+	for i := range out {
+		out[i].Purposes = purposes[out[i].ID]
 	}
-	return nil
+	return out, nil
+}
+
+// DeleteChildrenForUser removes every children + purposes row for the
+// user. Used by the reset path so that successive E2E runs re-enter
+// the case-branching funnel from a clean slate.
+func (s *Store) DeleteChildrenForUser(ctx context.Context, userID string) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM child_record_purposes WHERE child_id IN (SELECT id FROM children WHERE user_id = ?)
+	`, userID); err != nil {
+		return fmt.Errorf("delete purposes: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM children WHERE user_id = ?`, userID); err != nil {
+		return fmt.Errorf("delete children: %w", err)
+	}
+	return tx.Commit()
 }
 
 // DismissVoiceCoachmark stamps voice_coachmark_dismissed_at. Idempotent —
@@ -150,13 +373,20 @@ func (s *Store) UpdateAIPreview(ctx context.Context, userID, preview string) err
 	return nil
 }
 
-// Reset clears all onboarding state for the given user. Used by the
-// test-login handler so successive E2E runs re-enter the onboarding
-// funnel. Records themselves are preserved.
+// Reset clears all onboarding state for the given user (case state,
+// children, purposes). Records themselves are preserved.
 func (s *Store) Reset(ctx context.Context, userID string) error {
+	if _, err := s.DB.ExecContext(ctx, `
+		DELETE FROM child_record_purposes WHERE child_id IN (SELECT id FROM children WHERE user_id = ?)
+	`, userID); err != nil {
+		return fmt.Errorf("reset purposes: %w", err)
+	}
+	if _, err := s.DB.ExecContext(ctx, `DELETE FROM children WHERE user_id = ?`, userID); err != nil {
+		return fmt.Errorf("reset children: %w", err)
+	}
 	res, err := s.DB.ExecContext(ctx, `
 		UPDATE onboarding
-		SET due_date = NULL,
+		SET case_kind = NULL,
 		    onboarded_at = NULL,
 		    voice_coachmark_dismissed_at = NULL,
 		    first_record_at = NULL,
@@ -180,27 +410,15 @@ func (s *Store) Reset(ctx context.Context, userID string) error {
 // ResetByEmail clears onboarding state for the user with the given email.
 // Returns ErrNotFound if no user or onboarding row matches.
 func (s *Store) ResetByEmail(ctx context.Context, email string) error {
-	res, err := s.DB.ExecContext(ctx, `
-		UPDATE onboarding
-		SET due_date = NULL,
-		    onboarded_at = NULL,
-		    voice_coachmark_dismissed_at = NULL,
-		    first_record_at = NULL,
-		    ai_preview = NULL,
-		    updated_at = datetime('now')
-		WHERE user_id = (SELECT id FROM users WHERE email = ?)
-	`, email)
-	if err != nil {
-		return fmt.Errorf("reset onboarding by email: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
-	}
-	if n == 0 {
+	var userID string
+	err := s.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, email).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
-	return nil
+	if err != nil {
+		return fmt.Errorf("lookup user by email: %w", err)
+	}
+	return s.Reset(ctx, userID)
 }
 
 // PendingAIPreview is a single row returned by ListPendingAIPreviews —
@@ -257,22 +475,80 @@ func (s *Store) GetOldestRecord(ctx context.Context, userID string) (recordID, c
 	return
 }
 
-// ensureRow inserts an empty onboarding row if missing. Used by updates
-// that should succeed for any existing user — defensive, since
-// UpsertByOAuth already creates the row on sign-in.
-func (s *Store) ensureRow(ctx context.Context, userID string) error {
-	var exists bool
-	err := s.DB.QueryRowContext(ctx, `SELECT 1 FROM users WHERE id = ?`, userID).Scan(&exists)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrNotFound
+// loadPurposesForChildren returns a map of childID → purposes. Single
+// query with an IN clause, so callers can bulk-hydrate ListChildren
+// results.
+func loadPurposesForChildren(ctx context.Context, q rowsScanner, ids []string) (map[string][]RecordPurpose, error) {
+	if len(ids) == 0 {
+		return map[string][]RecordPurpose{}, nil
 	}
+	placeholders := ""
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		if i > 0 {
+			placeholders += ","
+		}
+		placeholders += "?"
+		args[i] = id
+	}
+	rows, err := q.QueryContext(ctx, `
+		SELECT child_id, purpose FROM child_record_purposes WHERE child_id IN (`+placeholders+`)
+	`, args...)
 	if err != nil {
-		return fmt.Errorf("check user: %w", err)
+		return nil, fmt.Errorf("query purposes: %w", err)
 	}
-	if _, err := s.DB.ExecContext(ctx, `
-		INSERT OR IGNORE INTO onboarding (user_id) VALUES (?)
-	`, userID); err != nil {
-		return fmt.Errorf("ensure onboarding row: %w", err)
+	defer rows.Close()
+	out := make(map[string][]RecordPurpose, len(ids))
+	for rows.Next() {
+		var childID, purpose string
+		if err := rows.Scan(&childID, &purpose); err != nil {
+			return nil, fmt.Errorf("scan purpose: %w", err)
+		}
+		out[childID] = append(out[childID], RecordPurpose(purpose))
 	}
+	return out, rows.Err()
+}
+
+func nullableString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+func nullableInt(p *int) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+// nullableScan returns a pointer SQL can write into; we use a small
+// wrapper so the verbose sql.NullString → *string conversion lives in
+// one place.
+func nullableScan(dst *string, valid *bool) any {
+	return &nullStringTarget{dst: dst, valid: valid}
+}
+
+type nullStringTarget struct {
+	dst   *string
+	valid *bool
+}
+
+func (t *nullStringTarget) Scan(value any) error {
+	if value == nil {
+		*t.valid = false
+		*t.dst = ""
+		return nil
+	}
+	switch v := value.(type) {
+	case string:
+		*t.dst = v
+	case []byte:
+		*t.dst = string(v)
+	default:
+		return fmt.Errorf("nullStringTarget: unexpected type %T", value)
+	}
+	*t.valid = true
 	return nil
 }

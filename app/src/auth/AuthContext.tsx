@@ -9,6 +9,11 @@ import React, {
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
 import {
+  submitCaseOnboarding as apiSubmitCaseOnboarding,
+  type CaseSubmissionPayload,
+  type CaseSubmissionResponse,
+} from '../api/onboarding';
+import {
   createTextRecord as apiCreateTextRecord,
   createVoiceRecord as apiCreateVoiceRecord,
 } from '../api/records';
@@ -36,7 +41,12 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   setSession: (session: Session) => Promise<void>;
-  completeOnboarding: (dueDate: string | null) => Promise<void>;
+  // submitCaseOnboarding posts the case-branching onboarding payload
+  // (PRD-006 AC-006-01..04). On success, AuthContext refreshes the
+  // local user from the response and flips status to 'authenticated'.
+  submitCaseOnboarding: (
+    payload: CaseSubmissionPayload,
+  ) => Promise<CaseSubmissionResponse>;
   dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string, questionText?: string) => Promise<void>;
   // createVoiceRecord saves the transcript with source="voice". The
@@ -52,8 +62,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // statusForUser decides whether a signed-in user should be directed to the
 // onboarding funnel or straight to the app. `onboarded_at` is the backend's
-// completion marker — we check that rather than `due_date` because the
-// escape-hatch path intentionally leaves due_date null.
+// completion marker — set by POST /onboarding/case in the case-branching
+// onboarding flow.
 function statusForUser(u: User): AuthStatus {
   return u.onboarded_at ? 'authenticated' : 'onboarding';
 }
@@ -61,7 +71,6 @@ function statusForUser(u: User): AuthStatus {
 function cacheFromUser(u: User) {
   return setCachedOnboarding(
     u.onboarded_at,
-    u.due_date,
     u.voice_coachmark_dismissed_at,
     u.first_record_at,
     u.ai_preview,
@@ -118,12 +127,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(session.user);
   }, []);
 
-  const completeOnboarding = useCallback(async (dueDate: string | null) => {
-    const updated = await patchMe({ due_date: dueDate });
-    setUser(updated);
-    setStatus(statusForUser(updated));
-    await cacheFromUser(updated);
-  }, []);
+  const submitCaseOnboarding = useCallback(
+    async (payload: CaseSubmissionPayload) => {
+      const res = await apiSubmitCaseOnboarding(payload);
+      setUser(res.user);
+      setStatus(statusForUser(res.user));
+      await cacheFromUser(res.user);
+      return res;
+    },
+    [],
+  );
 
   // dismissVoiceCoachmark is called when the user taps the close button on
   // the home-screen voice-record coachmark. The backend stamps a timestamp
@@ -193,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
+      submitCaseOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
@@ -204,7 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
+      submitCaseOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,

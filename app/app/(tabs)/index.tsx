@@ -56,10 +56,12 @@ export default function HomeTab() {
 
   const prevFirstRecordAtRef = useRef<string | null>(null);
 
-  const pregnancy = useMemo(
-    () => calcPregnancy(user?.due_date ?? null),
-    [user?.due_date],
-  );
+  // Pregnancy week-badge needs an active-fetus due_date that lives on the
+  // children table after PRD-006. Wiring the home tab to a children API is
+  // tracked separately as AC-006-08/09 (active child context) — for now we
+  // pass null so the badge gracefully hides and the case-branching
+  // onboarding can land without that integration.
+  const pregnancy = useMemo(() => calcPregnancy(null), []);
   const question = useMemo(() => pickDailyQuestion(), []);
 
   const showCoachmark =

@@ -1,5 +1,7 @@
 #!/bin/sh
-# Resets the onboarding state (onboarded_at, due_date) for a user by email.
+# Resets the case-branching onboarding state (onboarded_at, case_kind, children,
+# child_record_purposes) for a user by email, plus their S3 onboarding-tmp/ and
+# children/ prefixes when AWS is configured.
 # Intended to run from an ephemeral debug container attached to the backend
 # pod. Installs util-linux if needed, then enters the backend container's
 # namespaces via nsenter and runs the /reset-onboarding binary there.

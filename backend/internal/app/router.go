@@ -134,7 +134,11 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		Store:           onboardingStore,
 		Tasks:           tasksClient,
 		Hub:             hub,
+		Photos:          s3Client,
 		UserIDFromCtxFn: auth.UserIDFromRequest,
+		ProfileFn: func(ctx context.Context, userID string) (any, error) {
+			return usersStore.GetProfile(ctx, userID)
+		},
 	}
 
 	// Authenticated onboarding routes. The SSE route permits query
@@ -142,6 +146,8 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	// headers reliably.
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuth(issuer))
+		pr.Post("/onboarding/case", onbHandlers.SubmitCase)
+		pr.Post("/onboarding/children/photo/upload-url", onbHandlers.CreateChildPhotoUploadURL)
 		pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
 	})
 	r.Group(func(pr chi.Router) {

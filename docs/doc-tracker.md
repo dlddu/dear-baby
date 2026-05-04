@@ -3,7 +3,7 @@ doc_id: TRACKER-001
 doc_type: tracker
 product: dear_baby
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-04
 ---
 
 # 디어베이비 문서 체계 상태 추적
@@ -78,10 +78,15 @@ updated: 2026-05-02
 | 2026-05-02 | TEST-006 추가 (19 TC) | TEST 5 | TEST 6 |
 | 2026-05-02 | docs/README.md 의 PRD/테스트 목록 갱신 | — | — |
 | 2026-05-03 | 온보딩 와이어프레임 신설(`wireframes/onboarding.md`) 및 기존 `design-system/onboarding.md` 폐기 | 와이어프레임 0 | 와이어프레임 1 |
+| 2026-05-04 | PRD-006 AC-006-01~04 (케이스 분기 온보딩) 구현. backend: migration 0008, POST /onboarding/case + /onboarding/children/photo/upload-url, children/child_record_purposes 테이블, S3 photo rename. app: (onboarding) 라우터 재설계 (q1, q2, case-a/-b/-c), AsyncStorage draft, expo-image-picker 사진 업로드, AuthContext.submitCaseOnboarding. Maestro: onboarding-case-a/-b/-c.yaml. AC-006-05~10 은 후속 작업 | AC-006-01~04 미구현 | AC-006-01~04 구현 완료 |
 
 ## 향후 검토 항목 (PRD-006에서 도출됨)
 
-- 임신 X · 양육 X 케이스의 정식 정의
+- 임신 X · 양육 X 케이스의 정식 정의 (현재: Case A 흐름으로 양해 카피와 함께 안내)
 - 사산/유산 케이스의 출산 전환 분기 처리
 - 아이 전환 탭의 정렬 규칙
 - 설정 탭의 "아이 추가" 진입점 위치 (AC-006-10 후속)
+- AC-006-05~07 출산 전환 (D-7 푸시, 출산 확인 팝업, 수동 전환 배너)
+- AC-006-08~09 다자녀 컨텍스트 (홈 상단 아이 전환 탭, 활성 아이 기반 탭 재구성)
+- 홈 상단 임신 주차 배지: 현재 `case_kind`만 보고 있어 임시로 숨김 처리. AC-006-08/09 와 함께 활성 자녀의 `due_date` 로 다시 연결 필요 (`app/app/(tabs)/index.tsx`)
+- onboarding-tmp prefix S3 lifecycle 자동 만료 정책 (현재는 reset-onboarding 의 수동 청소만 구현)
