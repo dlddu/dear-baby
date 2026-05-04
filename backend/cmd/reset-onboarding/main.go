@@ -14,10 +14,14 @@ import (
 	"strings"
 
 	"github.com/dlddu/dear-baby/backend/internal/children"
-	"github.com/dlddu/dear-baby/backend/internal/config"
 	"github.com/dlddu/dear-baby/backend/internal/db"
 	"github.com/dlddu/dear-baby/backend/internal/onboarding"
 )
+
+// defaultDatabaseURL mirrors the fallback used by config.Load so this
+// admin tool keeps working when DATABASE_URL is unset, without pulling
+// in the server's full env validation (records-audio AWS settings, etc).
+const defaultDatabaseURL = "file:./dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -32,11 +36,11 @@ func run(args []string) error {
 	}
 	email := strings.TrimSpace(args[0])
 
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = defaultDatabaseURL
 	}
-	d, err := db.Open(cfg.DatabaseURL)
+	d, err := db.Open(dbURL)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
