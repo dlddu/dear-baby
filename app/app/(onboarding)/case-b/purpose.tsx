@@ -111,7 +111,7 @@ export default function CaseBPurpose() {
   return (
     <CaseAccentTheme case="B">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-case-b-purpose">
-        <OnboardingProgressBar n={7} of={7} />
+        <OnboardingProgressBar n={7} of={7} label="Case B · 마지막" />
         <View style={styles.body}>
           <View style={styles.hero}>
             <Text variant="h2" color="primary" style={styles.heading}>
@@ -169,7 +169,7 @@ function ChildTabs({
   activeIdx: number;
   onSelect: (i: number) => void;
 }) {
-  const { color } = useCaseAccent();
+  const { color, tintColor } = useCaseAccent();
   return (
     <ScrollView
       horizontal
@@ -189,12 +189,12 @@ function ChildTabs({
             testID={`case-b-purpose-tab-${i}`}
             style={({ pressed }) => [
               styles.tab,
-              selected && { borderColor: color, backgroundColor: color + '14' },
+              selected && { borderColor: color, backgroundColor: tintColor },
               pressed && styles.pressed,
             ]}
           >
             <Text
-              variant="body"
+              variant="caption"
               color={selected ? 'primary' : 'secondary'}
               style={[styles.tabLabel, selected && { color }]}
             >
@@ -231,10 +231,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
-    paddingHorizontal: spacing[4],
+    paddingHorizontal: spacing[3],
     paddingVertical: spacing[2],
-    borderRadius: radius.sm,
-    borderWidth: 2,
+    minHeight: 32,
+    borderRadius: radius.full,
+    borderWidth: 1.5,
     borderColor: colors.bg.beige,
     backgroundColor: colors.surface.ivory,
   },

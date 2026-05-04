@@ -97,21 +97,26 @@ export function FetusForm({ values, onChange, testIDPrefix = 'fetus' }: FetusFor
       </Field>
 
       <Field label="임신 주차">
-        <TextInput
-          value={values.pregnancy_weeks}
-          onChangeText={(t) => update({ pregnancy_weeks: t.replace(/[^\d]/g, '') })}
-          placeholder="예: 17"
-          placeholderTextColor={colors.text.muted}
-          // numeric (not number-pad) so the iOS keyboard exposes a
-          // Return key — Maestro's `pressKey: Enter` then triggers
-          // submit/blur and dismisses the keyboard. number-pad has no
-          // Return and Maestro's hideKeyboard is unreliable on iOS.
-          keyboardType="numeric"
-          returnKeyType="done"
-          maxLength={2}
-          style={styles.input}
-          testID={`${testIDPrefix}-weeks`}
-        />
+        <View style={styles.weekRow}>
+          <TextInput
+            value={values.pregnancy_weeks}
+            onChangeText={(t) => update({ pregnancy_weeks: t.replace(/[^\d]/g, '') })}
+            placeholder="예: 17"
+            placeholderTextColor={colors.text.muted}
+            // numeric (not number-pad) so the iOS keyboard exposes a
+            // Return key — Maestro's `pressKey: Enter` then triggers
+            // submit/blur and dismisses the keyboard. number-pad has no
+            // Return and Maestro's hideKeyboard is unreliable on iOS.
+            keyboardType="numeric"
+            returnKeyType="done"
+            maxLength={2}
+            style={[styles.input, styles.weekInput]}
+            testID={`${testIDPrefix}-weeks`}
+          />
+          <Text variant="body" color="secondary" style={styles.weekSuffix}>
+            주
+          </Text>
+        </View>
       </Field>
 
       <Field label="아기를 만날 예정일">
@@ -130,11 +135,12 @@ export function FetusForm({ values, onChange, testIDPrefix = 'fetus' }: FetusFor
           }}
           accessibilityRole="button"
           testID={`${testIDPrefix}-due-date-field`}
-          style={({ pressed }) => [styles.input, pressed && styles.inputPressed]}
+          style={({ pressed }) => [styles.input, styles.dateRow, pressed && styles.inputPressed]}
         >
           <Text variant="body" color={values.due_date ? 'primary' : 'muted'}>
             {values.due_date ? formatKoreanDate(new Date(values.due_date)) : '날짜 선택하기'}
           </Text>
+          <CalendarIcon />
         </Pressable>
         {pickerOpen && (
           <DateTimePicker
@@ -163,6 +169,51 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// Small calendar glyph rendered with plain Views so we don't pull in a
+// vector-icon dep just for the wireframe match. Mirrors the 14×14 box
+// shown to the right of the date input on A2/B5.
+function CalendarIcon() {
+  return (
+    <View style={iconStyles.box}>
+      <View style={iconStyles.header} />
+      <View style={iconStyles.gridRow}>
+        <View style={iconStyles.gridDot} />
+        <View style={iconStyles.gridDot} />
+        <View style={iconStyles.gridDot} />
+      </View>
+    </View>
+  );
+}
+
+const iconStyles = StyleSheet.create({
+  box: {
+    width: 18,
+    height: 18,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    borderColor: colors.text.secondary,
+    paddingTop: 2,
+    paddingHorizontal: 2,
+    gap: 2,
+  },
+  header: {
+    height: 3,
+    backgroundColor: colors.text.secondary,
+    borderRadius: 1,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  gridDot: {
+    width: 2,
+    height: 2,
+    backgroundColor: colors.text.secondary,
+    borderRadius: 1,
+  },
+});
+
 const styles = StyleSheet.create({
   wrap: { gap: spacing[5] },
   field: { gap: spacing[2] },
@@ -178,4 +229,12 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
   },
   inputPressed: { opacity: 0.85 },
+  weekRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  weekInput: { flex: 1 },
+  weekSuffix: { fontWeight: '600' },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
 });

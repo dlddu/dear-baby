@@ -75,7 +75,7 @@ export default function CaseAPurpose() {
   return (
     <CaseAccentTheme case="A">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-case-a-purpose">
-        <OnboardingProgressBar n={3} of={3} />
+        <OnboardingProgressBar n={3} of={3} label="Case A · 3/3" />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.body}

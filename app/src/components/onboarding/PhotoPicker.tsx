@@ -6,6 +6,10 @@
 // app restart). On failure we stay on the same row and show a retry
 // affordance.
 //
+// Visual layout follows docs/wireframes/onboarding/case-b.svg /
+// case-c.svg: a small (~96px) dashed circle with a "+" inside, and a
+// "사진 추가 (선택)" caption rendered below the circle.
+//
 // The component is deliberately stateless about the draft store so that
 // the funnel screen owns the persistence and we can test the picker
 // behavior in isolation.
@@ -16,7 +20,6 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '../Text';
 import { colors } from '../../theme/colors';
-import { radius } from '../../theme/radius';
 import { spacing } from '../../theme/spacing';
 
 import { uploadChildPhoto } from '../../onboarding/uploadPhoto';
@@ -33,6 +36,8 @@ export type PhotoPickerProps = {
 };
 
 type Status = 'idle' | 'picking' | 'uploading' | 'failed';
+
+const SIZE = 96;
 
 export function PhotoPicker({
   localUri,
@@ -76,33 +81,34 @@ export function PhotoPicker({
   }, [onUploaded]);
 
   const hasPhoto = !!localUri && (!!photoTmpKey || status === 'idle');
+  const busy = status === 'picking' || status === 'uploading';
 
   return (
     <View style={styles.wrap} testID={testID}>
       <Pressable
         onPress={onPick}
-        disabled={status === 'picking' || status === 'uploading'}
+        disabled={busy}
         accessibilityRole="button"
         accessibilityLabel="사진 추가"
         style={({ pressed }) => [
           styles.tile,
-          { borderColor: color },
+          hasPhoto
+            ? { borderStyle: 'solid', borderColor: color }
+            : { borderStyle: 'dashed', borderColor: colors.text.muted },
           pressed && styles.tilePressed,
         ]}
       >
         {hasPhoto && localUri ? (
           <Image source={{ uri: localUri }} style={styles.preview} />
         ) : (
-          <View style={styles.placeholder}>
-            <Text variant="body" color="secondary" style={styles.placeholderLabel}>
-              {status === 'uploading' ? '올리는 중…' : '사진 추가하기'}
-            </Text>
-            <Text variant="caption" color="muted" style={styles.placeholderHint}>
-              선택사항이에요
-            </Text>
-          </View>
+          <Text variant="h2" color="muted" style={styles.plus}>
+            +
+          </Text>
         )}
       </Pressable>
+      <Text variant="caption" color="muted" style={styles.caption}>
+        {busy ? '올리는 중…' : '사진 추가 (선택)'}
+      </Text>
       {error ? (
         <Text variant="caption" color="coral" style={styles.error} testID="photo-picker-error">
           {error}
@@ -126,20 +132,19 @@ export function PhotoPicker({
 const styles = StyleSheet.create({
   wrap: { gap: spacing[2], alignItems: 'center' },
   tile: {
-    width: 120,
-    height: 120,
-    borderRadius: radius.md,
+    width: SIZE,
+    height: SIZE,
+    borderRadius: SIZE / 2,
     borderWidth: 2,
-    backgroundColor: colors.bg.cream,
+    backgroundColor: colors.bg.beige,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   tilePressed: { opacity: 0.85 },
   preview: { width: '100%', height: '100%' },
-  placeholder: { alignItems: 'center', gap: spacing[1] },
-  placeholderLabel: { fontWeight: '600' },
-  placeholderHint: { fontStyle: 'italic' },
+  plus: { fontWeight: '300', lineHeight: 36 },
+  caption: { textAlign: 'center' },
   error: { textAlign: 'center', maxWidth: 220 },
   clear: { paddingVertical: spacing[1] },
   clearPressed: { opacity: 0.6 },

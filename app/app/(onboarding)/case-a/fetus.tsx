@@ -94,7 +94,7 @@ export default function CaseAFetus() {
   return (
     <CaseAccentTheme case="A">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-case-a-fetus">
-        <OnboardingProgressBar n={2} of={3} />
+        <OnboardingProgressBar n={2} of={3} label="Case A · 2/3" />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.body}

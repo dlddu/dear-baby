@@ -24,6 +24,24 @@ export const caseColors: Record<OnboardingCase, string> = {
   common: '#8C7B6B',
 };
 
+// Darker shade used for label/badge text per the wireframe — improves
+// contrast over the cream background while staying inside the case hue.
+export const caseLabelColors: Record<OnboardingCase, string> = {
+  A: '#993C1D',
+  B: '#854F0B',
+  C: '#0C447C',
+  common: '#5F5E5A',
+};
+
+// Tinted background used for soft chips (B6 active tab in the wireframe
+// uses a 10% wash of the case hue).
+export const caseTintColors: Record<OnboardingCase, string> = {
+  A: '#FBE4DA',
+  B: '#FAEEDA',
+  C: '#DDEBF8',
+  common: '#F1EFE8',
+};
+
 const CaseAccentContext = createContext<OnboardingCase>('common');
 
 export type CaseAccentThemeProps = {
@@ -37,7 +55,17 @@ export function CaseAccentTheme({ case: caseKind, children }: CaseAccentThemePro
   );
 }
 
-export function useCaseAccent(): { case: OnboardingCase; color: string } {
+export function useCaseAccent(): {
+  case: OnboardingCase;
+  color: string;
+  labelColor: string;
+  tintColor: string;
+} {
   const c = useContext(CaseAccentContext);
-  return { case: c, color: caseColors[c] };
+  return {
+    case: c,
+    color: caseColors[c],
+    labelColor: caseLabelColors[c],
+    tintColor: caseTintColors[c],
+  };
 }

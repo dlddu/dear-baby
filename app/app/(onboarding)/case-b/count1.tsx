@@ -50,7 +50,7 @@ export default function CaseBCount1() {
   return (
     <CaseAccentTheme case="B">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-case-b-count1">
-        <OnboardingProgressBar n={2} of={7} />
+        <OnboardingProgressBar n={2} of={7} label="Case B · 1단계 ①" />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
           <View style={styles.hero}>
             <Text variant="h2" color="primary" style={styles.heading}>

@@ -92,7 +92,7 @@ export default function CaseCChild() {
   return (
     <CaseAccentTheme case="C">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-case-c-child">
-        <OnboardingProgressBar n={2} of={3} />
+        <OnboardingProgressBar n={2} of={3} label="Case C · 2/3" />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.body}

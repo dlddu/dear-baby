@@ -9,6 +9,7 @@ import { Button } from '../../../src/components/Button';
 import { Text } from '../../../src/components/Text';
 import {
   CaseAccentTheme,
+  IntroIllustration,
   OnboardingProgressBar,
   StepIndicator,
 } from '../../../src/components/onboarding';
@@ -20,7 +21,7 @@ export default function CaseBIntro2() {
   return (
     <CaseAccentTheme case="B">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-case-b-intro2">
-        <OnboardingProgressBar n={4} of={7} />
+        <OnboardingProgressBar n={4} of={7} label="Case B · 2단계" />
         <View style={styles.body}>
           <View style={styles.hero}>
             <StepIndicator active="two" testID="case-b-intro2-step" />
@@ -30,6 +31,7 @@ export default function CaseBIntro2() {
             <Text variant="emotion" color="secondary" style={styles.helper}>
               짧게 만나기 전 정보만 받을게요.
             </Text>
+            <IntroIllustration variant="pregnancy" />
           </View>
           <Button
             title="계속하기"

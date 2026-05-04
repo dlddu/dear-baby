@@ -93,7 +93,7 @@ export default function CaseBFetus() {
   return (
     <CaseAccentTheme case="B">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-case-b-fetus">
-        <OnboardingProgressBar n={6} of={7} />
+        <OnboardingProgressBar n={6} of={7} label="Case B · 2단계 ②" />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.heroRow}>
             <View style={styles.hero}>

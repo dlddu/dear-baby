@@ -47,7 +47,7 @@ export default function CaseACount() {
   return (
     <CaseAccentTheme case="A">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-case-a-count">
-        <OnboardingProgressBar n={1} of={3} />
+        <OnboardingProgressBar n={1} of={3} label="Case A · 1/3" />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.body}

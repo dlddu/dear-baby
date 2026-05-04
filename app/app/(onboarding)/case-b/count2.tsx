@@ -50,11 +50,14 @@ export default function CaseBCount2() {
   return (
     <CaseAccentTheme case="B">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-case-b-count2">
-        <OnboardingProgressBar n={5} of={7} />
+        <OnboardingProgressBar n={5} of={7} label="Case B · 2단계 ①" />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
           <View style={styles.hero}>
             <Text variant="h2" color="primary" style={styles.heading}>
               임신 중인 아이는 몇 명인가요?
+            </Text>
+            <Text variant="emotion" color="secondary" style={styles.helper}>
+              기존 아이와 별도로 관리해 드릴게요.
             </Text>
           </View>
           <CountPicker
@@ -91,5 +94,6 @@ const styles = StyleSheet.create({
   },
   hero: { gap: spacing[3] },
   heading: { textAlign: 'left' },
+  helper: { textAlign: 'left' },
   footer: { paddingHorizontal: spacing[6], paddingBottom: spacing[4] },
 });

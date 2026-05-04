@@ -121,11 +121,12 @@ export function ChildForm({ values, onChange, testIDPrefix = 'child' }: ChildFor
           }}
           accessibilityRole="button"
           testID={`${testIDPrefix}-birth-date-field`}
-          style={({ pressed }) => [styles.input, pressed && styles.inputPressed]}
+          style={({ pressed }) => [styles.input, styles.dateRow, pressed && styles.inputPressed]}
         >
           <Text variant="body" color={values.birth_date ? 'primary' : 'muted'}>
             {values.birth_date ? formatKoreanDate(new Date(values.birth_date)) : '날짜 선택하기'}
           </Text>
+          <CalendarIcon />
         </Pressable>
         {pickerOpen && (
           <DateTimePicker
@@ -147,7 +148,9 @@ export function ChildForm({ values, onChange, testIDPrefix = 'child' }: ChildFor
           placeholder="우리 아이를 한 줄로 소개해 주세요"
           placeholderTextColor={colors.text.muted}
           returnKeyType="done"
-          style={styles.input}
+          multiline
+          textAlignVertical="top"
+          style={[styles.input, styles.introInput]}
           maxLength={120}
           testID={`${testIDPrefix}-intro`}
         />
@@ -167,6 +170,51 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// Mirrors FetusForm's CalendarIcon — small calendar glyph drawn with
+// plain Views to match the wireframe without pulling in vector-icon
+// dependencies.
+function CalendarIcon() {
+  return (
+    <View style={iconStyles.box}>
+      <View style={iconStyles.header} />
+      <View style={iconStyles.gridRow}>
+        <View style={iconStyles.gridDot} />
+        <View style={iconStyles.gridDot} />
+        <View style={iconStyles.gridDot} />
+      </View>
+    </View>
+  );
+}
+
+const iconStyles = StyleSheet.create({
+  box: {
+    width: 18,
+    height: 18,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    borderColor: colors.text.secondary,
+    paddingTop: 2,
+    paddingHorizontal: 2,
+    gap: 2,
+  },
+  header: {
+    height: 3,
+    backgroundColor: colors.text.secondary,
+    borderRadius: 1,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  gridDot: {
+    width: 2,
+    height: 2,
+    backgroundColor: colors.text.secondary,
+    borderRadius: 1,
+  },
+});
+
 const styles = StyleSheet.create({
   wrap: { gap: spacing[5] },
   photoWrap: { alignItems: 'center' },
@@ -183,4 +231,13 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
   },
   inputPressed: { opacity: 0.85 },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  introInput: {
+    minHeight: 72,
+    paddingTop: spacing[3],
+  },
 });

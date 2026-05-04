@@ -91,7 +91,7 @@ export default function OnboardingQ2() {
   return (
     <CaseAccentTheme case="common">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-q2">
-        <OnboardingProgressBar n={2} of={3} />
+        <OnboardingProgressBar n={2} of={3} label="2 / 3" />
         <View style={styles.body}>
           <View style={styles.hero}>
             <Text variant="h2" color="primary" style={styles.heading}>

@@ -17,9 +17,11 @@ export type GenderPickerProps = {
   testID?: string;
 };
 
+// Order matches the wireframe (남아 → 여아 → 미정) per
+// docs/wireframes/onboarding/case-a.svg.
 const options: { label: string; value: Gender }[] = [
-  { label: '여아', value: 'female' },
   { label: '남아', value: 'male' },
+  { label: '여아', value: 'female' },
   { label: '미정', value: 'undecided' },
 ];
 
