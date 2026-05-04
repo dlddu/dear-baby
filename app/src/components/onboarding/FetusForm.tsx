@@ -116,7 +116,18 @@ export function FetusForm({ values, onChange, testIDPrefix = 'fetus' }: FetusFor
 
       <Field label="아기를 만날 예정일">
         <Pressable
-          onPress={() => setPickerOpen(true)}
+          onPress={() => {
+            setPickerOpen(true);
+            // Seed today's date as the initial selection on first open.
+            // The iOS spinner only fires onChange when the user spins
+            // the wheel — without this seed, tapping 완료 without
+            // touching the wheel leaves due_date null and the next
+            // button stays disabled. Subsequent spins overwrite via
+            // handlePickerChange.
+            if (!values.due_date) {
+              update({ due_date: toIsoDate(today()) });
+            }
+          }}
           accessibilityRole="button"
           testID={`${testIDPrefix}-due-date-field`}
           style={({ pressed }) => [styles.input, pressed && styles.inputPressed]}

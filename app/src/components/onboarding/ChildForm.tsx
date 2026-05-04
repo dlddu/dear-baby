@@ -110,7 +110,15 @@ export function ChildForm({ values, onChange, testIDPrefix = 'child' }: ChildFor
 
       <Field label="생년월일">
         <Pressable
-          onPress={() => setPickerOpen(true)}
+          onPress={() => {
+            setPickerOpen(true);
+            // See FetusForm rationale — seed today as the initial value
+            // so the form is valid even if the user closes the picker
+            // without spinning the wheel.
+            if (!values.birth_date) {
+              update({ birth_date: toIsoDate(today()) });
+            }
+          }}
           accessibilityRole="button"
           testID={`${testIDPrefix}-birth-date-field`}
           style={({ pressed }) => [styles.input, pressed && styles.inputPressed]}
