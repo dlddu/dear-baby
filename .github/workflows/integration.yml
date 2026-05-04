@@ -309,16 +309,26 @@ jobs:
           echo "user_id=$user_id"
           echo "::endgroup::"
 
-          echo "::group::complete onboarding"
-          # Stamp onboarded_at so /onboarding/ai-preview proceeds (which
-          # the seeded user does not have by default — the seeder
-          # leaves onboarding state untouched on every boot to mirror a
-          # fresh sign-up).
-          curl -fsS -X PATCH \
+          echo "::group::complete onboarding (case-branching, PRD-006)"
+          # Stamp onboarded_at + case_kind via the case-branching
+          # onboarding endpoint so /onboarding/ai-preview proceeds. We
+          # use Case A (single fetus) — the smallest valid payload that
+          # also exercises the new POST /onboarding/case wiring as part
+          # of CI.
+          curl -fsS -X POST \
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
-            -d '{"due_date":"2026-09-01"}' \
-            http://127.0.0.1:18080/me >/dev/null
+            -d '{
+              "case": "A",
+              "children": [{
+                "kind": "fetus",
+                "gender": "undecided",
+                "pregnancy_weeks": 20,
+                "due_date": "2026-09-01",
+                "purposes": ["book_making"]
+              }]
+            }' \
+            http://127.0.0.1:18080/onboarding/case >/dev/null
           echo "::endgroup::"
 
           echo "::group::create record"
