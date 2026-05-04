@@ -59,14 +59,8 @@ appId: com.dlddu.dearbaby
       visible: "OK"
     commands:
       - tapOn: "OK"
-# iOS: inline spinner — scroll wheel + Done
-- runFlow:
-    when:
-      visible:
-        id: "case-a-fetus-due-date-done"
-    commands:
-      - tapOn:
-          id: "case-a-fetus-due-date-done"
+# iOS: inline spinner — date is seeded as today on field tap, so the
+# next button is enabled immediately even without spinning the wheel.
 - tapOn:
     id: "case-a-fetus-next"
 

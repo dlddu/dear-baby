@@ -138,26 +138,6 @@ export function ChildForm({ values, onChange, testIDPrefix = 'child' }: ChildFor
             testID={`${testIDPrefix}-birth-date-picker`}
           />
         )}
-        {Platform.OS === 'ios' && pickerOpen && (
-          <Pressable
-            onPress={() => {
-              // See FetusForm for the rationale — commit the spinner's
-              // displayed value when the user taps 완료 without
-              // spinning the wheel.
-              if (!values.birth_date) {
-                update({ birth_date: toIsoDate(birth) });
-              }
-              setPickerOpen(false);
-            }}
-            accessibilityRole="button"
-            testID={`${testIDPrefix}-birth-date-done`}
-            style={styles.pickerDone}
-          >
-            <Text variant="h3" color="coral">
-              완료
-            </Text>
-          </Pressable>
-        )}
       </Field>
 
       <Field label="한줄 소개 (선택)">
@@ -203,5 +183,4 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
   },
   inputPressed: { opacity: 0.85 },
-  pickerDone: { alignSelf: 'center', paddingVertical: spacing[2] },
 });

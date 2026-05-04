@@ -55,13 +55,6 @@ appId: com.dlddu.dearbaby
       visible: "OK"
     commands:
       - tapOn: "OK"
-- runFlow:
-    when:
-      visible:
-        id: "case-c-child-birth-date-done"
-    commands:
-      - tapOn:
-          id: "case-c-child-birth-date-done"
 - tapOn:
     id: "case-c-child-next"
 
