@@ -1,12 +1,28 @@
 // Date picker tile shared by fetus due-date and child birth-date
-// inputs. Wraps the platform date picker the same way welcome.tsx
-// used to (Android modal vs. iOS inline spinner).
+// inputs.
+//
+// On Android we lean on the platform's native date dialog (calendar)
+// which renders as a system modal — no layout disruption.
+//
+// On iOS the wheel spinner has to live somewhere; rendering it inline
+// inside the form's ScrollView puts the "완료" tap target near the
+// fixed footer CTA, and the two interactive elements end up close
+// enough on-screen that taps land on the wrong one (recurring E2E
+// flake). To eliminate that whole class of layout collisions we host
+// the spinner inside a bottom-sheet `<Modal>` that's outside the form
+// hierarchy. The form layout never moves while the picker is open.
 
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import {
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { Text } from '../Text';
 import { formatKoreanDate, toIsoDate } from '../../utils/date';
@@ -46,12 +62,11 @@ export function DateField({
   const dateObj = parseISO(value);
 
   const handleOpen = () => {
-    // iOS spinner picker fires onChange only when the user actually
-    // scrolls a wheel. Without a scroll the value stays null and the
-    // form CTA stays disabled — which has been a recurring source of
-    // flake on E2E. Commit the seed value (current value, defaultDate,
-    // or today) up front so the user (or test) can just tap "완료"
-    // without scrolling.
+    // iOS spinner fires onChange only after the user scrolls a wheel.
+    // Without a scroll the value stays null and the form CTA stays
+    // disabled — both a real UX papercut and a perpetual source of
+    // E2E flake. Commit the seed value (current, defaultDate, today)
+    // on open so a plain "완료" tap progresses.
     if (Platform.OS === 'ios' && !value) {
       const seed = defaultDate ?? new Date();
       onChange(toIsoDate(seed));
@@ -59,14 +74,17 @@ export function DateField({
     setOpen(true);
   };
 
-  const handlePickerChange = (event: DateTimePickerEvent, selected?: Date) => {
-    if (Platform.OS === 'android') {
-      setOpen(false);
-      if (event.type === 'set' && selected) {
-        onChange(toIsoDate(selected));
-      }
-      return;
+  const handleAndroidChange = (
+    event: DateTimePickerEvent,
+    selected?: Date,
+  ) => {
+    setOpen(false);
+    if (event.type === 'set' && selected) {
+      onChange(toIsoDate(selected));
     }
+  };
+
+  const handleIosChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (selected) onChange(toIsoDate(selected));
   };
 
@@ -85,28 +103,53 @@ export function DateField({
           {dateObj ? formatKoreanDate(dateObj) : placeholder}
         </Text>
       </Pressable>
-      {open && (
+      {Platform.OS === 'android' && open && (
         <DateTimePicker
           value={dateObj ?? defaultDate ?? new Date()}
           mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          display="default"
           minimumDate={minDate}
           maximumDate={maxDate}
-          onChange={handlePickerChange}
+          onChange={handleAndroidChange}
           testID={testID ? `${testID}-picker` : undefined}
         />
       )}
-      {Platform.OS === 'ios' && open && (
-        <Pressable
-          onPress={() => setOpen(false)}
-          style={styles.done}
-          accessibilityRole="button"
-          testID={testID ? `${testID}-done` : undefined}
+      {Platform.OS === 'ios' && (
+        <Modal
+          transparent
+          visible={open}
+          animationType="fade"
+          onRequestClose={() => setOpen(false)}
         >
-          <Text variant="h3" color="coral">
-            완료
-          </Text>
-        </Pressable>
+          <Pressable
+            style={styles.backdrop}
+            onPress={() => setOpen(false)}
+            accessibilityLabel="닫기"
+          >
+            {/* Stop propagation so taps inside the sheet don't dismiss it. */}
+            <Pressable style={styles.sheet} onPress={() => undefined}>
+              <DateTimePicker
+                value={dateObj ?? defaultDate ?? new Date()}
+                mode="date"
+                display="spinner"
+                minimumDate={minDate}
+                maximumDate={maxDate}
+                onChange={handleIosChange}
+                testID={testID ? `${testID}-picker` : undefined}
+              />
+              <Pressable
+                onPress={() => setOpen(false)}
+                style={styles.done}
+                accessibilityRole="button"
+                testID={testID ? `${testID}-done` : undefined}
+              >
+                <Text variant="h3" color="coral">
+                  완료
+                </Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
       )}
     </View>
   );
@@ -122,6 +165,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
   },
   fieldPressed: { opacity: 0.85 },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.surface.ivory,
+    paddingTop: spacing[4],
+    paddingBottom: spacing[6],
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    alignItems: 'stretch',
+  },
   done: {
     alignSelf: 'center',
     paddingVertical: spacing[3],
