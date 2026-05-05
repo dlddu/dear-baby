@@ -1,7 +1,7 @@
 // GenderToggle is the three-pill (남아 / 여아 / 미정) selector used on
 // A2 and B5 fetal-info screens, and on B2 / C2 child-info screens.
 
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 
 import type { Gender } from '../../api/onboarding';
 import { colors } from '../../theme/colors';
@@ -33,7 +33,13 @@ export function GenderToggle({ value, onChange }: GenderToggleProps) {
             key={opt.value}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            onPress={() => onChange(opt.value)}
+            onPress={() => {
+              // Dismiss any soft keyboard from a previously-focused
+              // TextInput so the form's footer CTA isn't covered when
+              // Maestro taps the next button afterwards.
+              Keyboard.dismiss();
+              onChange(opt.value);
+            }}
             style={({ pressed }) => [
               styles.pill,
               {

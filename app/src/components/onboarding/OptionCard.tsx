@@ -3,7 +3,7 @@
 // 목적, B6 아이별 목적). When `selected` it picks up the case accent
 // border + tinted background.
 
-import { Pressable, StyleSheet, View, type PressableProps } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, View, type PressableProps } from 'react-native';
 
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
@@ -22,6 +22,7 @@ export function OptionCard({
   selected = false,
   padding = 'md',
   children,
+  onPress,
   ...rest
 }: OptionCardProps) {
   const accent = useCaseAccent();
@@ -30,6 +31,13 @@ export function OptionCard({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      onPress={(e) => {
+        // Blur any focused TextInput so the soft keyboard goes away
+        // before the parent screen's footer CTA needs to be tappable.
+        // Cheap on screens without a keyboard up.
+        Keyboard.dismiss();
+        onPress?.(e);
+      }}
       {...rest}
       style={({ pressed }) => [
         styles.base,
