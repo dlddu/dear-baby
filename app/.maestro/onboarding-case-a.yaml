@@ -72,16 +72,15 @@ appId: com.dlddu.dearbaby
       visible: "OK"
     commands:
       - tapOn: "OK"
-# iOS: inline spinner — 스피너를 살짝 굴려서 onChange 발화 후 완료 탭.
+# iOS: inline spinner. DateField pre-commits the picker's default
+# value the moment it opens, so we don't need to spin a wheel — just
+# tap "완료" to close. Avoiding swipe also sidesteps a Maestro
+# coordinate that can clip the bottom CTA.
 - runFlow:
     when:
       visible:
         id: "onboarding-date-picker-done"
     commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
 # a2-next 는 OnboardingScreen 의 actions 영역(ScrollView 밖, 화면

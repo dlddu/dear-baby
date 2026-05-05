@@ -72,10 +72,6 @@ appId: com.dlddu.dearbaby
       visible:
         id: "onboarding-date-picker-done"
     commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
 # b2-next 는 OnboardingScreen 의 actions 영역(ScrollView 밖, 화면
@@ -137,10 +133,6 @@ appId: com.dlddu.dearbaby
       visible:
         id: "onboarding-date-picker-done"
     commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
 - extendedWaitUntil:

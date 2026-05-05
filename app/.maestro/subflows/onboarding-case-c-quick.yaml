@@ -60,10 +60,6 @@ appId: com.dlddu.dearbaby
       visible:
         id: "onboarding-date-picker-done"
     commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
 - extendedWaitUntil:
