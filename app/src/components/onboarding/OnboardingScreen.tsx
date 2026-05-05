@@ -12,7 +12,13 @@
 //   │  Primary CTA / Secondary   │
 //   └────────────────────────────┘
 
-import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Keyboard,
+  ScrollView,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
@@ -67,49 +73,56 @@ export function OnboardingScreen({
   return (
     <CaseAccentProvider case={c ?? null}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID={testID}>
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <ProgressBar current={step} total={totalSteps} label={progressLabel} />
+        {/* TouchableWithoutFeedback wraps the whole screen so that any
+            tap outside an interactive element dismisses the keyboard.
+            Without this, Android keeps the soft keyboard open after
+            inputText, which covers the bottom-fixed CTA + makes
+            mid-screen pill taps land on keyboard keys instead. */}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.container}>
+            <View style={styles.header}>
+              <View style={{ flex: 1 }}>
+                <ProgressBar current={step} total={totalSteps} label={progressLabel} />
+              </View>
+              {repeat ? (
+                <RepeatBadge current={repeat.current} total={repeat.total} />
+              ) : null}
             </View>
-            {repeat ? (
-              <RepeatBadge current={repeat.current} total={repeat.total} />
-            ) : null}
-          </View>
 
-          <ScrollView
-            style={styles.body}
-            contentContainerStyle={styles.bodyContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            {children}
-          </ScrollView>
+            <ScrollView
+              style={styles.body}
+              contentContainerStyle={styles.bodyContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {children}
+            </ScrollView>
 
-          <View style={styles.actions}>
-            <Button
-              title={cta.title}
-              variant="primary"
-              fullWidth
-              disabled={cta.disabled}
-              onPress={cta.onPress}
-              testID={cta.testID}
-            />
-            {secondary ? (
+            <View style={styles.actions}>
               <Button
-                title={secondary.title}
-                variant="secondary"
+                title={cta.title}
+                variant="primary"
                 fullWidth
-                onPress={secondary.onPress}
-                testID={secondary.testID}
+                disabled={cta.disabled}
+                onPress={cta.onPress}
+                testID={cta.testID}
               />
-            ) : null}
-            {errorMessage ? (
-              <Text variant="caption" color="coral" style={styles.error}>
-                {errorMessage}
-              </Text>
-            ) : null}
+              {secondary ? (
+                <Button
+                  title={secondary.title}
+                  variant="secondary"
+                  fullWidth
+                  onPress={secondary.onPress}
+                  testID={secondary.testID}
+                />
+              ) : null}
+              {errorMessage ? (
+                <Text variant="caption" color="coral" style={styles.error}>
+                  {errorMessage}
+                </Text>
+              ) : null}
+            </View>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
         <StatusBar style="dark" />
       </SafeAreaView>
     </CaseAccentProvider>
