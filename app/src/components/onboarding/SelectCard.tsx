@@ -4,7 +4,7 @@
 //
 // 선택 상태에서는 케이스 액센트의 soft 배경 + base 윤곽으로 강조한다.
 
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import type { ReactNode } from 'react';
 
 import { Text } from '../Text';
@@ -39,7 +39,10 @@ export function SelectCard({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
-      onPress={onPress}
+      onPress={() => {
+        Keyboard.dismiss();
+        onPress();
+      }}
       testID={testID}
       style={({ pressed }) => [
         styles.card,

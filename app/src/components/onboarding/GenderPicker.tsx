@@ -1,7 +1,7 @@
 // GenderPicker — 성별 선택 (남아·여아·미정). 와이어프레임 A2/B5 의
 // pill 형태를 그대로 따른다.
 
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '../Text';
 import { colors } from '../../theme/colors';
@@ -35,7 +35,14 @@ export function GenderPicker({ value, onChange, testID }: GenderPickerProps) {
             key={opt.value}
             accessibilityRole="button"
             accessibilityLabel={opt.label}
-            onPress={() => onChange(opt.value)}
+            onPress={() => {
+              // RN Pressable doesn't auto-dismiss the soft keyboard
+              // when transitioning from a TextInput; without this the
+              // pill tap can land on the keyboard's overlay rect on
+              // Android. Dismiss explicitly so the pill always wins.
+              Keyboard.dismiss();
+              onChange(opt.value);
+            }}
             testID={testID ? `${testID}-${opt.value}` : undefined}
             style={({ pressed }) => [
               styles.pill,
