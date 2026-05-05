@@ -50,6 +50,10 @@ appId: com.dlddu.dearbaby
 - inputText: "jiyu"
 - tapOn:
     point: "50%, 10%"
+- scrollUntilVisible:
+    element:
+      id: "b2-gender-female"
+    direction: DOWN
 - tapOn:
     id: "b2-gender-female"
 - tapOn:
@@ -102,6 +106,10 @@ appId: com.dlddu.dearbaby
 - inputText: "20"
 - tapOn:
     point: "50%, 10%"
+- scrollUntilVisible:
+    element:
+      id: "b5-due-date"
+    direction: DOWN
 - tapOn:
     id: "b5-due-date"
 - runFlow:

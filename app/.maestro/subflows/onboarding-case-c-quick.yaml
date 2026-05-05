@@ -38,6 +38,10 @@ appId: com.dlddu.dearbaby
 - inputText: "jiyu"
 - tapOn:
     point: "50%, 10%"
+- scrollUntilVisible:
+    element:
+      id: "c2-gender-female"
+    direction: DOWN
 - tapOn:
     id: "c2-gender-female"
 - tapOn:
