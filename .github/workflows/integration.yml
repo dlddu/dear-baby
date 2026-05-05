@@ -310,15 +310,27 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::complete onboarding"
-          # Stamp onboarded_at so /onboarding/ai-preview proceeds (which
-          # the seeded user does not have by default — the seeder
-          # leaves onboarding state untouched on every boot to mirror a
-          # fresh sign-up).
-          curl -fsS -X PATCH \
+          # Stamp onboarded_at so /onboarding/ai-preview proceeds. The
+          # seeded user has no onboarded_at by default (mirrors a fresh
+          # sign-up). Posts the minimal Case A payload (one fetus child
+          # + one purpose) — the simplest path the case-branched
+          # onboarding accepts (PRD-006 AC-006-02).
+          curl -fsS -X POST \
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
-            -d '{"due_date":"2026-09-01"}' \
-            http://127.0.0.1:18080/me >/dev/null
+            -d '{
+              "case": "A",
+              "children": [
+                {
+                  "kind": "fetus",
+                  "gender": "undecided",
+                  "pregnancy_weeks": 17,
+                  "due_date": "2026-09-01",
+                  "purposes": ["book_making"]
+                }
+              ]
+            }' \
+            http://127.0.0.1:18080/onboarding/case >/dev/null
           echo "::endgroup::"
 
           echo "::group::create record"
