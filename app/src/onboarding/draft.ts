@@ -17,6 +17,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { defaultDueDate, toIsoDate } from '../utils/date';
 import type {
   ChildGender,
   ChildKind,
@@ -113,7 +114,11 @@ export function makeDraftID(): string {
 // resizeFetusChildren / resizeChildren keep the children array in sync
 // with the count screen (A1 / B1 / B4 / C1). On count change we keep
 // existing entries (preserving any data the user filled in) and add or
-// drop slots from the tail.
+// drop slots from the tail. New slots are seeded with sensible date
+// defaults (fetus → 오늘 +40주, child → 오늘) so the per-child form
+// starts in a valid state — users can tap the date field to refine
+// without first having to "fill" anything, and the iOS spinner-mode
+// picker doesn't need a successful onChange to advance.
 export function resizeKind(
   draft: OnboardingDraft,
   kind: ChildKind,
@@ -123,7 +128,7 @@ export function resizeKind(
   const other = draft.children.filter((c) => c.kind !== kind);
   let next = same.slice(0, count);
   while (next.length < count) {
-    next.push({ draft_id: makeDraftID(), kind });
+    next.push(makeEmptySlot(kind));
   }
   // Maintain wireframe order: caregiver children first, then fetus.
   const before: ChildDraft[] = [];
@@ -134,6 +139,16 @@ export function resizeKind(
     else after.push(c);
   }
   return { ...draft, children: [...before, ...next, ...after] };
+}
+
+function makeEmptySlot(kind: ChildKind): ChildDraft {
+  const slot: ChildDraft = { draft_id: makeDraftID(), kind };
+  if (kind === 'fetus') {
+    slot.due_date = toIsoDate(defaultDueDate());
+  } else {
+    slot.birth_date = toIsoDate(new Date());
+  }
+  return slot;
 }
 
 export function updateChild(
