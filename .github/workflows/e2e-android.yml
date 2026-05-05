@@ -176,15 +176,11 @@ jobs:
           reset_onboarding
           run_flow .maestro/login.yaml
           reset_onboarding
-          run_flow .maestro/onboarding-stage1-skip.yaml
+          run_flow .maestro/onboarding-case-a.yaml
           reset_onboarding
-          run_flow .maestro/onboarding-stage1-date.yaml
+          run_flow .maestro/onboarding-case-b.yaml
           reset_onboarding
-          run_flow .maestro/onboarding-stage2.yaml
-          reset_onboarding
-          run_flow .maestro/onboarding-stage2-undecided.yaml
-          reset_onboarding
-          run_flow .maestro/onboarding-stage2-voice.yaml
+          run_flow .maestro/onboarding-case-c.yaml
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 
