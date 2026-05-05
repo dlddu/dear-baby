@@ -68,23 +68,16 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "case-a-fetus-due-date"
 # Tapping the field pre-fills a sensible default (DateField.tsx —
-# defaultDueDate for 예정일 / today for 생년월일) and opens the picker.
-# Dismiss the platform dialog so the bottom CTA is visible again.
-# Android: native modal — confirm with OK.
+# defaultDueDate for 예정일 / today for 생년월일). The form is now
+# valid; advance immediately. Android's modal dialog auto-confirms
+# below, while iOS just keeps the inline calendar visible (the CTA
+# lives in a footer outside the ScrollView so the calendar doesn't
+# block it).
 - runFlow:
     when:
       visible: "OK"
     commands:
       - tapOn: "OK"
-# iOS: tap the modal backdrop to dismiss. The date is already
-# committed by the field tap above, so the spinner doesn't need to
-# be driven explicitly.
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - tapOn:
-          id: "case-a-fetus-due-date-backdrop"
 - tapOn:
     id: "case-a-fetus-next"
 

@@ -59,19 +59,14 @@ appId: com.dlddu.dearbaby
     id: "gender-female"
 - tapOn:
     id: "case-c-child-0-birth-date"
-# Tapping the field pre-fills today as the default and opens the
-# picker; dismiss the dialog so the bottom CTA is visible again.
+# Field tap pre-fills today as the default. Android's modal dialog
+# needs an explicit OK; iOS uses an inline calendar that doesn't
+# block the footer CTA, so no explicit dismissal needed.
 - runFlow:
     when:
       visible: "OK"
     commands:
       - tapOn: "OK"
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - tapOn:
-          id: "case-c-child-0-birth-date-backdrop"
 - tapOn:
     id: "case-c-child-next"
 

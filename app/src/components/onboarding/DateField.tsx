@@ -4,17 +4,23 @@
 //
 // On first tap the field pre-fills with a sensible default (today for
 // 생년월일, 40 weeks from today for 예정일) so the form is complete
-// even if the user just glances at the picker and dismisses it. iOS
-// renders the spinner inside a bottom-anchored Modal so the spinner +
-// 완료 button sit at predictable coordinates and don't get pushed off
-// the visible viewport by the parent ScrollView. Android continues to
-// use the system's modal date dialog unchanged.
+// even if the user just glances at the picker and dismisses it.
+//
+// iOS renders the date picker inline (display="inline" — iOS 14+
+// calendar grid) directly under the field. We tried Modal and inline
+// spinner first; both broke Maestro's accessibility traversal on iOS
+// (Modal portal is a separate UIWindow, the spinner pushed the 완료
+// sibling off-screen). The inline calendar stays inside the parent
+// ScrollView and the page's CTA lives in a footer outside the
+// ScrollView, so the picker never blocks "다음".
+//
+// Android continues to use the system's modal date dialog unchanged.
 
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
@@ -67,11 +73,11 @@ export function DateField({
     // Pre-fill on first tap so the form is complete even if the user
     // dismisses the picker without scrolling. This keeps the Maestro
     // E2E flow deterministic too — the test just taps the field and
-    // moves on without having to drive the iOS spinner.
+    // moves on without having to drive the iOS calendar.
     if (!date) {
       onChange(toIsoDate(defaultForField()));
     }
-    setOpen(true);
+    setOpen((prev) => !prev);
   };
 
   const handleChange = (event: DateTimePickerEvent, selected?: Date) => {
@@ -115,46 +121,21 @@ export function DateField({
         />
       ) : null}
 
-      {/* iOS: bottom-sheet modal so position is predictable for users
-          regardless of the parent ScrollView offset. The default value
-          is committed on press, so a simple dismissal leaves a valid
-          form state — Maestro doesn't need to drive the spinner. */}
-      {Platform.OS === 'ios' ? (
-        <Modal
-          visible={open}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setOpen(false)}
-        >
-          <Pressable
-            style={styles.backdrop}
-            onPress={() => setOpen(false)}
-            accessibilityRole="button"
-            testID={testID ? `${testID}-backdrop` : undefined}
-          />
-          <View style={styles.sheet}>
-            <Pressable
-              onPress={() => setOpen(false)}
-              accessibilityRole="button"
-              testID={testID ? `${testID}-done` : undefined}
-              style={({ pressed }) => [styles.doneRow, pressed && styles.pressed]}
-            >
-              <Text variant="h3" color="coral">
-                완료
-              </Text>
-            </Pressable>
-            <DateTimePicker
-              value={date ?? defaultForField()}
-              mode="date"
-              display="spinner"
-              minimumDate={min}
-              maximumDate={max}
-              onChange={handleChange}
-              testID={testID ? `${testID}-picker` : undefined}
-              style={styles.picker}
-            />
-          </View>
-        </Modal>
+      {/* iOS: inline calendar (no Modal — Maestro can't traverse RN
+          Modal portals on iOS). Stays inside the ScrollView; the
+          screen's CTA is in a footer outside the ScrollView so it
+          remains tappable regardless of calendar height. */}
+      {Platform.OS === 'ios' && open ? (
+        <DateTimePicker
+          value={date ?? defaultForField()}
+          mode="date"
+          display="inline"
+          minimumDate={min}
+          maximumDate={max}
+          onChange={handleChange}
+          testID={testID ? `${testID}-picker` : undefined}
+          style={styles.iosInline}
+        />
       ) : null}
     </View>
   );
@@ -172,20 +153,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[3],
   },
   pressed: { opacity: 0.85 },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(61,46,30,0.25)',
+  iosInline: {
+    alignSelf: 'stretch',
+    height: 360,
   },
-  sheet: {
-    backgroundColor: colors.surface.ivory,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingBottom: spacing[6],
-  },
-  doneRow: {
-    alignItems: 'flex-end',
-    paddingHorizontal: spacing[5],
-    paddingVertical: spacing[3],
-  },
-  picker: { alignSelf: 'stretch' },
 });
+
