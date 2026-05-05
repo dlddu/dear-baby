@@ -200,21 +200,17 @@ jobs:
 
           run_flow .maestro/health.yaml
           # login.yaml requires a fresh-onboarding state to assert the
-          # welcome screen on landing.
+          # Q1 (case-branched) entry screen on landing.
           reset_onboarding
           run_flow .maestro/login.yaml
           # Each onboarding flow sets onboarded_at, so the next flow
-          # gets a reset to land back on the welcome screen.
+          # gets a reset to land back on Q1.
           reset_onboarding
-          run_flow .maestro/onboarding-stage1-skip.yaml
+          run_flow .maestro/onboarding-case-a.yaml
           reset_onboarding
-          run_flow .maestro/onboarding-stage1-date.yaml
+          run_flow .maestro/onboarding-case-b.yaml
           reset_onboarding
-          run_flow .maestro/onboarding-stage2.yaml
-          reset_onboarding
-          run_flow .maestro/onboarding-stage2-undecided.yaml
-          reset_onboarding
-          run_flow .maestro/onboarding-stage2-voice.yaml
+          run_flow .maestro/onboarding-case-c.yaml
 
       - name: Upload Maestro debug artifacts
         if: always()
