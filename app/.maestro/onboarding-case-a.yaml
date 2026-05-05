@@ -55,7 +55,12 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "a2-weeks"
 - inputText: "17"
-- hideKeyboard
+# Maestro hideKeyboard fails on iOS numeric pads (RN doesn't expose
+# the standard dismiss action). Tap a non-interactive static text
+# instead — the ScrollView's keyboardShouldPersistTaps="handled"
+# dismisses the keyboard when a tap isn't handled by a child.
+- tapOn:
+    text: "성별"
 - scrollUntilVisible:
     element:
       id: "a2-due-date"

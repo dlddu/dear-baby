@@ -36,7 +36,8 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "c2-name"
 - inputText: "jiyu"
-- hideKeyboard
+- tapOn:
+    text: "성별"
 - scrollUntilVisible:
     element:
       id: "c2-gender-female"
