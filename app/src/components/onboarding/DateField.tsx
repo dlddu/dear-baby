@@ -92,7 +92,19 @@ export function DateField({
       </View>
       <Pressable
         accessibilityRole="button"
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          // Commit a default value the moment the picker opens so
+          // downstream `isValid` flips immediately. iOS spinner only
+          // fires onChange on actual wheel movement and Android's OK
+          // tap can also miss the selected param — pre-commit removes
+          // both as failure modes. Users who confirm without changing
+          // anything keep the implicit default; users who pick a
+          // different date overwrite it through onChange.
+          if (!current) {
+            commitFallback();
+          }
+          setOpen(true);
+        }}
         testID={testID}
         style={({ pressed }) => [styles.field, pressed && { opacity: 0.85 }]}
       >
