@@ -55,7 +55,11 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "case-b-child-0-name"
 - inputText: "jiyoo"
-- hideKeyboard
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     id: "gender-female"
 - tapOn:
@@ -97,13 +101,21 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "case-b-fetus-0-name"
 - inputText: "stronger"
-- hideKeyboard
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     id: "gender-undecided"
 - tapOn:
     id: "case-b-fetus-0-weeks"
 - inputText: "17"
-- hideKeyboard
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     id: "case-b-fetus-0-due-date"
 - runFlow:

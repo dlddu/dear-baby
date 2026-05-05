@@ -50,7 +50,11 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "case-c-child-0-name"
 - inputText: "jiyoo"
-- hideKeyboard
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     id: "gender-female"
 - tapOn:

@@ -50,13 +50,21 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "case-a-fetus-name"
 - inputText: "stronger"
-- hideKeyboard
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     id: "gender-undecided"
 - tapOn:
     id: "case-a-fetus-weeks"
 - inputText: "17"
-- hideKeyboard
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     id: "case-a-fetus-due-date"
 - runFlow:
