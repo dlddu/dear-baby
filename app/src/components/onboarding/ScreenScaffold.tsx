@@ -56,7 +56,9 @@ export function ScreenScaffold({
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID={testID}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // Android 도 'height' 로 키보드 회피를 켜둬 sticky-bottom Next 버튼이
+        // 키보드에 가려지지 않게 한다. iOS 는 'padding' 이 자연스러워 그대로.
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.headerRow}>
           <View style={styles.flex}>
