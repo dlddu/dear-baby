@@ -72,12 +72,14 @@ appId: com.dlddu.dearbaby
 - runFlow:
     when:
       visible:
-        id: "case-b-child-0-birth-date-picker"
+        id: "case-b-child-0-birth-date-done"
     commands:
       - swipe:
           start: "50%, 85%"
           end: "50%, 70%"
           duration: 400
+      - tapOn:
+          id: "case-b-child-0-birth-date-done"
 - tapOn:
     id: "case-b-child-next"
 
@@ -126,12 +128,14 @@ appId: com.dlddu.dearbaby
 - runFlow:
     when:
       visible:
-        id: "case-b-fetus-0-due-date-picker"
+        id: "case-b-fetus-0-due-date-done"
     commands:
       - swipe:
           start: "50%, 85%"
           end: "50%, 70%"
           duration: 400
+      - tapOn:
+          id: "case-b-fetus-0-due-date-done"
 - tapOn:
     id: "case-b-fetus-next"
 

@@ -89,6 +89,7 @@ export function DateField({
           onPress={() => setOpen(false)}
           style={styles.done}
           accessibilityRole="button"
+          testID={testID ? `${testID}-done` : undefined}
         >
           <Text variant="h3" color="coral">
             완료

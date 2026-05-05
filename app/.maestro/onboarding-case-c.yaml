@@ -59,20 +59,24 @@ appId: com.dlddu.dearbaby
     id: "gender-female"
 - tapOn:
     id: "case-c-child-0-birth-date"
+# Android: native modal — confirm with OK.
 - runFlow:
     when:
       visible: "OK"
     commands:
       - tapOn: "OK"
+# iOS: inline spinner — swipe + tap our 완료 button (DateField testID).
 - runFlow:
     when:
       visible:
-        id: "case-c-child-0-birth-date-picker"
+        id: "case-c-child-0-birth-date-done"
     commands:
       - swipe:
           start: "50%, 85%"
           end: "50%, 70%"
           duration: 400
+      - tapOn:
+          id: "case-c-child-0-birth-date-done"
 - tapOn:
     id: "case-c-child-next"
 
