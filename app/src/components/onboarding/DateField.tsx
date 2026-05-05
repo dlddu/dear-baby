@@ -20,7 +20,7 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
@@ -70,6 +70,13 @@ export function DateField({
   };
 
   const onPressField = () => {
+    // Dismiss any soft keyboard from a previously-focused TextInput
+    // before showing the picker. Without this the keyboard remains up
+    // and covers the page's footer CTA — Maestro's tap-by-testID lands
+    // on the keyboard view instead, mangling the form's weeks input
+    // (CI was seeing "17" → "170" → clamped to 45 because the next
+    // button was covered by the number-pad).
+    Keyboard.dismiss();
     // Pre-fill on first tap so the form is complete even if the user
     // dismisses the picker without scrolling. This keeps the Maestro
     // E2E flow deterministic too — the test just taps the field and
