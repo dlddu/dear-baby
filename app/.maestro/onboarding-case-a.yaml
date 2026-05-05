@@ -59,11 +59,9 @@ appId: com.dlddu.dearbaby
       - tapOn: "OK"
 - runFlow:
     when:
-      visible:
-        id: "a2-due-done"
+      visible: "완료"
     commands:
-      - tapOn:
-          id: "a2-due-done"
+      - tapOn: "완료"
 - extendedWaitUntil:
     visible:
       id: "onboarding-a2-cta"
