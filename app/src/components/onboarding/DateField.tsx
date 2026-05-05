@@ -55,18 +55,23 @@ export function DateField({
   const [open, setOpen] = useState(false);
   const current = parseISO(value ?? '');
 
+  const commitFallback = () => {
+    const picked = current ?? fallback ?? new Date();
+    onChange(toISO(picked));
+  };
+
   const handle = (event: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS === 'android') {
       setOpen(false);
       // Android RN datetimepicker omits `selected` when the user taps
       // OK without changing a wheel — the picker's initial value is
-      // the implied selection. Fall back to current state, the
-      // caller-provided fallback, or today so onChange always fires
-      // on confirmation. Without this, b2-next stays disabled and
-      // accessibility hides it from Maestro's hierarchy.
-      if (event.type === 'set') {
-        const picked = selected ?? current ?? fallback ?? new Date();
-        onChange(toISO(picked));
+      // the implied selection. Some emulator builds also report OK
+      // as type='dismissed' rather than 'set'. Commit a value either
+      // way so downstream `isValid` flips and the next CTA enables.
+      if (selected) {
+        onChange(toISO(selected));
+      } else {
+        commitFallback();
       }
       return;
     }
@@ -111,7 +116,16 @@ export function DateField({
       ) : null}
       {Platform.OS === 'ios' && open ? (
         <Pressable
-          onPress={() => setOpen(false)}
+          onPress={() => {
+            setOpen(false);
+            // iOS spinner emits onChange only when a wheel actually
+            // moves. Treat tapping Done as confirmation so the field
+            // commits the picker's initial value if the user didn't
+            // spin anything — symmetric with Android's OK handling.
+            if (!current) {
+              commitFallback();
+            }
+          }}
           accessibilityRole="button"
           style={styles.done}
           testID="onboarding-date-picker-done"
