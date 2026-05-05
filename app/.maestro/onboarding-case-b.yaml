@@ -1,0 +1,130 @@
+appId: com.dlddu.dearbaby
+---
+# Case B — 양육 + 임신 (가장 복잡한 분기). 양육 1명 → 임신 단태 → 아이별 기록 목적 → 홈.
+# Photo upload is skipped (per PRD-006: photos are always optional).
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1 → Q2 (Case B: 임신 O · 양육 O)
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "q1-yes"
+- tapOn:
+    id: "onboarding-q1-cta"
+
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "q2-yes"
+- tapOn:
+    id: "onboarding-q2-cta"
+
+# B0 — 양육 안내
+- assertVisible:
+    id: "onboarding-b0"
+- tapOn:
+    id: "onboarding-b0-cta"
+
+# B1 — 양육 1명
+- assertVisible:
+    id: "onboarding-b1"
+- tapOn:
+    id: "b1-one"
+- tapOn:
+    id: "onboarding-b1-cta"
+
+# B2 — 양육 아이 정보
+- assertVisible:
+    id: "onboarding-b2"
+- tapOn:
+    id: "b2-name"
+- inputText: "지유"
+- pressKey: Enter
+- tapOn:
+    id: "b2-gender-female"
+- tapOn:
+    id: "b2-birth"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "b2-birth-done"
+    commands:
+      - tapOn:
+          id: "b2-birth-done"
+- tapOn:
+    id: "onboarding-b2-cta"
+
+# B3 — 임신 안내
+- assertVisible:
+    id: "onboarding-b3"
+- tapOn:
+    id: "onboarding-b3-cta"
+
+# B4 — 임신 단태
+- assertVisible:
+    id: "onboarding-b4"
+- tapOn:
+    id: "b4-singleton"
+- tapOn:
+    id: "onboarding-b4-cta"
+
+# B5 — 태아 정보
+- assertVisible:
+    id: "onboarding-b5"
+- tapOn:
+    id: "b5-gender-undecided"
+- tapOn:
+    id: "b5-weeks"
+- inputText: "12"
+- pressKey: Enter
+- tapOn:
+    id: "b5-due"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "b5-due-done"
+    commands:
+      - tapOn:
+          id: "b5-due-done"
+- tapOn:
+    id: "onboarding-b5-cta"
+
+# B6 — 아이별 기록 목적 (각 아이마다 ≥1)
+- assertVisible:
+    id: "onboarding-b6"
+- tapOn:
+    id: "b6-tab-0"
+- tapOn:
+    id: "purpose-book_making"
+- tapOn:
+    id: "b6-tab-1"
+- tapOn:
+    id: "purpose-emotion_diary"
+- tapOn:
+    id: "onboarding-b6-cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "home-tab"
+    timeout: 10000

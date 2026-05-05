@@ -136,6 +136,12 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		Hub:             hub,
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
+	caseHandlers := &onboarding.CaseHandlers{
+		Store:           onboardingStore,
+		Photos:          s3Client,
+		UsersUpdater:    profileFetcher{store: usersStore},
+		UserIDFromCtxFn: auth.UserIDFromRequest,
+	}
 
 	// Authenticated onboarding routes. The SSE route permits query
 	// token fallback because some RN EventSource shims cannot set
@@ -143,6 +149,8 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuth(issuer))
 		pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
+		pr.Post("/onboarding/case", caseHandlers.SubmitCase)
+		pr.Post("/onboarding/children/photo/upload-url", caseHandlers.CreateChildPhotoUploadURL)
 	})
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuthWithQueryFallback(issuer))
@@ -150,4 +158,15 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	})
 
 	return r, nil
+}
+
+// profileFetcher adapts users.Store to onboarding.UsersProfileFetcher,
+// so the onboarding package does not need to import users (avoids the
+// circular dependency).
+type profileFetcher struct {
+	store *users.Store
+}
+
+func (p profileFetcher) GetProfileForUser(ctx context.Context, userID string) (any, error) {
+	return p.store.GetProfile(ctx, userID)
 }

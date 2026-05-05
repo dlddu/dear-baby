@@ -17,7 +17,8 @@ const sqliteTimeLayout = "2006-01-02 15:04:05"
 
 // Store is a thin data-access layer over the records table. It composes
 // with users.Store for the "stamp first_record_at on first insert" behavior
-// that drives the Stage 2 AI-preview unblur.
+// that drives the home screen's AI-preview unblur after the user posts
+// their first record.
 type Store struct {
 	DB *sql.DB
 }

@@ -1,0 +1,85 @@
+appId: com.dlddu.dearbaby
+---
+# Case A — 첫 아이 임신 중. 단태 → 태아 정보 → 기록 목적 → 홈.
+# Photo upload is skipped (not in Case A). See PRD-006 AC-006-02.
+#
+# CI must reset the seeded test user's onboarding state via
+# `backend/reset-onboarding $TEST_USER_EMAIL` before running.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1 → Q2 (Case A: 임신 O · 양육 X)
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "q1-yes"
+- tapOn:
+    id: "onboarding-q1-cta"
+
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "q2-no"
+- tapOn:
+    id: "onboarding-q2-cta"
+
+# A1 — 단태 선택
+- assertVisible:
+    id: "onboarding-a1"
+- tapOn:
+    id: "a1-singleton"
+- tapOn:
+    id: "onboarding-a1-cta"
+
+# A2 — 태아 정보 (성별 미정 + 주차 + 예정일은 picker 기본값으로 처리)
+- assertVisible:
+    id: "onboarding-a2"
+- tapOn:
+    id: "a2-name"
+- inputText: "튼튼이"
+- pressKey: Enter
+- tapOn:
+    id: "a2-gender-undecided"
+- tapOn:
+    id: "a2-weeks"
+- inputText: "17"
+- pressKey: Enter
+- tapOn:
+    id: "a2-due"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "a2-due-done"
+    commands:
+      - tapOn:
+          id: "a2-due-done"
+- tapOn:
+    id: "onboarding-a2-cta"
+
+# A3 — 기록 목적 (책 만들기만 선택)
+- assertVisible:
+    id: "onboarding-a3"
+- tapOn:
+    id: "purpose-book_making"
+- tapOn:
+    id: "onboarding-a3-cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "home-tab"
+    timeout: 10000

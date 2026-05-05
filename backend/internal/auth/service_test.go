@@ -36,7 +36,7 @@ CREATE TABLE oauth_accounts (
 );
 CREATE TABLE onboarding (
   user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  due_date                     TEXT,
+  case_kind                    TEXT CHECK (case_kind IN ('A','B','C')),
   onboarded_at                 TEXT,
   voice_coachmark_dismissed_at TEXT,
   first_record_at              TEXT,

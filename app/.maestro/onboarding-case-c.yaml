@@ -1,0 +1,79 @@
+appId: com.dlddu.dearbaby
+---
+# Case C — 순수 양육자. 양육 1명 → 기록 목적 → 홈.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1 → Q2 (Case C: 임신 X · 양육 O)
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "q1-no"
+- tapOn:
+    id: "onboarding-q1-cta"
+
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "q2-yes"
+- tapOn:
+    id: "onboarding-q2-cta"
+
+# C1 — 1명
+- assertVisible:
+    id: "onboarding-c1"
+- tapOn:
+    id: "c1-one"
+- tapOn:
+    id: "onboarding-c1-cta"
+
+# C2 — 아이 정보
+- assertVisible:
+    id: "onboarding-c2"
+- tapOn:
+    id: "c2-name"
+- inputText: "지유"
+- pressKey: Enter
+- tapOn:
+    id: "c2-gender-female"
+- tapOn:
+    id: "c2-birth"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "c2-birth-done"
+    commands:
+      - tapOn:
+          id: "c2-birth-done"
+- tapOn:
+    id: "onboarding-c2-cta"
+
+# C3 — 기록 목적
+- assertVisible:
+    id: "onboarding-c3"
+- tapOn:
+    id: "purpose-book_making"
+- tapOn:
+    id: "purpose-memory_keeping"
+- tapOn:
+    id: "onboarding-c3-cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "home-tab"
+    timeout: 10000
