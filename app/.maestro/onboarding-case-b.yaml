@@ -103,8 +103,11 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b5-form-weeks"
 - inputText: "18"
-# number-pad 키보드는 dismiss 액션이 없어 iOS Simulator 에서 hideKeyboard
-# 가 실패한다. 다음 `tapOn` 으로 자연스럽게 닫는다.
+# iOS number-pad 는 dismiss 액션이 없고, Android soft keyboard 는
+# 다음 필드를 가린다. scrollUntilVisible 로 양쪽을 안전하게 처리.
+- scrollUntilVisible:
+    element:
+      id: "onboarding-b5-form-due"
 - tapOn:
     id: "onboarding-b5-form-due"
 - runFlow:

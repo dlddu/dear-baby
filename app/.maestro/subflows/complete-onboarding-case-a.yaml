@@ -40,9 +40,13 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-a2-form-weeks"
 - inputText: "20"
-# `hideKeyboard` 는 number-pad 처럼 dismiss 액션이 없는 키보드에서
-# iOS Simulator 가 인식 못 하므로 생략. 다음 `tapOn` 이 input 바깥을
-# 누르며 자연스럽게 키보드를 닫는다.
+# 키보드 처리:
+#   iOS — number-pad 는 dismiss 액션이 없어 hideKeyboard 가 실패한다.
+#   Android — soft keyboard 가 due_date 필드를 가린다.
+# scrollUntilVisible 로 두 경우 모두 안전하게 다음 필드를 노출시킨다.
+- scrollUntilVisible:
+    element:
+      id: "onboarding-a2-form-due"
 - tapOn:
     id: "onboarding-a2-form-due"
 - runFlow:
