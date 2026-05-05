@@ -54,12 +54,14 @@ appId: com.dlddu.dearbaby
     id: "onboarding-b1-next"
 
 # B2 — child info. birth_date 는 slot 시드 기본값(오늘) 으로 두고
-# 픽커 생략. name 입력 후 키보드는 scrollUntilVisible 로 닫는다.
+# 픽커 생략. name 입력 후 키보드는 hideKeyboard 로 닫는다(텍스트
+# 키보드는 양 플랫폼 모두 dismiss 가능).
 - assertVisible:
     id: "onboarding-b2"
 - tapOn:
     id: "onboarding-b2-form-name"
 - inputText: "jiyu"
+- hideKeyboard
 - tapOn:
     id: "onboarding-b2-form-gender-female"
 - scrollUntilVisible:

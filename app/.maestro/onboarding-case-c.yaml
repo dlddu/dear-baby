@@ -45,13 +45,14 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-c1-next"
 
-# C2 — birth_date 는 slot 시드 기본값(오늘) 사용. iOS spinner 픽커가
-# Next 버튼을 가리는 문제를 피하려고 픽커 자체를 생략한다.
+# C2 — birth_date 는 slot 시드 기본값(오늘) 사용. 텍스트 키보드는
+# hideKeyboard 로 양 플랫폼에서 안전하게 닫는다.
 - assertVisible:
     id: "onboarding-c2"
 - tapOn:
     id: "onboarding-c2-form-name"
 - inputText: "jiyu"
+- hideKeyboard
 - tapOn:
     id: "onboarding-c2-form-gender-female"
 - scrollUntilVisible:
