@@ -55,11 +55,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "a2-weeks"
 - inputText: "17"
-# Android 의 soft keyboard 가 due-date 버튼을 덮고, 키보드를 내려도
-# A2 의 ScrollView 가 길어 viewport 밖에 위치하는 경우가 있다.
-# 좌표 탭으로 키보드 dismiss 후 element 가 보일 때까지 스크롤한다.
-- tapOn:
-    point: "50%, 10%"
+- hideKeyboard
 - scrollUntilVisible:
     element:
       id: "a2-due-date"
