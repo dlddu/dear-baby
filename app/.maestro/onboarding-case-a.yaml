@@ -54,11 +54,24 @@ appId: com.dlddu.dearbaby
 - inputText: "17"
 - tapOn:
     id: "a2-due-date"
+# Android: native modal — confirm 기본 날짜로 닫기.
 - runFlow:
     when:
       visible: "OK"
     commands:
       - tapOn: "OK"
+# iOS: inline spinner — 스피너를 살짝 굴려서 onChange 발화 후 완료 탭.
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-date-picker-done"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn:
+          id: "onboarding-date-picker-done"
 - tapOn:
     id: "a2-next"
 

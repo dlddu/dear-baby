@@ -56,6 +56,17 @@ appId: com.dlddu.dearbaby
       visible: "OK"
     commands:
       - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-date-picker-done"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn:
+          id: "onboarding-date-picker-done"
 - tapOn:
     id: "b2-next"
 
@@ -91,6 +102,17 @@ appId: com.dlddu.dearbaby
       visible: "OK"
     commands:
       - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-date-picker-done"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn:
+          id: "onboarding-date-picker-done"
 - tapOn:
     id: "b5-next"
 

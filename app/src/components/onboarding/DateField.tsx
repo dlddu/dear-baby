@@ -107,6 +107,7 @@ export function DateField({
           onPress={() => setOpen(false)}
           accessibilityRole="button"
           style={styles.done}
+          testID="onboarding-date-picker-done"
         >
           <Text variant="h3" color="coral">
             완료
