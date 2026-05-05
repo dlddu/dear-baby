@@ -57,11 +57,15 @@ appId: com.dlddu.dearbaby
       visible: "OK"
     commands:
       - tapOn: "OK"
+# iOS: the field opens an inline spinner with a seeded value. Tap the
+# field again to toggle it closed.
 - runFlow:
     when:
-      visible: "완료"
+      visible:
+        id: "a2-due-picker"
     commands:
-      - tapOn: "완료"
+      - tapOn:
+          id: "a2-due"
 - extendedWaitUntil:
     visible:
       id: "onboarding-a2-cta"

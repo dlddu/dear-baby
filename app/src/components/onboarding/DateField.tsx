@@ -1,23 +1,27 @@
 // Date picker tile shared by fetus due-date and child birth-date
 // inputs.
 //
-// On Android we lean on the platform's native date dialog (calendar)
-// which renders as a system modal — no layout disruption.
+// Behavior on each platform:
+//   - Android: tap the field → system date dialog opens → user picks
+//     and confirms in-system → onChange fires.
+//   - iOS: tap the field → inline wheel spinner renders below the
+//     field, with a value seeded on open so the form CTA enables
+//     immediately. Tap the field again (toggle) to close. Tapping a
+//     wheel column scrolls and commits onChange continuously.
 //
-// On iOS the wheel spinner has to live somewhere; rendering it inline
-// inside the form's ScrollView puts the "완료" tap target near the
-// fixed footer CTA, and the two interactive elements end up close
-// enough on-screen that taps land on the wrong one (recurring E2E
-// flake). To eliminate that whole class of layout collisions we host
-// the spinner inside a bottom-sheet `<Modal>` that's outside the form
-// hierarchy. The form layout never moves while the picker is open.
+// History note: an earlier iteration hosted the iOS spinner inside a
+// `<Modal>` to avoid form-layout disruption, but Maestro on iOS cannot
+// query testIDs or text inside RN's Modal (separate UIViewController).
+// A second iteration used a "완료" Pressable below the inline spinner,
+// but its on-screen position collided with the footer CTA, producing
+// flake. The toggle-on-tap pattern keeps everything queryable in a
+// single view hierarchy with no overlay.
 
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import {
-  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -61,15 +65,18 @@ export function DateField({
   const [open, setOpen] = useState(false);
   const dateObj = parseISO(value);
 
-  const handleOpen = () => {
-    // iOS spinner fires onChange only after the user scrolls a wheel.
-    // Without a scroll the value stays null and the form CTA stays
-    // disabled — both a real UX papercut and a perpetual source of
-    // E2E flake. Commit the seed value (current, defaultDate, today)
-    // on open so a plain "완료" tap progresses.
+  const handleFieldPress = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    // iOS spinner only fires onChange when the user actually scrolls
+    // a wheel. Without that the value would stay null and the form
+    // CTA would stay disabled. Commit the seed value on open so a
+    // plain "tap once to open, tap again to close" gesture is enough
+    // for both real users and Maestro.
     if (Platform.OS === 'ios' && !value) {
-      const seed = defaultDate ?? new Date();
-      onChange(toIsoDate(seed));
+      onChange(toIsoDate(defaultDate ?? new Date()));
     }
     setOpen(true);
   };
@@ -91,8 +98,9 @@ export function DateField({
   return (
     <View>
       <Pressable
-        onPress={handleOpen}
+        onPress={handleFieldPress}
         accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
         testID={testID}
         style={({ pressed }) => [
           styles.field,
@@ -114,42 +122,16 @@ export function DateField({
           testID={testID ? `${testID}-picker` : undefined}
         />
       )}
-      {Platform.OS === 'ios' && (
-        <Modal
-          transparent
-          visible={open}
-          animationType="fade"
-          onRequestClose={() => setOpen(false)}
-        >
-          <Pressable
-            style={styles.backdrop}
-            onPress={() => setOpen(false)}
-            accessibilityLabel="닫기"
-          >
-            {/* Stop propagation so taps inside the sheet don't dismiss it. */}
-            <Pressable style={styles.sheet} onPress={() => undefined}>
-              <DateTimePicker
-                value={dateObj ?? defaultDate ?? new Date()}
-                mode="date"
-                display="spinner"
-                minimumDate={minDate}
-                maximumDate={maxDate}
-                onChange={handleIosChange}
-                testID={testID ? `${testID}-picker` : undefined}
-              />
-              <Pressable
-                onPress={() => setOpen(false)}
-                style={styles.done}
-                accessibilityRole="button"
-                testID={testID ? `${testID}-done` : undefined}
-              >
-                <Text variant="h3" color="coral">
-                  완료
-                </Text>
-              </Pressable>
-            </Pressable>
-          </Pressable>
-        </Modal>
+      {Platform.OS === 'ios' && open && (
+        <DateTimePicker
+          value={dateObj ?? defaultDate ?? new Date()}
+          mode="date"
+          display="spinner"
+          minimumDate={minDate}
+          maximumDate={maxDate}
+          onChange={handleIosChange}
+          testID={testID ? `${testID}-picker` : undefined}
+        />
       )}
     </View>
   );
@@ -165,22 +147,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
   },
   fieldPressed: { opacity: 0.85 },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: colors.surface.ivory,
-    paddingTop: spacing[4],
-    paddingBottom: spacing[6],
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    alignItems: 'stretch',
-  },
-  done: {
-    alignSelf: 'center',
-    paddingVertical: spacing[3],
-    paddingHorizontal: spacing[6],
-  },
 });

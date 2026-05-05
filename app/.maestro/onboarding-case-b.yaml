@@ -62,9 +62,11 @@ appId: com.dlddu.dearbaby
       - tapOn: "OK"
 - runFlow:
     when:
-      visible: "완료"
+      visible:
+        id: "b2-birth-picker"
     commands:
-      - tapOn: "완료"
+      - tapOn:
+          id: "b2-birth"
 - extendedWaitUntil:
     visible:
       id: "onboarding-b2-cta"
@@ -104,9 +106,11 @@ appId: com.dlddu.dearbaby
       - tapOn: "OK"
 - runFlow:
     when:
-      visible: "완료"
+      visible:
+        id: "b5-due-picker"
     commands:
-      - tapOn: "완료"
+      - tapOn:
+          id: "b5-due"
 - extendedWaitUntil:
     visible:
       id: "onboarding-b5-cta"
