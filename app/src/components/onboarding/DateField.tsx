@@ -6,7 +6,7 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '../Text';
 import { colors } from '../../theme/colors';
@@ -93,6 +93,12 @@ export function DateField({
       <Pressable
         accessibilityRole="button"
         onPress={() => {
+          // Dismiss any open soft keyboard before showing the picker.
+          // RN doesn't auto-dismiss when transitioning from a
+          // TextInput-focused state to a Pressable, so without this
+          // the keyboard stays up over the picker on Android and
+          // covers the bottom CTA after the picker closes.
+          Keyboard.dismiss();
           // Commit a default value the moment the picker opens so
           // downstream `isValid` flips immediately. iOS spinner only
           // fires onChange on actual wheel movement and Android's OK

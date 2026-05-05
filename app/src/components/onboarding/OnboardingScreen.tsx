@@ -12,13 +12,7 @@
 //   │  Primary CTA / Secondary   │
 //   └────────────────────────────┘
 
-import {
-  Keyboard,
-  ScrollView,
-  StyleSheet,
-  TouchableWithoutFeedback,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
@@ -73,56 +67,55 @@ export function OnboardingScreen({
   return (
     <CaseAccentProvider case={c ?? null}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID={testID}>
-        {/* TouchableWithoutFeedback wraps the whole screen so that any
-            tap outside an interactive element dismisses the keyboard.
-            Without this, Android keeps the soft keyboard open after
-            inputText, which covers the bottom-fixed CTA + makes
-            mid-screen pill taps land on keyboard keys instead. */}
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={styles.container}>
-            <View style={styles.header}>
-              <View style={{ flex: 1 }}>
-                <ProgressBar current={step} total={totalSteps} label={progressLabel} />
-              </View>
-              {repeat ? (
-                <RepeatBadge current={repeat.current} total={repeat.total} />
-              ) : null}
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View style={{ flex: 1 }}>
+              <ProgressBar current={step} total={totalSteps} label={progressLabel} />
             </View>
-
-            <ScrollView
-              style={styles.body}
-              contentContainerStyle={styles.bodyContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              {children}
-            </ScrollView>
-
-            <View style={styles.actions}>
-              <Button
-                title={cta.title}
-                variant="primary"
-                fullWidth
-                disabled={cta.disabled}
-                onPress={cta.onPress}
-                testID={cta.testID}
-              />
-              {secondary ? (
-                <Button
-                  title={secondary.title}
-                  variant="secondary"
-                  fullWidth
-                  onPress={secondary.onPress}
-                  testID={secondary.testID}
-                />
-              ) : null}
-              {errorMessage ? (
-                <Text variant="caption" color="coral" style={styles.error}>
-                  {errorMessage}
-                </Text>
-              ) : null}
-            </View>
+            {repeat ? (
+              <RepeatBadge current={repeat.current} total={repeat.total} />
+            ) : null}
           </View>
-        </TouchableWithoutFeedback>
+
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={styles.bodyContent}
+            keyboardShouldPersistTaps="handled"
+            // Soft keyboard hides as soon as the user starts dragging
+            // the body. Combined with keyboardShouldPersistTaps this
+            // covers the common Maestro patterns (drag/scroll to a
+            // field) without an outer Pressable wrapper that would
+            // race with child onPress handlers.
+            keyboardDismissMode="on-drag"
+          >
+            {children}
+          </ScrollView>
+
+          <View style={styles.actions}>
+            <Button
+              title={cta.title}
+              variant="primary"
+              fullWidth
+              disabled={cta.disabled}
+              onPress={cta.onPress}
+              testID={cta.testID}
+            />
+            {secondary ? (
+              <Button
+                title={secondary.title}
+                variant="secondary"
+                fullWidth
+                onPress={secondary.onPress}
+                testID={secondary.testID}
+              />
+            ) : null}
+            {errorMessage ? (
+              <Text variant="caption" color="coral" style={styles.error}>
+                {errorMessage}
+              </Text>
+            ) : null}
+          </View>
+        </View>
         <StatusBar style="dark" />
       </SafeAreaView>
     </CaseAccentProvider>
