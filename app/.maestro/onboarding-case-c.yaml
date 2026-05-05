@@ -43,6 +43,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "c2-name"
 - inputText: "jiyu"
+- hideKeyboard
 - tapOn:
     id: "c2-gender-female"
 - tapOn:
@@ -66,6 +67,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "c2-intro"
 - inputText: "smiley first kid"
+- hideKeyboard
 - tapOn:
     id: "c2-next"
 

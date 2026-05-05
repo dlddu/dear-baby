@@ -55,6 +55,9 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "a2-weeks"
 - inputText: "17"
+# Android 의 soft keyboard 가 다음 단계의 due-date 버튼을 덮어
+# tapOn 이 실패한다. 키보드를 내려서 버튼을 노출시킨다.
+- hideKeyboard
 - tapOn:
     id: "a2-due-date"
 # Android: native modal — confirm 기본 날짜로 닫기.
