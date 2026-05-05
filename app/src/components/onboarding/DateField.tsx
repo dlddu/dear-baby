@@ -45,6 +45,20 @@ export function DateField({
   const [open, setOpen] = useState(false);
   const dateObj = parseISO(value);
 
+  const handleOpen = () => {
+    // iOS spinner picker fires onChange only when the user actually
+    // scrolls a wheel. Without a scroll the value stays null and the
+    // form CTA stays disabled — which has been a recurring source of
+    // flake on E2E. Commit the seed value (current value, defaultDate,
+    // or today) up front so the user (or test) can just tap "완료"
+    // without scrolling.
+    if (Platform.OS === 'ios' && !value) {
+      const seed = defaultDate ?? new Date();
+      onChange(toIsoDate(seed));
+    }
+    setOpen(true);
+  };
+
   const handlePickerChange = (event: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS === 'android') {
       setOpen(false);
@@ -59,7 +73,7 @@ export function DateField({
   return (
     <View>
       <Pressable
-        onPress={() => setOpen(true)}
+        onPress={handleOpen}
         accessibilityRole="button"
         testID={testID}
         style={({ pressed }) => [

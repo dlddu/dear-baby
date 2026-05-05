@@ -58,12 +58,12 @@ appId: com.dlddu.dearbaby
       visible:
         id: "c2-birth-done"
     commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
       - tapOn:
           id: "c2-birth-done"
+- extendedWaitUntil:
+    visible:
+      id: "onboarding-c2-cta"
+    timeout: 5000
 - tapOn:
     id: "onboarding-c2-cta"
 
