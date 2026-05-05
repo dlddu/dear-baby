@@ -44,12 +44,12 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b1-cta"
 
-# B2 — 양육 아이 정보
+# B2 — 양육 아이 정보 (이름은 ASCII, Maestro 가 한글 inputText 미지원)
 - assertVisible:
     id: "onboarding-b2"
 - tapOn:
     id: "b2-name"
-- inputText: "지유"
+- inputText: "Jiyu"
 - pressKey: Enter
 - tapOn:
     id: "b2-gender-female"

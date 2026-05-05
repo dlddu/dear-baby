@@ -41,13 +41,9 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-a1-cta"
 
-# A2 — 태아 정보 (성별 미정 + 주차 + 예정일은 picker 기본값으로 처리)
+# A2 — 태아 정보 (태명은 선택이라 생략, 한글 입력 미지원)
 - assertVisible:
     id: "onboarding-a2"
-- tapOn:
-    id: "a2-name"
-- inputText: "튼튼이"
-- pressKey: Enter
 - tapOn:
     id: "a2-gender-undecided"
 - tapOn:
