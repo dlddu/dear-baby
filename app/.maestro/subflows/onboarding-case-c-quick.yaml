@@ -66,6 +66,10 @@ appId: com.dlddu.dearbaby
           duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
+- extendedWaitUntil:
+    visible:
+      id: "c2-next"
+    timeout: 8000
 - tapOn:
     id: "c2-next"
 
