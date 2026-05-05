@@ -64,10 +64,9 @@ appId: com.dlddu.dearbaby
           duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
-- tapOn:
-    id: "c2-intro"
-- inputText: "smiley first kid"
-- hideKeyboard
+# 한줄 소개는 (선택) 입력이고 ScrollView 하단이라 키보드/picker 닫힌
+# 직후 viewport 밖에 위치할 수 있다. 시나리오는 필수 필드만 채우고
+# 바로 다음 화면으로 진행한다.
 - tapOn:
     id: "c2-next"
 
