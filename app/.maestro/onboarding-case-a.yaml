@@ -62,6 +62,10 @@ appId: com.dlddu.dearbaby
       visible:
         id: "a2-due-done"
     commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
       - tapOn:
           id: "a2-due-done"
 - tapOn:
