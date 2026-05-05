@@ -78,10 +78,8 @@ appId: com.dlddu.dearbaby
           duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
-- scrollUntilVisible:
-    element:
-      id: "b2-next"
-    direction: DOWN
+# b2-next 는 OnboardingScreen 의 actions 영역(ScrollView 밖, 화면
+# 하단 고정)이라 별도 스크롤 없이 직접 탭한다.
 - tapOn:
     id: "b2-next"
 
@@ -140,10 +138,6 @@ appId: com.dlddu.dearbaby
           duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
-- scrollUntilVisible:
-    element:
-      id: "b5-next"
-    direction: DOWN
 - tapOn:
     id: "b5-next"
 
