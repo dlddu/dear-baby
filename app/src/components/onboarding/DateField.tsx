@@ -2,12 +2,13 @@
 // platform-native date picker. Used on A2/B5 (예정일) and B2/C2
 // (생년월일).
 //
-// On iOS the spinner picker is rendered inside a bottom-anchored Modal
-// rather than inline. The inline pattern collapses inside ScrollView
-// layouts (the spinner pushes its 완료 sibling off-screen, which made
-// Maestro's `visible:` checks miss the testID and skipped the swipe
-// step in CI). The Modal gives the picker + 완료 a stable fixed
-// position so the swipe + dismiss can be driven deterministically.
+// On first tap the field pre-fills with a sensible default (today for
+// 생년월일, 40 weeks from today for 예정일) so the form is complete
+// even if the user just glances at the picker and dismisses it. iOS
+// renders the spinner inside a bottom-anchored Modal so the spinner +
+// 완료 button sit at predictable coordinates and don't get pushed off
+// the visible viewport by the parent ScrollView. Android continues to
+// use the system's modal date dialog unchanged.
 
 import DateTimePicker, {
   type DateTimePickerEvent,
@@ -18,7 +19,7 @@ import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
 import { spacing } from '../../theme/spacing';
-import { formatKoreanDate, toIsoDate } from '../../utils/date';
+import { defaultDueDate, formatKoreanDate, toIsoDate } from '../../utils/date';
 import { Text } from '../Text';
 
 export type DateFieldProps = {
@@ -54,6 +55,25 @@ export function DateField({
   const min = futureOnly ? today : undefined;
   const max = pastOnly ? today : undefined;
 
+  // Sensible default for the field's first tap. 예정일 (futureOnly) →
+  // 40 weeks out (matches average gestation). 생년월일 (pastOnly) →
+  // today (most recent valid). Plain field → today.
+  const defaultForField = (): Date => {
+    if (futureOnly) return defaultDueDate(today);
+    return today;
+  };
+
+  const onPressField = () => {
+    // Pre-fill on first tap so the form is complete even if the user
+    // dismisses the picker without scrolling. This keeps the Maestro
+    // E2E flow deterministic too — the test just taps the field and
+    // moves on without having to drive the iOS spinner.
+    if (!date) {
+      onChange(toIsoDate(defaultForField()));
+    }
+    setOpen(true);
+  };
+
   const handleChange = (event: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS === 'android') {
       setOpen(false);
@@ -71,7 +91,7 @@ export function DateField({
         {label}
       </Text>
       <Pressable
-        onPress={() => setOpen(true)}
+        onPress={onPressField}
         accessibilityRole="button"
         testID={testID}
         style={({ pressed }) => [styles.field, pressed && styles.pressed]}
@@ -85,7 +105,7 @@ export function DateField({
           enough — it opens itself; we tear it down on close. */}
       {Platform.OS === 'android' && open ? (
         <DateTimePicker
-          value={date ?? today}
+          value={date ?? defaultForField()}
           mode="date"
           display="default"
           minimumDate={min}
@@ -95,9 +115,10 @@ export function DateField({
         />
       ) : null}
 
-      {/* iOS: bottom-sheet modal so position is predictable for both
-          users and Maestro. Spinner + 완료 always render at the same
-          coordinates regardless of the parent ScrollView's offset. */}
+      {/* iOS: bottom-sheet modal so position is predictable for users
+          regardless of the parent ScrollView offset. The default value
+          is committed on press, so a simple dismissal leaves a valid
+          form state — Maestro doesn't need to drive the spinner. */}
       {Platform.OS === 'ios' ? (
         <Modal
           visible={open}
@@ -123,7 +144,7 @@ export function DateField({
               </Text>
             </Pressable>
             <DateTimePicker
-              value={date ?? today}
+              value={date ?? defaultForField()}
               mode="date"
               display="spinner"
               minimumDate={min}

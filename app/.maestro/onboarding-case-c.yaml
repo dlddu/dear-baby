@@ -59,24 +59,19 @@ appId: com.dlddu.dearbaby
     id: "gender-female"
 - tapOn:
     id: "case-c-child-0-birth-date"
-# Android: native modal — confirm with OK.
+# Tapping the field pre-fills today as the default and opens the
+# picker; dismiss the dialog so the bottom CTA is visible again.
 - runFlow:
     when:
       visible: "OK"
     commands:
       - tapOn: "OK"
-# iOS: inline spinner — swipe + tap our 완료 button (DateField testID).
 - runFlow:
     when:
-      visible:
-        id: "case-c-child-0-birth-date-done"
+      platform: iOS
     commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
       - tapOn:
-          id: "case-c-child-0-birth-date-done"
+          id: "case-c-child-0-birth-date-backdrop"
 - tapOn:
     id: "case-c-child-next"
 
