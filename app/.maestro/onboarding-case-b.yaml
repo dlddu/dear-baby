@@ -1,0 +1,141 @@
+appId: com.dlddu.dearbaby
+---
+# Case-branching onboarding — Case B (임신 O · 양육 O). PRD-006 AC-006-03.
+#
+# Steps:
+#   Q1 [예] → Q2 [예] → B0 안내 → B1 1명 → B2 양육 아이 정보 (사진 건너뛰기)
+#   → B3 안내 → B4 단태 → B5 태아 정보 → B6 아이별 목적 → 홈
+#
+# Maestro 의 system picker 시뮬 한계 때문에 사진은 건너뛴다 — 와이어프레임의
+# (선택) 항목이라 흐름은 영향 없음.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1 / Q2 — 둘 다 예
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "q1-option-yes"
+- tapOn:
+    id: "q1-next"
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "q2-option-yes"
+- tapOn:
+    id: "q2-next"
+
+# B0 안내
+- assertVisible:
+    id: "case-b-intro1"
+- tapOn:
+    id: "case-b-intro1-start"
+
+# B1 — 양육 아이 1명
+- assertVisible:
+    id: "case-b-count1"
+- tapOn:
+    id: "case-b-count1-1"
+- tapOn:
+    id: "case-b-count1-next"
+
+# B2 — 양육 아이 정보 (사진 건너뛰기)
+- assertVisible:
+    id: "case-b-child"
+- tapOn:
+    id: "case-b-child-0-name"
+- inputText: "jiyoo"
+- hideKeyboard
+- tapOn:
+    id: "gender-female"
+- tapOn:
+    id: "case-b-child-0-birth-date"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "case-b-child-0-birth-date-picker"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+- tapOn:
+    id: "case-b-child-next"
+
+# B3 안내
+- assertVisible:
+    id: "case-b-intro2"
+- tapOn:
+    id: "case-b-intro2-next"
+
+# B4 — 단태
+- assertVisible:
+    id: "case-b-count2"
+- tapOn:
+    id: "case-b-count2-single"
+- tapOn:
+    id: "case-b-count2-next"
+
+# B5 — 태아 정보
+- assertVisible:
+    id: "case-b-fetus"
+- tapOn:
+    id: "case-b-fetus-0-name"
+- inputText: "stronger"
+- hideKeyboard
+- tapOn:
+    id: "gender-undecided"
+- tapOn:
+    id: "case-b-fetus-0-weeks"
+- inputText: "17"
+- hideKeyboard
+- tapOn:
+    id: "case-b-fetus-0-due-date"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "case-b-fetus-0-due-date-picker"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+- tapOn:
+    id: "case-b-fetus-next"
+
+# B6 — 아이별 목적 (양육 아이 + 태아 각각 ≥1 선택)
+- assertVisible:
+    id: "case-b-purpose"
+- tapOn:
+    id: "case-b-purpose-tab-0"
+- tapOn:
+    id: "case-b-purpose-0-book_making"
+- tapOn:
+    id: "case-b-purpose-tab-1"
+- tapOn:
+    id: "case-b-purpose-1-emotion_diary"
+- tapOn:
+    id: "case-b-purpose-finish"
+
+- assertVisible:
+    id: "home-tab"

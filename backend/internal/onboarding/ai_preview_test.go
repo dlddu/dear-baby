@@ -25,7 +25,7 @@ func newProcessorDB(t *testing.T) *sql.DB {
 	db.SetMaxOpenConns(1)
 	schema := `
 CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT, name TEXT, picture_url TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')));
-CREATE TABLE onboarding (user_id TEXT PRIMARY KEY, due_date TEXT, onboarded_at TEXT, voice_coachmark_dismissed_at TEXT, first_record_at TEXT, ai_preview TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE TABLE onboarding (user_id TEXT PRIMARY KEY, onboarded_at TEXT, voice_coachmark_dismissed_at TEXT, first_record_at TEXT, ai_preview TEXT, case_kind TEXT CHECK (case_kind IN ('A','B','C')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
 CREATE TABLE records (id TEXT PRIMARY KEY, user_id TEXT, content TEXT, created_at TEXT DEFAULT (datetime('now')));
 `
 	if _, err := db.Exec(schema); err != nil {

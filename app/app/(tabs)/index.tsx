@@ -56,10 +56,10 @@ export default function HomeTab() {
 
   const prevFirstRecordAtRef = useRef<string | null>(null);
 
-  const pregnancy = useMemo(
-    () => calcPregnancy(user?.due_date ?? null),
-    [user?.due_date],
-  );
+  // The due date now lives per-child (PRD-006 AC-006-02/03). The active-
+  // child context (AC-006-08~09) wires this up later; for now the home
+  // screen always renders without a pregnancy badge.
+  const pregnancy = useMemo(() => calcPregnancy(null), []);
   const question = useMemo(() => pickDailyQuestion(), []);
 
   const showCoachmark =

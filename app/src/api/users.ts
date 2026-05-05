@@ -1,18 +1,13 @@
 import { apiFetch } from './client';
 import type { User } from './types';
 
-// PatchMeBody is a discriminated union — a single PATCH /me call either
-// completes Stage 1 onboarding OR dismisses the home voice coachmark,
-// never both. The backend rejects mixed payloads with 400.
-export type PatchMeBody =
-  | { due_date: string | null }
-  | { dismiss_voice_coachmark: true };
+// PatchMeBody — today the only field the backend accepts is the
+// home-screen voice coachmark dismissal. Onboarding completion lives on
+// POST /onboarding/case (PRD-006).
+export type PatchMeBody = { dismiss_voice_coachmark: true };
 
-// patchMe updates the authenticated user's onboarding-related fields. For
-// Stage 1 pass `{due_date: ...}`; null marks the user as onboarded without
-// a chosen date (the "아직 정해지지 않았어요" escape hatch). For the home
-// coachmark pass `{dismiss_voice_coachmark: true}` when the user closes
-// the coachmark.
+// patchMe dismisses the home voice coachmark and returns the updated
+// user. Any other body is rejected by the backend with 400.
 export async function patchMe(body: PatchMeBody): Promise<User> {
   const res = await apiFetch('/me', {
     method: 'PATCH',

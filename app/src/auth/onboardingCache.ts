@@ -2,22 +2,21 @@ import * as SecureStore from 'expo-secure-store';
 
 // Lightweight local cache of onboarding state. This lets the app stay on the
 // correct screen when /me fails on cold boot (airplane mode, backend hiccup)
-// instead of dropping the user back into the onboarding funnel or re-showing
-// the home coachmark. The backend remains the source of truth — this
-// cache is only a graceful-fallback hint.
+// instead of dropping the user back into the case-branching onboarding
+// funnel or re-showing the home coachmark. The backend remains the source
+// of truth — this cache is only a graceful-fallback hint.
 
 const ONBOARDED_AT_KEY = 'db_onboarded_at';
-const DUE_DATE_KEY = 'db_due_date';
 const VOICE_COACHMARK_DISMISSED_AT_KEY = 'db_voice_coachmark_dismissed_at';
 const FIRST_RECORD_AT_KEY = 'db_first_record_at';
 const AI_PREVIEW_KEY = 'db_ai_preview';
 
+// Legacy key — left only for cleanup on signOut so old installs don't keep
+// stale due_date strings forever in SecureStore. Removed after a few releases.
+const LEGACY_DUE_DATE_KEY = 'db_due_date';
+
 export async function getCachedOnboardedAt(): Promise<string | null> {
   return SecureStore.getItemAsync(ONBOARDED_AT_KEY);
-}
-
-export async function getCachedDueDate(): Promise<string | null> {
-  return SecureStore.getItemAsync(DUE_DATE_KEY);
 }
 
 export async function getCachedVoiceCoachmarkDismissedAt(): Promise<string | null> {
@@ -34,7 +33,6 @@ export async function getCachedAiPreview(): Promise<string | null> {
 
 export async function setCachedOnboarding(
   onboardedAt: string | null,
-  dueDate: string | null,
   voiceCoachmarkDismissedAt: string | null,
   firstRecordAt: string | null,
   aiPreview: string | null,
@@ -43,11 +41,6 @@ export async function setCachedOnboarding(
     await SecureStore.setItemAsync(ONBOARDED_AT_KEY, onboardedAt);
   } else {
     await SecureStore.deleteItemAsync(ONBOARDED_AT_KEY);
-  }
-  if (dueDate) {
-    await SecureStore.setItemAsync(DUE_DATE_KEY, dueDate);
-  } else {
-    await SecureStore.deleteItemAsync(DUE_DATE_KEY);
   }
   if (voiceCoachmarkDismissedAt) {
     await SecureStore.setItemAsync(
@@ -71,8 +64,8 @@ export async function setCachedOnboarding(
 
 export async function clearOnboardingCache(): Promise<void> {
   await SecureStore.deleteItemAsync(ONBOARDED_AT_KEY);
-  await SecureStore.deleteItemAsync(DUE_DATE_KEY);
   await SecureStore.deleteItemAsync(VOICE_COACHMARK_DISMISSED_AT_KEY);
   await SecureStore.deleteItemAsync(FIRST_RECORD_AT_KEY);
   await SecureStore.deleteItemAsync(AI_PREVIEW_KEY);
+  await SecureStore.deleteItemAsync(LEGACY_DUE_DATE_KEY);
 }

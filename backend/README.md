@@ -61,7 +61,7 @@ rm -f dear-baby.db dear-baby.db-*
 ```
 cmd/
   server/            // server entrypoint → internal/app.Run
-  reset-onboarding/  // ops CLI: clears onboarded_at/due_date by email
+  reset-onboarding/  // ops CLI: clears case-branching onboarding + S3 photos by email
 internal/
   app/        // HTTP wiring (chi router, middleware, lifecycle)
   config/     // Load() from environment

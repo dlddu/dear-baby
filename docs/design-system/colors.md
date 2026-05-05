@@ -40,6 +40,16 @@
 | **Primary Gradient** | `135deg, #F5C6A8 → #D4836B` | 앱 아이콘, CTA 강조 |
 | **Background Gradient** | `180deg, #FAF6F1 → #F0E6D8` | 카드 배경, 섹션 구분 |
 
+## Case Accent (PRD-006 케이스 분기 온보딩)
+
+| 케이스 | 진행 바 (`bar`) | 강조 텍스트 (`text`) | 카드 배경 (`bg`) |
+|--------|---------------|------------------|---------------|
+| **Case A — 임신 O · 양육 X** | `#D85A30` | `#993C1D` | `#FBE8E1` |
+| **Case B — 임신 O · 양육 O** | `#EF9F27` | `#854F0B` | `#FAEEDA` |
+| **Case C — 임신 X · 양육 O** | `#378ADD` | `#0C447C` | `#DCE9F7` |
+
+각 케이스의 시각 구분에만 사용하며, 그 외에는 기본 Primary Coral 을 그대로 사용한다. 토큰은 `app/src/theme/colors.ts` 의 `colors.caseAccent.{a,b,c}` 로 노출된다.
+
 ## 사용 원칙
 
 - 그레이 계열 대신 **브라운 계열**을 사용하여 따뜻한 톤을 유지한다

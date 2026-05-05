@@ -73,6 +73,25 @@
 - Border Radius: 8px
 - Font: 12px/600
 
+## Onboarding Components (PRD-006 케이스 분기 온보딩)
+
+`app/src/components/onboarding/` 의 공통 컴포넌트는 [와이어프레임 — 온보딩](../wireframes/onboarding.md) 에 정의된 화면 사양을 그대로 따른다.
+
+| 컴포넌트 | 책임 | 비고 |
+|---------|------|------|
+| `<CaseAccentTheme case>` | 케이스(A/B/C) 액센트 팔레트 컨텍스트 제공 | `useCaseAccent()` 로 자식 컴포넌트가 수동 prop 전달 없이 접근 |
+| `<CaseHeader step total label repeat?>` | 화면 상단 진행 바 + "Case X · n/N" + (선택) 반복 배지 | 모든 케이스 화면 최상단에 배치 |
+| `<ProgressBar current total tone>` | 진행 바 단독. tone='neutral' 은 Q1/Q2 공통 진입 | radius-xs 트랙 + 케이스 컬러 fill |
+| `<RepeatBadge current total>` | "반복 n/N" 알약. 반복 입력 화면 우상단 | 케이스 액센트 배경 + 텍스트 |
+| `<StepIndicator active>` | Case B의 ① → ② 인디케이터 | active=1 (B0), active=2 (B3) |
+| `<OptionCard selected onPress>` | 탭 가능한 선택 카드 | radius-md, 선택 시 케이스 액센트 보더 + 배경 |
+| `<GenderToggle value onChange>` | 남아·여아·미정 3-pill | radius-full, 케이스 액센트 선택 강조 |
+| `<DateField label value onChange pastOnly futureOnly>` | 라벨 + 탭 가능한 ISO 날짜 입력 | iOS 인라인 spinner / Android native modal |
+| `<ChildInfoForm value onChange>` | 양육 아이 정보 입력 묶음 | 사진(선택)·이름·성별·생년월일·한줄 소개 |
+| `<PhotoPicker onUploaded>` | 사진 픽커 + presigned PUT 업로드 | expo-image-picker + uploadPhoto helper |
+
+케이스별 액센트 컬러는 `colors.caseAccent.{a,b,c}` 토큰을 사용한다 ([Colors](colors.md) 참고).
+
 ## Icon Style
 
 아이콘은 **원형 배경 + 중앙 아이콘** 패턴을 사용합니다. 배경색으로 카테고리를 구분합니다.

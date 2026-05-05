@@ -3,7 +3,7 @@ doc_id: TRACKER-001
 doc_type: tracker
 product: dear_baby
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-05
 ---
 
 # 디어베이비 문서 체계 상태 추적
@@ -41,7 +41,7 @@ updated: 2026-05-02
 | PRD-003 AI 편집 & 서사 구성 | (기존) | TEST-003 | ✅ |
 | PRD-004 실물 책 제작 | (기존) | TEST-004 | ✅ |
 | PRD-005 기록 미디어 통합 | (기존) | TEST-005 | ✅ |
-| PRD-006 케이스 분기 온보딩 및 아이 컨텍스트 관리 | 10 | TEST-006 (19 TC) | ✅ |
+| PRD-006 케이스 분기 온보딩 및 아이 컨텍스트 관리 | 10 | TEST-006 (19 TC) | ✅ (AC-006-01~04 구현 완료, AC-006-05~10 미구현) |
 
 ## 위험 진단
 
@@ -78,6 +78,7 @@ updated: 2026-05-02
 | 2026-05-02 | TEST-006 추가 (19 TC) | TEST 5 | TEST 6 |
 | 2026-05-02 | docs/README.md 의 PRD/테스트 목록 갱신 | — | — |
 | 2026-05-03 | 온보딩 와이어프레임 신설(`wireframes/onboarding.md`) 및 기존 `design-system/onboarding.md` 폐기 | 와이어프레임 0 | 와이어프레임 1 |
+| 2026-05-05 | PRD-006 AC-006-01~04 (케이스 분기 온보딩) 구현 완료. 마이그레이션 0008, `POST /onboarding/case`, `(onboarding)/{q1,q2,case-a,case-b,case-c}/*` 화면, Maestro Case A/B/C 시나리오 추가 | AC-006-01~04 미구현 | AC-006-01~04 구현 완료 |
 
 ## 향후 검토 항목 (PRD-006에서 도출됨)
 
@@ -85,3 +86,5 @@ updated: 2026-05-02
 - 사산/유산 케이스의 출산 전환 분기 처리
 - 아이 전환 탭의 정렬 규칙
 - 설정 탭의 "아이 추가" 진입점 위치 (AC-006-10 후속)
+- AC-006-05~10 (출산 전환 / 다자녀 컨텍스트) 후속 구현
+- 클라이언트 단위 테스트 인프라 (Jest 등) 도입 시 `app/src/onboarding/__tests__/draft.test.ts`, `uploadPhoto.test.ts` 추가

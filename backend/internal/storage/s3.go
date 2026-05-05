@@ -52,6 +52,11 @@ const (
 	// recorder's hard cap; it is NOT a billing safeguard — IAM is.
 	MaxAudioBytes int64 = 25 * 1024 * 1024 // 25 MiB
 
+	// MaxChildPhotoBytes caps the size of a single onboarding child
+	// photo upload. 10 MiB comfortably covers a HEIC/JPEG from a modern
+	// phone camera without being a denial-of-service vector.
+	MaxChildPhotoBytes int64 = 10 * 1024 * 1024 // 10 MiB
+
 	// AudioContentType is the historical default Content-Type the
 	// presigned URL allowed before WAV support was added. Kept as a
 	// backwards-compat alias for AudioFormatM4A.ContentType() — new
@@ -348,4 +353,257 @@ func (c *Client) HeadObject(ctx context.Context, key string) (bool, error) {
 		}
 	}
 	return false, err
+}
+
+// ImageFormat enumerates the photo container formats the onboarding
+// child-photo pipeline accepts. iOS phones default to HEIC; older
+// devices and the photo-library API often return JPEG; PNG is rare
+// but supported because it's free for the server.
+type ImageFormat string
+
+const (
+	ImageFormatJPEG ImageFormat = "jpeg"
+	ImageFormatHEIC ImageFormat = "heic"
+	ImageFormatPNG  ImageFormat = "png"
+)
+
+// ParseImageFormat normalises a wire value (the JSON `format` field on
+// POST /onboarding/children/photo/upload-url). Unlike audio there is no
+// historical default — the client knows what it picked from its own
+// asset library.
+func ParseImageFormat(s string) (ImageFormat, bool) {
+	switch s {
+	case string(ImageFormatJPEG), "jpg":
+		return ImageFormatJPEG, true
+	case string(ImageFormatHEIC), "heif":
+		return ImageFormatHEIC, true
+	case string(ImageFormatPNG):
+		return ImageFormatPNG, true
+	}
+	return "", false
+}
+
+// Extension returns the leading-dot file extension for the format.
+func (f ImageFormat) Extension() string {
+	switch f {
+	case ImageFormatHEIC:
+		return ".heic"
+	case ImageFormatPNG:
+		return ".png"
+	default:
+		return ".jpg"
+	}
+}
+
+// ContentType returns the HTTP Content-Type the presigned URL will
+// accept for this format. Must match exactly what the client sends or
+// S3 returns SignatureDoesNotMatch.
+func (f ImageFormat) ContentType() string {
+	switch f {
+	case ImageFormatHEIC:
+		return "image/heic"
+	case ImageFormatPNG:
+		return "image/png"
+	default:
+		return "image/jpeg"
+	}
+}
+
+// imageFormatFromExtension is the inverse of Extension — used by the
+// onboarding submit handler to derive the correct extension for the
+// permanent key from a tmp key the client picked.
+func imageFormatFromExtension(ext string) (ImageFormat, bool) {
+	switch ext {
+	case "jpg", "jpeg":
+		return ImageFormatJPEG, true
+	case "heic", "heif":
+		return ImageFormatHEIC, true
+	case "png":
+		return ImageFormatPNG, true
+	}
+	return "", false
+}
+
+// BuildChildPhotoTmpKey returns the canonical tmp S3 key used while the
+// user is still inside the onboarding funnel. The UUID is opaque — the
+// server generates it so a malicious client can't probe other keys.
+//
+//	{prefix}users/{user_id}/onboarding-tmp/{uuid}{.jpg|.heic|.png}
+func (c *Client) BuildChildPhotoTmpKey(userID, photoID string, format ImageFormat) string {
+	return fmt.Sprintf("%susers/%s/onboarding-tmp/%s%s", c.Config.KeyPrefix, userID, photoID, format.Extension())
+}
+
+// BuildChildPhotoKey returns the canonical permanent S3 key used after
+// the onboarding submit moves the photo out of onboarding-tmp. The
+// extension is parameterised so the rename preserves the original
+// format. Pass the bare extension string (without leading '.') —
+// usually obtained via PhotoExtensionFromTmpKey.
+//
+//	{prefix}users/{user_id}/children/{child_id}/photo.{ext}
+func (c *Client) BuildChildPhotoKey(userID, childID, ext string) string {
+	return fmt.Sprintf("%susers/%s/children/%s/photo.%s", c.Config.KeyPrefix, userID, childID, ext)
+}
+
+// IsValidChildPhotoTmpKey returns true when key matches the canonical
+// onboarding-tmp prefix for this user. Used by POST /onboarding/case
+// to reject keys that point outside the calling user's namespace —
+// the client never gets to choose its own key path.
+func (c *Client) IsValidChildPhotoTmpKey(userID, key string) bool {
+	if key == "" {
+		return false
+	}
+	prefix := fmt.Sprintf("%susers/%s/onboarding-tmp/", c.Config.KeyPrefix, userID)
+	if !strings.HasPrefix(key, prefix) {
+		return false
+	}
+	tail := key[len(prefix):]
+	if strings.Contains(tail, "/") || tail == "" {
+		return false
+	}
+	dot := strings.LastIndexByte(tail, '.')
+	if dot <= 0 || dot == len(tail)-1 {
+		return false
+	}
+	if _, ok := imageFormatFromExtension(strings.ToLower(tail[dot+1:])); !ok {
+		return false
+	}
+	return true
+}
+
+// PhotoExtensionFromTmpKey extracts the bare extension (no leading '.')
+// from a valid tmp key, e.g. "users/u1/onboarding-tmp/abc.jpg" → "jpg".
+// Returns false for malformed or unsupported extensions.
+func (c *Client) PhotoExtensionFromTmpKey(key string) (string, bool) {
+	dot := strings.LastIndexByte(key, '.')
+	if dot < 0 || dot == len(key)-1 {
+		return "", false
+	}
+	ext := strings.ToLower(key[dot+1:])
+	if _, ok := imageFormatFromExtension(ext); !ok {
+		return "", false
+	}
+	return ext, true
+}
+
+// PresignImagePut issues a presigned PUT URL for the given key, locked
+// to the supplied image format's Content-Type. Mirrors PresignPut but
+// for images.
+func (c *Client) PresignImagePut(ctx context.Context, key string, format ImageFormat) (PresignedPut, error) {
+	contentType := format.ContentType()
+	req, err := c.Presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(c.Config.Bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+	}, func(o *s3.PresignOptions) {
+		o.Expires = DefaultPresignTTL
+	})
+	if err != nil {
+		return PresignedPut{}, fmt.Errorf("presign put: %w", err)
+	}
+	if _, perr := url.Parse(req.URL); perr != nil {
+		return PresignedPut{}, fmt.Errorf("presigned url malformed: %w", perr)
+	}
+	return PresignedPut{
+		URL:         req.URL,
+		Method:      req.Method,
+		ExpiresAt:   time.Now().UTC().Add(DefaultPresignTTL),
+		ContentType: contentType,
+		MaxBytes:    MaxChildPhotoBytes,
+	}, nil
+}
+
+// CopyObject copies srcKey to dstKey within the same bucket. Used by
+// the onboarding submit step to move a photo out of onboarding-tmp into
+// its permanent location ("rename" via copy + delete, since S3 has no
+// native rename). The CopySource must be URL-escaped because S3 takes
+// the value verbatim.
+func (c *Client) CopyObject(ctx context.Context, srcKey, dstKey string) error {
+	src := url.PathEscape(c.Config.Bucket) + "/" + escapePathSegments(srcKey)
+	_, err := c.S3.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(c.Config.Bucket),
+		Key:        aws.String(dstKey),
+		CopySource: aws.String(src),
+	})
+	if err != nil {
+		return fmt.Errorf("copy object: %w", err)
+	}
+	return nil
+}
+
+// DeleteObject deletes a single key. Best-effort error handling: a
+// missing-object response is treated as success because the rename has
+// the same end-state.
+func (c *Client) DeleteObject(ctx context.Context, key string) error {
+	_, err := c.S3.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(c.Config.Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var notFound interface {
+			ErrorCode() string
+		}
+		if errors.As(err, &notFound) {
+			switch notFound.ErrorCode() {
+			case "NotFound", "NoSuchKey":
+				return nil
+			}
+		}
+		return fmt.Errorf("delete object: %w", err)
+	}
+	return nil
+}
+
+// DeletePrefix deletes every object under the given prefix. Used by
+// reset-onboarding to clean both the onboarding-tmp prefix and any
+// permanent child-photo keys. Lists in pages of 1000 and batches the
+// deletes. Returns the number of keys removed.
+func (c *Client) DeletePrefix(ctx context.Context, prefix string) (int, error) {
+	deleted := 0
+	var continuationToken *string
+	for {
+		out, err := c.S3.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(c.Config.Bucket),
+			Prefix:            aws.String(prefix),
+			ContinuationToken: continuationToken,
+		})
+		if err != nil {
+			return deleted, fmt.Errorf("list: %w", err)
+		}
+		for _, obj := range out.Contents {
+			if obj.Key == nil {
+				continue
+			}
+			if err := c.DeleteObject(ctx, *obj.Key); err != nil {
+				return deleted, err
+			}
+			deleted++
+		}
+		if out.IsTruncated == nil || !*out.IsTruncated {
+			break
+		}
+		continuationToken = out.NextContinuationToken
+	}
+	return deleted, nil
+}
+
+// escapePathSegments URL-escapes each "/"-separated segment so the full
+// key works as the S3 CopySource value. Direct PathEscape would
+// percent-encode the slashes themselves, which S3 rejects.
+func escapePathSegments(key string) string {
+	parts := strings.Split(key, "/")
+	for i, p := range parts {
+		parts[i] = url.PathEscape(p)
+	}
+	return strings.Join(parts, "/")
+}
+
+// ChildPhotoTmpPrefix returns the user's onboarding-tmp prefix. Useful
+// for ops tooling that wants to wipe the user's pending photos.
+func (c *Client) ChildPhotoTmpPrefix(userID string) string {
+	return fmt.Sprintf("%susers/%s/onboarding-tmp/", c.Config.KeyPrefix, userID)
+}
+
+// ChildrenPrefix returns the user's permanent children prefix.
+func (c *Client) ChildrenPrefix(userID string) string {
+	return fmt.Sprintf("%susers/%s/children/", c.Config.KeyPrefix, userID)
 }

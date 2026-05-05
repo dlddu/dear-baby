@@ -109,6 +109,124 @@ func TestParseAudioFormat(t *testing.T) {
 	}
 }
 
+func TestParseImageFormat(t *testing.T) {
+	cases := []struct {
+		in       string
+		want     ImageFormat
+		wantOK   bool
+		wantExt  string
+		wantType string
+	}{
+		{"jpeg", ImageFormatJPEG, true, ".jpg", "image/jpeg"},
+		{"jpg", ImageFormatJPEG, true, ".jpg", "image/jpeg"},
+		{"heic", ImageFormatHEIC, true, ".heic", "image/heic"},
+		{"heif", ImageFormatHEIC, true, ".heic", "image/heic"},
+		{"png", ImageFormatPNG, true, ".png", "image/png"},
+		{"", "", false, "", ""}, // no historical default — wire value is required
+		{"gif", "", false, "", ""},
+	}
+	for _, tc := range cases {
+		got, ok := ParseImageFormat(tc.in)
+		if ok != tc.wantOK || got != tc.want {
+			t.Errorf("ParseImageFormat(%q) = (%q,%v) want (%q,%v)",
+				tc.in, got, ok, tc.want, tc.wantOK)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		if ext := got.Extension(); ext != tc.wantExt {
+			t.Errorf("Extension(%q) = %q want %q", got, ext, tc.wantExt)
+		}
+		if ct := got.ContentType(); ct != tc.wantType {
+			t.Errorf("ContentType(%q) = %q want %q", got, ct, tc.wantType)
+		}
+	}
+}
+
+func TestBuildChildPhotoKeys(t *testing.T) {
+	c := &Client{Config: Config{KeyPrefix: "prod/"}}
+	tmp := c.BuildChildPhotoTmpKey("u1", "abc-123", ImageFormatJPEG)
+	if tmp != "prod/users/u1/onboarding-tmp/abc-123.jpg" {
+		t.Errorf("tmp key: %q", tmp)
+	}
+	perm := c.BuildChildPhotoKey("u1", "child-1", "heic")
+	if perm != "prod/users/u1/children/child-1/photo.heic" {
+		t.Errorf("perm key: %q", perm)
+	}
+}
+
+func TestIsValidChildPhotoTmpKey(t *testing.T) {
+	c := &Client{Config: Config{KeyPrefix: "prod/"}}
+	good := c.BuildChildPhotoTmpKey("u1", "abc", ImageFormatJPEG)
+	if !c.IsValidChildPhotoTmpKey("u1", good) {
+		t.Errorf("expected %q to be valid for u1", good)
+	}
+	// Wrong user.
+	if c.IsValidChildPhotoTmpKey("u2", good) {
+		t.Errorf("expected %q to be invalid for u2", good)
+	}
+	// Empty rejected.
+	if c.IsValidChildPhotoTmpKey("u1", "") {
+		t.Errorf("empty key should be invalid")
+	}
+	// Wrong prefix (no env prefix).
+	if c.IsValidChildPhotoTmpKey("u1", "users/u1/onboarding-tmp/abc.jpg") {
+		t.Errorf("key without configured prefix should be invalid")
+	}
+	// Subdirectory rejected (path traversal).
+	if c.IsValidChildPhotoTmpKey("u1", "prod/users/u1/onboarding-tmp/sub/abc.jpg") {
+		t.Errorf("subdir tmp key should be invalid")
+	}
+	// Permanent prefix rejected.
+	if c.IsValidChildPhotoTmpKey("u1", "prod/users/u1/children/c1/photo.jpg") {
+		t.Errorf("permanent key should not pass tmp validator")
+	}
+	// Unsupported extension rejected.
+	if c.IsValidChildPhotoTmpKey("u1", "prod/users/u1/onboarding-tmp/abc.gif") {
+		t.Errorf("gif should be rejected")
+	}
+	// Missing extension rejected.
+	if c.IsValidChildPhotoTmpKey("u1", "prod/users/u1/onboarding-tmp/abc") {
+		t.Errorf("missing extension should be rejected")
+	}
+}
+
+func TestPhotoExtensionFromTmpKey(t *testing.T) {
+	c := &Client{Config: Config{KeyPrefix: "prod/"}}
+	cases := []struct {
+		key      string
+		want     string
+		wantOK   bool
+	}{
+		{"prod/users/u1/onboarding-tmp/abc.jpg", "jpg", true},
+		{"prod/users/u1/onboarding-tmp/abc.HEIC", "heic", true},
+		{"prod/users/u1/onboarding-tmp/abc.png", "png", true},
+		{"prod/users/u1/onboarding-tmp/abc.gif", "", false},
+		{"no-extension", "", false},
+		{"trailing.", "", false},
+	}
+	for _, tc := range cases {
+		got, ok := c.PhotoExtensionFromTmpKey(tc.key)
+		if ok != tc.wantOK || got != tc.want {
+			t.Errorf("PhotoExtensionFromTmpKey(%q) = (%q,%v) want (%q,%v)",
+				tc.key, got, ok, tc.want, tc.wantOK)
+		}
+	}
+}
+
+func TestEscapePathSegments(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"users/u1/onboarding-tmp/abc.jpg", "users/u1/onboarding-tmp/abc.jpg"},
+		{"users/u1/onboarding-tmp/space file.jpg", "users/u1/onboarding-tmp/space%20file.jpg"},
+	}
+	for _, tc := range cases {
+		if got := escapePathSegments(tc.in); got != tc.want {
+			t.Errorf("escapePathSegments(%q) = %q want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestConfigValidate(t *testing.T) {
 	cases := []struct {
 		name    string

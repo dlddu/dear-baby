@@ -136,6 +136,11 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		Hub:             hub,
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
+	caseHandlers := &onboarding.CaseHandlers{
+		Store:           onboardingStore,
+		Photo:           s3Client,
+		UserIDFromCtxFn: auth.UserIDFromRequest,
+	}
 
 	// Authenticated onboarding routes. The SSE route permits query
 	// token fallback because some RN EventSource shims cannot set
@@ -143,6 +148,8 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuth(issuer))
 		pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
+		pr.Post("/onboarding/children/photo/upload-url", caseHandlers.CreateChildPhotoUploadURL)
+		pr.Post("/onboarding/case", caseHandlers.SubmitCase)
 	})
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuthWithQueryFallback(issuer))

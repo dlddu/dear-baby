@@ -9,6 +9,10 @@ import React, {
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
 import {
+  submitCaseOnboarding as apiSubmitCaseOnboarding,
+  type SubmitCasePayload,
+} from '../api/onboarding';
+import {
   createTextRecord as apiCreateTextRecord,
   createVoiceRecord as apiCreateVoiceRecord,
 } from '../api/records';
@@ -36,13 +40,14 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   setSession: (session: Session) => Promise<void>;
-  completeOnboarding: (dueDate: string | null) => Promise<void>;
+  /**
+   * submitCaseOnboarding posts the case-branching onboarding payload
+   * (PRD-006 AC-006-01~04) and refreshes /me on success so the user
+   * status flips from 'onboarding' → 'authenticated'.
+   */
+  submitCaseOnboarding: (payload: SubmitCasePayload) => Promise<void>;
   dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string, questionText?: string) => Promise<void>;
-  // createVoiceRecord saves the transcript with source="voice". The
-  // returned Record is what the caller needs to either move on or
-  // kick off the audio upload pipeline (record.id is the key for the
-  // draft store + presigned URL).
   createVoiceRecord: (content: string, questionText?: string) => Promise<Record>;
   applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -51,9 +56,8 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 // statusForUser decides whether a signed-in user should be directed to the
-// onboarding funnel or straight to the app. `onboarded_at` is the backend's
-// completion marker — we check that rather than `due_date` because the
-// escape-hatch path intentionally leaves due_date null.
+// onboarding funnel or straight to the app. `onboarded_at` is the
+// case-branching onboarding completion marker — set by POST /onboarding/case.
 function statusForUser(u: User): AuthStatus {
   return u.onboarded_at ? 'authenticated' : 'onboarding';
 }
@@ -61,7 +65,6 @@ function statusForUser(u: User): AuthStatus {
 function cacheFromUser(u: User) {
   return setCachedOnboarding(
     u.onboarded_at,
-    u.due_date,
     u.voice_coachmark_dismissed_at,
     u.first_record_at,
     u.ai_preview,
@@ -93,10 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await cacheFromUser(u);
       } catch {
         if (cancelled) return;
-        // /me failed. If we have a cached onboarding marker, the user has
-        // definitely completed onboarding before — treat as authenticated
-        // so they aren't pushed back into the funnel on a transient error.
-        // Otherwise clear tokens and send them to the landing screen.
         const cachedOnboardedAt = await getCachedOnboardedAt();
         if (cachedOnboardedAt) {
           setStatus('authenticated');
@@ -118,27 +117,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(session.user);
   }, []);
 
-  const completeOnboarding = useCallback(async (dueDate: string | null) => {
-    const updated = await patchMe({ due_date: dueDate });
+  // submitCaseOnboarding is the single completion path for the case-
+  // branching onboarding (PRD-006). It POSTs the payload, then re-fetches
+  // /me so `onboarded_at` and `case_kind` land on the cached User. The
+  // AuthGate then routes the user from /(onboarding) → /(tabs).
+  const submitCaseOnboarding = useCallback(async (payload: SubmitCasePayload) => {
+    await apiSubmitCaseOnboarding(payload);
+    const updated = await apiMe();
     setUser(updated);
     setStatus(statusForUser(updated));
     await cacheFromUser(updated);
   }, []);
 
-  // dismissVoiceCoachmark is called when the user taps the close button on
-  // the home-screen voice-record coachmark. The backend stamps a timestamp
-  // that persists across devices; we also optimistically update local state
-  // so the coachmark vanishes immediately without waiting on the response.
   const dismissVoiceCoachmark = useCallback(async () => {
     const updated = await patchMe({ dismiss_voice_coachmark: true });
     setUser(updated);
     await cacheFromUser(updated);
   }, []);
 
-  // createTextRecord saves a text entry and refreshes local user state.
-  // Responsibility is strictly storage + user cache update — the home
-  // screen observes `first_record_at` to decide when to request an AI
-  // preview and subscribe to the SSE stream.
   const createTextRecord = useCallback(
     async (content: string, questionText?: string) => {
       const { user: updated } = await apiCreateTextRecord(content, questionText);
@@ -148,10 +144,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  // createVoiceRecord saves the transcript half of a voice record. The
-  // audio upload (or the decision to keep the audio local-only) is
-  // handled by the review screen, which uses the returned record_id
-  // to feed the draft store and/or uploadAudio orchestrator.
   const createVoiceRecord = useCallback(
     async (content: string, questionText?: string) => {
       const { record, user: updated } = await apiCreateVoiceRecord(
@@ -165,9 +157,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  // applyAiPreview is called by the home screen when the SSE stream
-  // delivers a `ready` event. It merges the new preview text into the
-  // current user without hitting /me again.
   const applyAiPreview = useCallback(async (preview: string) => {
     setUser((prev) => {
       if (!prev) return prev;
@@ -193,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
+      submitCaseOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
@@ -204,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
+      submitCaseOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,

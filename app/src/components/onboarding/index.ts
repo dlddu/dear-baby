@@ -1,0 +1,21 @@
+// Barrel export for case-branching onboarding components (PRD-006).
+export { CaseAccentTheme, useCaseAccent } from './CaseAccentTheme';
+export type { CaseAccent } from './CaseAccentTheme';
+export { CaseHeader } from './CaseHeader';
+export type { CaseHeaderProps } from './CaseHeader';
+export { OptionCard } from './OptionCard';
+export type { OptionCardProps } from './OptionCard';
+export { ProgressBar } from './ProgressBar';
+export type { ProgressBarProps } from './ProgressBar';
+export { RepeatBadge } from './RepeatBadge';
+export type { RepeatBadgeProps } from './RepeatBadge';
+export { StepIndicator } from './StepIndicator';
+export type { StepIndicatorProps } from './StepIndicator';
+export { PhotoPicker } from './PhotoPicker';
+export type { PhotoPickerProps } from './PhotoPicker';
+export { GenderToggle } from './GenderToggle';
+export type { GenderToggleProps } from './GenderToggle';
+export { DateField } from './DateField';
+export type { DateFieldProps } from './DateField';
+export { ChildInfoForm } from './ChildInfoForm';
+export type { ChildInfoValue, ChildInfoFormProps } from './ChildInfoForm';

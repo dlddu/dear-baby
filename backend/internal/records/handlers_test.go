@@ -40,11 +40,11 @@ CREATE TABLE users (
 );
 CREATE TABLE onboarding (
   user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  due_date                     TEXT,
   onboarded_at                 TEXT,
   voice_coachmark_dismissed_at TEXT,
   first_record_at              TEXT,
   ai_preview                   TEXT,
+  case_kind                    TEXT CHECK (case_kind IN ('A','B','C')),
   updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (

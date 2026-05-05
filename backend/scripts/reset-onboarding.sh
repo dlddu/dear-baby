@@ -1,8 +1,10 @@
 #!/bin/sh
-# Resets the onboarding state (onboarded_at, due_date) for a user by email.
-# Intended to run from an ephemeral debug container attached to the backend
-# pod. Installs util-linux if needed, then enters the backend container's
-# namespaces via nsenter and runs the /reset-onboarding binary there.
+# Resets the case-branching onboarding state (case_kind, onboarded_at, children,
+# child_record_purposes) plus the user's S3 onboarding-tmp + children prefixes
+# for the given email. Intended to run from an ephemeral debug container
+# attached to the backend pod. Installs util-linux if needed, then enters the
+# backend container's namespaces via nsenter and runs the /reset-onboarding
+# binary there.
 #
 # Usage (from the ephemeral debug container, as root):
 #   sh /proc/1/root/scripts/reset-onboarding.sh user@example.com
