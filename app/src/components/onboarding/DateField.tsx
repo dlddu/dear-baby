@@ -6,7 +6,7 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Keyboard, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '../Text';
 import { colors } from '../../theme/colors';
@@ -122,36 +122,62 @@ export function DateField({
           {current ? formatKoreanDate(current) : placeholder}
         </Text>
       </Pressable>
-      {open ? (
+      {open && Platform.OS === 'android' ? (
         <DateTimePicker
           value={current ?? fallback ?? new Date()}
           mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          display="default"
           minimumDate={minimumDate}
           maximumDate={maximumDate}
           onChange={handle}
         />
       ) : null}
-      {Platform.OS === 'ios' && open ? (
-        <Pressable
-          onPress={() => {
-            setOpen(false);
-            // iOS spinner emits onChange only when a wheel actually
-            // moves. Treat tapping Done as confirmation so the field
-            // commits the picker's initial value if the user didn't
-            // spin anything — symmetric with Android's OK handling.
-            if (!current) {
-              commitFallback();
-            }
-          }}
-          accessibilityRole="button"
-          style={styles.done}
-          testID="onboarding-date-picker-done"
+      {/* iOS: present the spinner inside a bottom-sheet Modal so the
+          picker layout doesn't grow/shrink the screen body. Without
+          this the inline spinner pushed the done button into the same
+          screen region as the bottom CTA — closing the picker briefly
+          made the two hit-rects overlap and Maestro's tap on
+          onboarding-date-picker-done landed on a2-next instead. */}
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={open}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setOpen(false)}
         >
-          <Text variant="h3" color="coral">
-            완료
-          </Text>
-        </Pressable>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalSheet}>
+              <DateTimePicker
+                value={current ?? fallback ?? new Date()}
+                mode="date"
+                display="spinner"
+                minimumDate={minimumDate}
+                maximumDate={maximumDate}
+                onChange={handle}
+              />
+              <Pressable
+                onPress={() => {
+                  setOpen(false);
+                  // iOS spinner emits onChange only when a wheel
+                  // actually moves. Tapping Done counts as
+                  // confirmation so the field commits the picker's
+                  // initial value if the user didn't spin anything —
+                  // symmetric with Android's OK handling.
+                  if (!current) {
+                    commitFallback();
+                  }
+                }}
+                accessibilityRole="button"
+                style={styles.done}
+                testID="onboarding-date-picker-done"
+              >
+                <Text variant="h3" color="coral">
+                  완료
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       ) : null}
     </View>
   );
@@ -174,5 +200,16 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingVertical: spacing[3],
     paddingHorizontal: spacing[6],
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  modalSheet: {
+    backgroundColor: colors.surface.ivory,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingBottom: spacing[4],
   },
 });
