@@ -281,12 +281,12 @@ jobs:
 
       # ─── End-to-end: mock OpenRouter call via the worker ─────────────
       #
-      # Goes all the way through: password-login → PATCH /me to complete
-      # onboarding → record save → AI preview enqueue → worker reads
-      # queue → openrouter-mock chat completion → publishes result →
-      # backend hub processor persists → /me reflects ai_preview. Prints
-      # the generated preview to the job log for visual inspection of
-      # each CI run.
+      # Goes all the way through: password-login → POST /onboarding/case
+      # to complete the case-branching onboarding (PRD-006) → record
+      # save → AI preview enqueue → worker reads queue → openrouter-mock
+      # chat completion → publishes result → backend hub processor
+      # persists → /me reflects ai_preview. Prints the generated preview
+      # to the job log for visual inspection of each CI run.
       #
       # The test runs as the seeded password account whose credentials
       # come from the auth-secret created above. There is no longer a
@@ -313,12 +313,22 @@ jobs:
           # Stamp onboarded_at so /onboarding/ai-preview proceeds (which
           # the seeded user does not have by default — the seeder
           # leaves onboarding state untouched on every boot to mirror a
-          # fresh sign-up).
-          curl -fsS -X PATCH \
+          # fresh sign-up). Uses the case-branching submission (PRD-006
+          # AC-006-02 — Case A / 단태 / 임의 태아 정보 / 책 만들기 목적).
+          curl -fsS -X POST \
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
-            -d '{"due_date":"2026-09-01"}' \
-            http://127.0.0.1:18080/me >/dev/null
+            -d '{
+              "case": "A",
+              "children": [{
+                "kind": "fetus",
+                "gender": "undecided",
+                "pregnancy_weeks": 17,
+                "due_date": "2026-09-01",
+                "purposes": ["book_making"]
+              }]
+            }' \
+            http://127.0.0.1:18080/onboarding/case >/dev/null
           echo "::endgroup::"
 
           echo "::group::create record"
