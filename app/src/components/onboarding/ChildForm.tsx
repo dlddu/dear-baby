@@ -12,6 +12,7 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import {
+  Keyboard,
   Platform,
   Pressable,
   StyleSheet,
@@ -106,6 +107,10 @@ export function ChildForm({
           placeholder="예: 지유"
           placeholderTextColor={colors.text.muted}
           style={styles.input}
+          // returnKeyType="done" + onSubmitEditing 으로 양 플랫폼 모두
+          // pressKey: Enter 한 번에 키보드를 닫을 수 있게 한다.
+          returnKeyType="done"
+          onSubmitEditing={Keyboard.dismiss}
           testID={testID ? `${testID}-name` : undefined}
         />
       </View>

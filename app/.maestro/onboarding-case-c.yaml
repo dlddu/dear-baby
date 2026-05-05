@@ -45,13 +45,14 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-c1-next"
 
-# C2 — birth_date 는 slot 시드 기본값(오늘) 사용. 키보드는
-# ScreenScaffold 의 KeyboardAvoidingView 가 양 플랫폼에서 회피.
+# C2 — birth_date 는 slot 시드 기본값(오늘) 사용. name 입력 뒤
+# pressKey: Enter 로 onSubmitEditing → Keyboard.dismiss() 트리거.
 - assertVisible:
     id: "onboarding-c2"
 - tapOn:
     id: "onboarding-c2-form-name"
 - inputText: "jiyu"
+- pressKey: Enter
 - tapOn:
     id: "onboarding-c2-form-gender-female"
 - scrollUntilVisible:

@@ -14,6 +14,7 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import {
+  Keyboard,
   Platform,
   Pressable,
   StyleSheet,
@@ -93,6 +94,8 @@ export function FetusForm({ value, onChange, testID }: FetusFormProps) {
           placeholder="예: 튼튼이"
           placeholderTextColor={colors.text.muted}
           style={styles.input}
+          returnKeyType="done"
+          onSubmitEditing={Keyboard.dismiss}
           testID={testID ? `${testID}-name` : undefined}
         />
       </View>
@@ -119,6 +122,10 @@ export function FetusForm({ value, onChange, testID }: FetusFormProps) {
               onChange({ pregnancy_weeks: Number.isFinite(num) ? Math.min(45, num) : undefined });
             }}
             keyboardType="number-pad"
+            // iOS number-pad 는 done/return 이 없어 onSubmitEditing 이
+            // 발화하지 않지만, 외부에서 Keyboard.dismiss() 를 트리거하면
+            // 안전하다. returnKeyType 은 무시된다.
+            returnKeyType="done"
             placeholder="0"
             placeholderTextColor={colors.text.muted}
             style={[styles.input, styles.weekInput]}
