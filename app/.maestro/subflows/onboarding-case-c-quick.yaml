@@ -28,12 +28,14 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "c1-next"
 
-# C2 양육 아이 정보 — 이름, 성별, 생년월일.
+# C2 양육 아이 정보 — 이름, 성별, 생년월일. ASCII fixture text —
+# Hangul inputText is not supported on Android Maestro
+# (mobile-dev-inc/maestro#146).
 - assertVisible:
     id: "onboarding-c2"
 - tapOn:
     id: "c2-name"
-- inputText: "지유"
+- inputText: "jiyu"
 - tapOn:
     id: "c2-gender-female"
 - tapOn:

@@ -46,7 +46,10 @@ appId: com.dlddu.dearbaby
     id: "onboarding-a2"
 - tapOn:
     id: "a2-name"
-- inputText: "튼튼이"
+# Maestro inputText does not support Hangul on Android (mobile-dev-inc/
+# maestro#146), so the test fixture uses an ASCII placeholder. The
+# field is "(선택) 태명" so the value itself is cosmetic.
+- inputText: "tunturee"
 - tapOn:
     id: "a2-gender-undecided"
 - tapOn:

@@ -41,12 +41,13 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "b1-next"
 
-# B2 양육 아이 정보
+# B2 양육 아이 정보. ASCII fixture text — Hangul inputText is not
+# supported on Android Maestro (mobile-dev-inc/maestro#146).
 - assertVisible:
     id: "onboarding-b2"
 - tapOn:
     id: "b2-name"
-- inputText: "지유"
+- inputText: "jiyu"
 - tapOn:
     id: "b2-gender-female"
 - tapOn:
@@ -84,12 +85,12 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "b4-next"
 
-# B5 태아 정보
+# B5 태아 정보 — same ASCII-only constraint as B2.
 - assertVisible:
     id: "onboarding-b5"
 - tapOn:
     id: "b5-name"
-- inputText: "튼튼이"
+- inputText: "tunturee"
 - tapOn:
     id: "b5-gender-undecided"
 - tapOn:
