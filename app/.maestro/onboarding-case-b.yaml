@@ -103,7 +103,8 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b5-form-weeks"
 - inputText: "18"
-- hideKeyboard
+# number-pad 키보드는 dismiss 액션이 없어 iOS Simulator 에서 hideKeyboard
+# 가 실패한다. 다음 `tapOn` 으로 자연스럽게 닫는다.
 - tapOn:
     id: "onboarding-b5-form-due"
 - runFlow:

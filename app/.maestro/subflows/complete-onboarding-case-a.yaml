@@ -40,7 +40,9 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-a2-form-weeks"
 - inputText: "20"
-- hideKeyboard
+# `hideKeyboard` 는 number-pad 처럼 dismiss 액션이 없는 키보드에서
+# iOS Simulator 가 인식 못 하므로 생략. 다음 `tapOn` 이 input 바깥을
+# 누르며 자연스럽게 키보드를 닫는다.
 - tapOn:
     id: "onboarding-a2-form-due"
 - runFlow:
