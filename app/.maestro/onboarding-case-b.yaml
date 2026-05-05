@@ -56,6 +56,10 @@ appId: com.dlddu.dearbaby
     direction: DOWN
 - tapOn:
     id: "b2-gender-female"
+- scrollUntilVisible:
+    element:
+      id: "b2-birth"
+    direction: DOWN
 - tapOn:
     id: "b2-birth"
 - runFlow:
@@ -74,6 +78,10 @@ appId: com.dlddu.dearbaby
           duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
+- scrollUntilVisible:
+    element:
+      id: "b2-next"
+    direction: DOWN
 - tapOn:
     id: "b2-next"
 
@@ -101,6 +109,10 @@ appId: com.dlddu.dearbaby
     point: "50%, 10%"
 - tapOn:
     id: "b5-gender-undecided"
+- scrollUntilVisible:
+    element:
+      id: "b5-weeks"
+    direction: DOWN
 - tapOn:
     id: "b5-weeks"
 - inputText: "20"
@@ -128,6 +140,10 @@ appId: com.dlddu.dearbaby
           duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
+- scrollUntilVisible:
+    element:
+      id: "b5-next"
+    direction: DOWN
 - tapOn:
     id: "b5-next"
 

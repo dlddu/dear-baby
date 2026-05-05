@@ -84,6 +84,10 @@ appId: com.dlddu.dearbaby
           duration: 400
       - tapOn:
           id: "onboarding-date-picker-done"
+- scrollUntilVisible:
+    element:
+      id: "a2-next"
+    direction: DOWN
 - tapOn:
     id: "a2-next"
 
