@@ -64,6 +64,16 @@ export function ChildForm({
   const [pickerOpen, setPickerOpen] = useState(false);
   const birth = value.birth_date ? new Date(value.birth_date) : null;
 
+  // 픽커 진입 시 기본 생년월일(오늘)을 미리 stamp 한다. iOS spinner mode 가
+  // 사용자의 spin 없이는 onChange 를 발화시키지 않아 그대로 닫으면
+  // birth_date 가 비어 검증이 실패하는 문제(FetusForm 와 같은 이유) 회피.
+  const openPicker = () => {
+    if (!value.birth_date) {
+      onChange({ birth_date: toIsoDate(new Date()) });
+    }
+    setPickerOpen(true);
+  };
+
   const onDateChange = (event: DateTimePickerEvent, picked?: Date) => {
     if (Platform.OS === 'android') {
       setPickerOpen(false);
@@ -110,7 +120,7 @@ export function ChildForm({
           testID={testID ? `${testID}-gender` : undefined}
         />
         <Pressable
-          onPress={() => setPickerOpen(true)}
+          onPress={openPicker}
           style={[styles.input, styles.dateField]}
           accessibilityRole="button"
           testID={testID ? `${testID}-birth` : undefined}

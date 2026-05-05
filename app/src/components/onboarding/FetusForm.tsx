@@ -58,6 +58,18 @@ export function FetusForm({ value, onChange, testID }: FetusFormProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const dueDate = value.due_date ? new Date(value.due_date) : null;
 
+  // 픽커 진입 시 기본 예정일을 미리 stamp 한다. iOS spinner mode 는 사용자가
+  // 휠을 돌릴 때까지 onChange 가 발화하지 않아, 그대로 "완료" 만 눌러도
+  // due_date 가 비어 다음 단계 검증이 실패한다. Maestro 의 swipe 가 휠에
+  // 닿지 않는 경우도 같은 결과. 기본값(오늘 +40주)을 미리 넣어 두면
+  // 사용자가 스핀하지 않아도 정상 진행된다.
+  const openPicker = () => {
+    if (!value.due_date) {
+      onChange({ due_date: toIsoDate(defaultDueDate()) });
+    }
+    setPickerOpen(true);
+  };
+
   const onDateChange = (event: DateTimePickerEvent, picked?: Date) => {
     if (Platform.OS === 'android') {
       setPickerOpen(false);
@@ -122,7 +134,7 @@ export function FetusForm({ value, onChange, testID }: FetusFormProps) {
           예정일
         </Text>
         <Pressable
-          onPress={() => setPickerOpen(true)}
+          onPress={openPicker}
           style={[styles.input, styles.dateField]}
           accessibilityRole="button"
           testID={testID ? `${testID}-due` : undefined}
