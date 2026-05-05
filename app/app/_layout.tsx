@@ -49,7 +49,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (status === 'authenticated' && !inTabs && !inAuthedModal) {
       router.replace('/(tabs)');
     } else if (status === 'onboarding' && !inOnboarding) {
-      router.replace('/(onboarding)/welcome');
+      // Always re-enter at Q1; mid-funnel resume is handled inside the
+      // (onboarding) layout off the AsyncStorage draft (see
+      // app/src/onboarding/draft.ts).
+      router.replace('/(onboarding)/q1');
     } else if (
       status === 'unauthenticated' &&
       (inTabs || inOnboarding || inAuthedModal)

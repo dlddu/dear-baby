@@ -34,6 +34,15 @@ export const colors = {
     ai: '#E0D4C4',
     aiAlt: '#E8DCC8',
   },
+  // 케이스 분기 온보딩 액센트 (docs/wireframes/onboarding.md "케이스 시각 구분")
+  // 진행 바와 배지 텍스트 색만 사용. 본 토큰을 직접 쓰지 말고
+  // <CaseAccentTheme/> 또는 caseAccents 헬퍼를 통해 접근한다.
+  caseAccent: {
+    a: { bar: '#D85A30', text: '#993C1D', surface: '#FCEAE2' },
+    b: { bar: '#EF9F27', text: '#854F0B', surface: '#FAEEDA' },
+    c: { bar: '#378ADD', text: '#0C447C', surface: '#DEEBF8' },
+    neutral: { bar: '#888780', text: '#5F5E5A', surface: '#F1EFE8' },
+  },
   // 그림자 기준 색
   shadow: '#3D2E1E',
 } as const;

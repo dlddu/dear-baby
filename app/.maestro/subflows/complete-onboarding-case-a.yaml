@@ -1,0 +1,72 @@
+appId: com.dlddu.dearbaby
+---
+# Subflow: walk a freshly-reset test user through the simplest case-
+# branching onboarding path (Case A — pregnancy only, single fetus,
+# minimum required fields). Used by the Stage 2 home-screen flows that
+# need a signed-in user past the funnel without re-encoding the funnel
+# in every test.
+#
+# Caller is responsible for `clearKeychain` + `launchApp` + tester-login
+# *before* invoking this subflow. The subflow lands the user on the
+# home tab (`home-tab` testID).
+
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "onboarding-q1-yes"
+- tapOn:
+    id: "onboarding-q1-next"
+
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "onboarding-q2-no"
+- tapOn:
+    id: "onboarding-q2-next"
+
+# A1 — choose 단태 so we only fill one fetus row.
+- assertVisible:
+    id: "onboarding-a1"
+- tapOn:
+    id: "onboarding-a1-singleton"
+- tapOn:
+    id: "onboarding-a1-next"
+
+# A2 — gender / weeks / due date.
+- assertVisible:
+    id: "onboarding-a2"
+- tapOn:
+    id: "onboarding-a2-form-gender-undecided"
+- tapOn:
+    id: "onboarding-a2-form-weeks"
+- inputText: "20"
+- hideKeyboard
+- tapOn:
+    id: "onboarding-a2-form-due"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible: "완료"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn: "완료"
+- tapOn:
+    id: "onboarding-a2-next"
+
+# A3 — pick at least one purpose.
+- assertVisible:
+    id: "onboarding-a3"
+- tapOn:
+    id: "onboarding-a3-purposes-book_making"
+- tapOn:
+    id: "onboarding-a3-submit"
+
+- assertVisible:
+    id: "home-tab"

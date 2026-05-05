@@ -7,17 +7,16 @@ import * as SecureStore from 'expo-secure-store';
 // cache is only a graceful-fallback hint.
 
 const ONBOARDED_AT_KEY = 'db_onboarded_at';
-const DUE_DATE_KEY = 'db_due_date';
 const VOICE_COACHMARK_DISMISSED_AT_KEY = 'db_voice_coachmark_dismissed_at';
 const FIRST_RECORD_AT_KEY = 'db_first_record_at';
 const AI_PREVIEW_KEY = 'db_ai_preview';
 
+// Legacy key kept around so existing devices that have a stale due_date
+// in SecureStore get cleaned up the next time the app boots.
+const LEGACY_DUE_DATE_KEY = 'db_due_date';
+
 export async function getCachedOnboardedAt(): Promise<string | null> {
   return SecureStore.getItemAsync(ONBOARDED_AT_KEY);
-}
-
-export async function getCachedDueDate(): Promise<string | null> {
-  return SecureStore.getItemAsync(DUE_DATE_KEY);
 }
 
 export async function getCachedVoiceCoachmarkDismissedAt(): Promise<string | null> {
@@ -34,7 +33,6 @@ export async function getCachedAiPreview(): Promise<string | null> {
 
 export async function setCachedOnboarding(
   onboardedAt: string | null,
-  dueDate: string | null,
   voiceCoachmarkDismissedAt: string | null,
   firstRecordAt: string | null,
   aiPreview: string | null,
@@ -43,11 +41,6 @@ export async function setCachedOnboarding(
     await SecureStore.setItemAsync(ONBOARDED_AT_KEY, onboardedAt);
   } else {
     await SecureStore.deleteItemAsync(ONBOARDED_AT_KEY);
-  }
-  if (dueDate) {
-    await SecureStore.setItemAsync(DUE_DATE_KEY, dueDate);
-  } else {
-    await SecureStore.deleteItemAsync(DUE_DATE_KEY);
   }
   if (voiceCoachmarkDismissedAt) {
     await SecureStore.setItemAsync(
@@ -67,12 +60,15 @@ export async function setCachedOnboarding(
   } else {
     await SecureStore.deleteItemAsync(AI_PREVIEW_KEY);
   }
+  // Legacy due_date entry is no longer written; clean up any stale value
+  // left over from the pre-case-branching builds.
+  await SecureStore.deleteItemAsync(LEGACY_DUE_DATE_KEY);
 }
 
 export async function clearOnboardingCache(): Promise<void> {
   await SecureStore.deleteItemAsync(ONBOARDED_AT_KEY);
-  await SecureStore.deleteItemAsync(DUE_DATE_KEY);
   await SecureStore.deleteItemAsync(VOICE_COACHMARK_DISMISSED_AT_KEY);
   await SecureStore.deleteItemAsync(FIRST_RECORD_AT_KEY);
   await SecureStore.deleteItemAsync(AI_PREVIEW_KEY);
+  await SecureStore.deleteItemAsync(LEGACY_DUE_DATE_KEY);
 }

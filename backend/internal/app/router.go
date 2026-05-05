@@ -132,6 +132,8 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	tasksClient := &tasks.Client{Redis: redisClient}
 	onbHandlers := &onboarding.Handlers{
 		Store:           onboardingStore,
+		Users:           usersStore,
+		Photos:          s3Client,
 		Tasks:           tasksClient,
 		Hub:             hub,
 		UserIDFromCtxFn: auth.UserIDFromRequest,
@@ -142,6 +144,8 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	// headers reliably.
 	r.Group(func(pr chi.Router) {
 		pr.Use(auth.RequireAuth(issuer))
+		pr.Post("/onboarding/case", onbHandlers.SubmitCase)
+		pr.Post("/onboarding/children/photo/upload-url", onbHandlers.CreateChildPhotoUploadURL)
 		pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
 	})
 	r.Group(func(pr chi.Router) {

@@ -1,0 +1,85 @@
+appId: com.dlddu.dearbaby
+---
+# Onboarding Case C — parenting only (AC-006-04).
+#
+# Verifies the (Q1=no, Q2=yes) → Case C funnel: C1 양육 1명 → C2
+# child row → C3 purpose → /me.case_kind = "C" + onboarded_at stamped.
+#
+# Photo upload is intentionally skipped — Maestro can't drive the
+# system image picker reliably. The server accepts submissions
+# without photos.
+#
+# CI must reset the seeded test user's onboarding state via
+# `backend/reset-onboarding $TEST_USER_EMAIL` before running this flow.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "onboarding-q1-no"
+- tapOn:
+    id: "onboarding-q1-next"
+
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "onboarding-q2-yes"
+- tapOn:
+    id: "onboarding-q2-next"
+
+- assertVisible:
+    id: "onboarding-c1"
+- tapOn:
+    id: "onboarding-c1-1"
+- tapOn:
+    id: "onboarding-c1-next"
+
+- assertVisible:
+    id: "onboarding-c2"
+- tapOn:
+    id: "onboarding-c2-form-name"
+- inputText: "jiyu"
+- hideKeyboard
+- tapOn:
+    id: "onboarding-c2-form-gender-female"
+- tapOn:
+    id: "onboarding-c2-form-birth"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible: "완료"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn: "완료"
+- tapOn:
+    id: "onboarding-c2-next"
+
+- assertVisible:
+    id: "onboarding-c3"
+- tapOn:
+    id: "onboarding-c3-purposes-book_making"
+- tapOn:
+    id: "onboarding-c3-purposes-family_share"
+- tapOn:
+    id: "onboarding-c3-submit"
+
+- assertVisible:
+    id: "home-tab"

@@ -1,0 +1,141 @@
+appId: com.dlddu.dearbaby
+---
+# Onboarding Case B — pregnancy + parenting (AC-006-03).
+#
+# Verifies the (Q1=yes, Q2=yes) → Case B funnel: B0 안내 → B1 양육 1명
+# → B2 child row → B3 안내 → B4 단태 → B5 fetus row → B6 per-child
+# purposes → /me.case_kind = "B" + onboarded_at stamped.
+#
+# Photo upload is intentionally skipped — Maestro can't drive the
+# system image picker reliably across iOS/Android. The server
+# accepts onboarding submissions without photos.
+#
+# CI must reset the seeded test user's onboarding state via
+# `backend/reset-onboarding $TEST_USER_EMAIL` before running this flow.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "onboarding-q1-yes"
+- tapOn:
+    id: "onboarding-q1-next"
+
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "onboarding-q2-yes"
+- tapOn:
+    id: "onboarding-q2-next"
+
+# B0 — 1단계 안내
+- assertVisible:
+    id: "onboarding-b0"
+- tapOn:
+    id: "onboarding-b0-start"
+
+# B1 — 양육 아이 1명
+- assertVisible:
+    id: "onboarding-b1"
+- tapOn:
+    id: "onboarding-b1-1"
+- tapOn:
+    id: "onboarding-b1-next"
+
+# B2 — child info
+- assertVisible:
+    id: "onboarding-b2"
+- tapOn:
+    id: "onboarding-b2-form-name"
+- inputText: "jiyu"
+- hideKeyboard
+- tapOn:
+    id: "onboarding-b2-form-gender-female"
+- tapOn:
+    id: "onboarding-b2-form-birth"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible: "완료"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn: "완료"
+- tapOn:
+    id: "onboarding-b2-next"
+
+# B3 — 2단계 안내
+- assertVisible:
+    id: "onboarding-b3"
+- tapOn:
+    id: "onboarding-b3-continue"
+
+# B4 — 임신 단태
+- assertVisible:
+    id: "onboarding-b4"
+- tapOn:
+    id: "onboarding-b4-singleton"
+- tapOn:
+    id: "onboarding-b4-next"
+
+# B5 — fetus info
+- assertVisible:
+    id: "onboarding-b5"
+- tapOn:
+    id: "onboarding-b5-form-gender-undecided"
+- tapOn:
+    id: "onboarding-b5-form-weeks"
+- inputText: "18"
+- hideKeyboard
+- tapOn:
+    id: "onboarding-b5-form-due"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible: "완료"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn: "완료"
+- tapOn:
+    id: "onboarding-b5-next"
+
+# B6 — set a purpose for each child via the tab pills.
+- assertVisible:
+    id: "onboarding-b6"
+- tapOn:
+    id: "onboarding-b6-tab-0"
+- tapOn:
+    id: "onboarding-b6-purposes-book_making"
+- tapOn:
+    id: "onboarding-b6-tab-1"
+- tapOn:
+    id: "onboarding-b6-purposes-emotion_diary"
+- tapOn:
+    id: "onboarding-b6-submit"
+
+- assertVisible:
+    id: "home-tab"

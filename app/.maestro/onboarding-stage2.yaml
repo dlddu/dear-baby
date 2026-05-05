@@ -1,17 +1,14 @@
 appId: com.dlddu.dearbaby
 ---
-# Onboarding Stage 2 – with-due-date path.
+# Stage 2 home screen E2E — coachmark, daily question, AI preview.
 #
-# Verifies the home-screen voice-record coachmark + question card +
-# dual CTAs + blurred AI preview shown to users who just completed
-# Stage 1 with a due date. Combines what was previously Path 1
-# (set due date → verify Stage 2 + coachmark dismissal) and Path 3
-# (voice CTA navigation, text CTA save → AI preview) of the legacy
-# multi-path flow — both paths consume the same onboarded-with-date
-# state, so they stay together.
+# The onboarding stage was rebuilt as case-branching (PRD-006), so this
+# flow first walks the user through the simplest funnel (Case A) via
+# the shared subflow, then exercises the home screen affordances that
+# used to live behind the legacy single-stage funnel.
 #
 # CI must reset the seeded test user's onboarding state before running
-# this flow; the undecided path lives in onboarding-stage2-undecided.yaml.
+# this flow.
 
 - clearKeychain
 - launchApp:
@@ -25,43 +22,13 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/tester-login.yaml
 
-- assertVisible:
-    id: "onboarding-welcome"
-
-- tapOn:
-    id: "onboarding-due-date-field"
-
-# Android: native date-picker dialog — confirm the default date.
 - runFlow:
-    when:
-      visible: "OK"
-    commands:
-      - tapOn: "OK"
-
-# iOS: inline spinner — scroll wheel + Done, same pattern as stage1.
-- runFlow:
-    when:
-      visible:
-        id: "onboarding-date-picker-done"
-    commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
-      - tapOn:
-          id: "onboarding-date-picker-done"
-
-- tapOn:
-    id: "onboarding-start-button"
-- assertVisible:
-    id: "home-tab"
+    file: subflows/complete-onboarding-case-a.yaml
 
 # Stage 2 UI
 - assertVisible:
     id: "stage2-question-card"
 - assertVisible: "첫 기록이 가장 소중해요 🌱"
-- assertVisible:
-    id: "stage2-week-badge"
 - assertVisible:
     id: "stage2-coachmark"
 - assertVisible: "🎙 말하기만 해도 기록이 돼요!"

@@ -56,10 +56,11 @@ export default function HomeTab() {
 
   const prevFirstRecordAtRef = useRef<string | null>(null);
 
-  const pregnancy = useMemo(
-    () => calcPregnancy(user?.due_date ?? null),
-    [user?.due_date],
-  );
+  // TODO(AC-006-08): derive pregnancy from the active fetus child once
+  // the multi-child context lands. The case-branching onboarding stores
+  // the due date per-child in the `children` table; the home screen will
+  // pick the active one. Until then the pregnancy badge stays hidden.
+  const pregnancy = useMemo(() => calcPregnancy(null), []);
   const question = useMemo(() => pickDailyQuestion(), []);
 
   const showCoachmark =

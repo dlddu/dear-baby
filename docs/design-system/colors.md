@@ -33,6 +33,19 @@
 | **Warm Gray** | `#8C7B6B` | 보조 텍스트, 캡션 |
 | **Light Gray-Brown** | `#B5A898` | 플레이스홀더, 비활성 탭 |
 
+### Case Accent (온보딩 케이스 분기)
+
+진행 바 / 케이스 라벨 텍스트 / 활성 탭 surface 에만 사용. 본문/CTA 의 톤은
+케이스가 바뀌어도 일관되게 Warm Coral 을 유지한다. 자세한 사용법은
+`docs/wireframes/onboarding.md` 의 "케이스 시각 구분" 섹션 참고.
+
+| 케이스 | bar | text | surface |
+|---|---|---|---|
+| Case A | `#D85A30` | `#993C1D` | `#FCEAE2` |
+| Case B | `#EF9F27` | `#854F0B` | `#FAEEDA` |
+| Case C | `#378ADD` | `#0C447C` | `#DEEBF8` |
+| Neutral (Q1·Q2) | `#888780` | `#5F5E5A` | `#F1EFE8` |
+
 ## Gradient
 
 | 이름 | 값 | 용도 |

@@ -23,8 +23,8 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/tester-login.yaml
 
-# Newly seeded user has no onboarded_at, so login lands on the
-# onboarding welcome screen. The dedicated onboarding flows verify the
-# rest of the funnel.
+# Newly seeded user has no onboarded_at, so login lands on Q1 of the
+# case-branching onboarding funnel. The dedicated onboarding-case-*
+# flows verify the rest.
 - assertVisible:
-    id: "onboarding-welcome"
+    id: "onboarding-q1"

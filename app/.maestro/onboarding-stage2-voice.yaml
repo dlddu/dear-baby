@@ -32,12 +32,8 @@ appId: com.dlddu.dearbaby
 
 - runFlow:
     file: subflows/tester-login.yaml
-- assertVisible:
-    id: "onboarding-welcome"
-- tapOn:
-    id: "onboarding-skip-button"
-- assertVisible:
-    id: "home-tab"
+- runFlow:
+    file: subflows/complete-onboarding-case-a.yaml
 
 # ─── Scenario A: save only — audio stays in the local archive ──────────────
 

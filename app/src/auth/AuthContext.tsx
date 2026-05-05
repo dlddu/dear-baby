@@ -9,10 +9,14 @@ import React, {
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
 import {
+  submitCaseOnboarding as apiSubmitCaseOnboarding,
+  type SubmitCaseRequest,
+} from '../api/onboarding';
+import {
   createTextRecord as apiCreateTextRecord,
   createVoiceRecord as apiCreateVoiceRecord,
 } from '../api/records';
-import type { Record, Session, User } from '../api/types';
+import type { Record, Session, SubmitCaseResponse, User } from '../api/types';
 import { patchMe } from '../api/users';
 import {
   clearOnboardingCache,
@@ -36,13 +40,13 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   setSession: (session: Session) => Promise<void>;
-  completeOnboarding: (dueDate: string | null) => Promise<void>;
+  // submitCaseOnboarding finalises the case-branching funnel: backend
+  // stamps onboarded_at, copies any tmp photos onto the permanent
+  // layout, and returns the updated profile. The hook flips status
+  // from 'onboarding' to 'authenticated' on success.
+  submitCaseOnboarding: (req: SubmitCaseRequest) => Promise<SubmitCaseResponse>;
   dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string, questionText?: string) => Promise<void>;
-  // createVoiceRecord saves the transcript with source="voice". The
-  // returned Record is what the caller needs to either move on or
-  // kick off the audio upload pipeline (record.id is the key for the
-  // draft store + presigned URL).
   createVoiceRecord: (content: string, questionText?: string) => Promise<Record>;
   applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -52,8 +56,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // statusForUser decides whether a signed-in user should be directed to the
 // onboarding funnel or straight to the app. `onboarded_at` is the backend's
-// completion marker — we check that rather than `due_date` because the
-// escape-hatch path intentionally leaves due_date null.
+// completion marker — set once SubmitCase finishes successfully.
 function statusForUser(u: User): AuthStatus {
   return u.onboarded_at ? 'authenticated' : 'onboarding';
 }
@@ -61,7 +64,6 @@ function statusForUser(u: User): AuthStatus {
 function cacheFromUser(u: User) {
   return setCachedOnboarding(
     u.onboarded_at,
-    u.due_date,
     u.voice_coachmark_dismissed_at,
     u.first_record_at,
     u.ai_preview,
@@ -118,12 +120,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(session.user);
   }, []);
 
-  const completeOnboarding = useCallback(async (dueDate: string | null) => {
-    const updated = await patchMe({ due_date: dueDate });
-    setUser(updated);
-    setStatus(statusForUser(updated));
-    await cacheFromUser(updated);
-  }, []);
+  const submitCaseOnboarding = useCallback(
+    async (req: SubmitCaseRequest): Promise<SubmitCaseResponse> => {
+      const resp = await apiSubmitCaseOnboarding(req);
+      setUser(resp.user);
+      setStatus(statusForUser(resp.user));
+      await cacheFromUser(resp.user);
+      return resp;
+    },
+    [],
+  );
 
   // dismissVoiceCoachmark is called when the user taps the close button on
   // the home-screen voice-record coachmark. The backend stamps a timestamp
@@ -193,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
+      submitCaseOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
@@ -204,7 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
+      submitCaseOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
