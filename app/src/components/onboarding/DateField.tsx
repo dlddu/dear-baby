@@ -58,8 +58,15 @@ export function DateField({
   const handle = (event: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS === 'android') {
       setOpen(false);
-      if (event.type === 'set' && selected) {
-        onChange(toISO(selected));
+      // Android RN datetimepicker omits `selected` when the user taps
+      // OK without changing a wheel — the picker's initial value is
+      // the implied selection. Fall back to current state, the
+      // caller-provided fallback, or today so onChange always fires
+      // on confirmation. Without this, b2-next stays disabled and
+      // accessibility hides it from Maestro's hierarchy.
+      if (event.type === 'set') {
+        const picked = selected ?? current ?? fallback ?? new Date();
+        onChange(toISO(picked));
       }
       return;
     }
