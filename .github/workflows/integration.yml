@@ -281,12 +281,12 @@ jobs:
 
       # ─── End-to-end: mock OpenRouter call via the worker ─────────────
       #
-      # Goes all the way through: password-login → PATCH /me to complete
-      # onboarding → record save → AI preview enqueue → worker reads
-      # queue → openrouter-mock chat completion → publishes result →
-      # backend hub processor persists → /me reflects ai_preview. Prints
-      # the generated preview to the job log for visual inspection of
-      # each CI run.
+      # Goes all the way through: password-login → POST /onboarding/case
+      # to complete the case-branching funnel → record save → AI preview
+      # enqueue → worker reads queue → openrouter-mock chat completion →
+      # publishes result → backend hub processor persists → /me reflects
+      # ai_preview. Prints the generated preview to the job log for
+      # visual inspection of each CI run.
       #
       # The test runs as the seeded password account whose credentials
       # come from the auth-secret created above. There is no longer a
@@ -309,16 +309,26 @@ jobs:
           echo "user_id=$user_id"
           echo "::endgroup::"
 
-          echo "::group::complete onboarding"
-          # Stamp onboarded_at so /onboarding/ai-preview proceeds (which
-          # the seeded user does not have by default — the seeder
-          # leaves onboarding state untouched on every boot to mirror a
-          # fresh sign-up).
-          curl -fsS -X PATCH \
+          echo "::group::complete onboarding (case C, single child)"
+          # Submit the simplest valid case-branching payload so onboarded_at
+          # gets stamped (mirrors a real user's funnel completion). Case C
+          # with a single child only requires display_name + gender +
+          # birth_date + ≥1 purpose — no S3 photo upload involved, so the
+          # integration test stays decoupled from MinIO bring-up.
+          curl -fsS -X POST \
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
-            -d '{"due_date":"2026-09-01"}' \
-            http://127.0.0.1:18080/me >/dev/null
+            -d '{
+              "case":"C",
+              "children":[{
+                "kind":"child",
+                "display_name":"integration",
+                "gender":"undecided",
+                "birth_date":"2023-04-12",
+                "purposes":["book_making"]
+              }]
+            }' \
+            http://127.0.0.1:18080/onboarding/case >/dev/null
           echo "::endgroup::"
 
           echo "::group::create record"
