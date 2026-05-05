@@ -1,12 +1,19 @@
 // DateField is a tappable label-over-bordered-input that opens the
 // platform-native date picker. Used on A2/B5 (예정일) and B2/C2
 // (생년월일).
+//
+// On iOS the spinner picker is rendered inside a bottom-anchored Modal
+// rather than inline. The inline pattern collapses inside ScrollView
+// layouts (the spinner pushes its 완료 sibling off-screen, which made
+// Maestro's `visible:` checks miss the testID and skipped the swipe
+// step in CI). The Modal gives the picker + 완료 a stable fixed
+// position so the swipe + dismiss can be driven deterministically.
 
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
@@ -73,28 +80,60 @@ export function DateField({
           {date ? formatKoreanDate(date) : '날짜 선택하기'}
         </Text>
       </Pressable>
-      {open ? (
+
+      {/* Android: lightweight modal dialog. Mounting the component is
+          enough — it opens itself; we tear it down on close. */}
+      {Platform.OS === 'android' && open ? (
         <DateTimePicker
           value={date ?? today}
           mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          display="default"
           minimumDate={min}
           maximumDate={max}
           onChange={handleChange}
           testID={testID ? `${testID}-picker` : undefined}
         />
       ) : null}
-      {Platform.OS === 'ios' && open ? (
-        <Pressable
-          onPress={() => setOpen(false)}
-          style={styles.done}
-          accessibilityRole="button"
-          testID={testID ? `${testID}-done` : undefined}
+
+      {/* iOS: bottom-sheet modal so position is predictable for both
+          users and Maestro. Spinner + 완료 always render at the same
+          coordinates regardless of the parent ScrollView's offset. */}
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={open}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setOpen(false)}
         >
-          <Text variant="h3" color="coral">
-            완료
-          </Text>
-        </Pressable>
+          <Pressable
+            style={styles.backdrop}
+            onPress={() => setOpen(false)}
+            accessibilityRole="button"
+            testID={testID ? `${testID}-backdrop` : undefined}
+          />
+          <View style={styles.sheet}>
+            <Pressable
+              onPress={() => setOpen(false)}
+              accessibilityRole="button"
+              testID={testID ? `${testID}-done` : undefined}
+              style={({ pressed }) => [styles.doneRow, pressed && styles.pressed]}
+            >
+              <Text variant="h3" color="coral">
+                완료
+              </Text>
+            </Pressable>
+            <DateTimePicker
+              value={date ?? today}
+              mode="date"
+              display="spinner"
+              minimumDate={min}
+              maximumDate={max}
+              onChange={handleChange}
+              testID={testID ? `${testID}-picker` : undefined}
+              style={styles.picker}
+            />
+          </View>
+        </Modal>
       ) : null}
     </View>
   );
@@ -112,5 +151,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[3],
   },
   pressed: { opacity: 0.85 },
-  done: { alignSelf: 'center', paddingVertical: spacing[3] },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(61,46,30,0.25)',
+  },
+  sheet: {
+    backgroundColor: colors.surface.ivory,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingBottom: spacing[6],
+  },
+  doneRow: {
+    alignItems: 'flex-end',
+    paddingHorizontal: spacing[5],
+    paddingVertical: spacing[3],
+  },
+  picker: { alignSelf: 'stretch' },
 });
