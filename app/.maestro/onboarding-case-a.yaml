@@ -56,8 +56,11 @@ appId: com.dlddu.dearbaby
     id: "a2-weeks"
 - inputText: "17"
 # Android 의 soft keyboard 가 다음 단계의 due-date 버튼을 덮어
-# tapOn 이 실패한다. 키보드를 내려서 버튼을 노출시킨다.
-- hideKeyboard
+# tapOn 이 실패한다. iOS 의 RN 숫자 패드는 hideKeyboard 표준
+# dismiss 를 노출하지 않으므로 (Maestro 권장 패턴) 화면 상단 좌표를
+# 탭해 양 플랫폼에서 일관되게 키보드를 내린다.
+- tapOn:
+    point: "50%, 10%"
 - tapOn:
     id: "a2-due-date"
 # Android: native modal — confirm 기본 날짜로 닫기.

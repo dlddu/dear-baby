@@ -43,7 +43,8 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "c2-name"
 - inputText: "jiyu"
-- hideKeyboard
+- tapOn:
+    point: "50%, 10%"
 - tapOn:
     id: "c2-gender-female"
 - tapOn:
