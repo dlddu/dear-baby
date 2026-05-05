@@ -65,7 +65,10 @@ export default function CaseCChild() {
   return (
     <CaseAccentTheme case="C">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="case-c-child">
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
           <CaseHeader
             step={2}
             totalSteps={3}

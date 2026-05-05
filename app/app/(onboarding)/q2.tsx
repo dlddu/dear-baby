@@ -70,7 +70,10 @@ export default function OnboardingQ2() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="onboarding-q2">
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
         <ProgressBar current={2} total={3} tone="neutral" />
         <Text variant="caption" color="muted" style={styles.step}>
           2 / 3

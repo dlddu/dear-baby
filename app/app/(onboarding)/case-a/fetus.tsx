@@ -66,7 +66,10 @@ export default function CaseAFetus() {
   return (
     <CaseAccentTheme case="A">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="case-a-fetus">
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
           <CaseHeader
             step={2}
             totalSteps={3}

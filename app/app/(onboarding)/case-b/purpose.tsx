@@ -106,7 +106,10 @@ export default function CaseBPurpose() {
   return (
     <CaseAccentTheme case="B">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="case-b-purpose">
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
           <CaseHeader step={7} totalSteps={7} label="Case B · 마지막" />
           <Text variant="h2" color="primary" style={styles.heading}>
             아이별 기록 목적

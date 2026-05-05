@@ -60,7 +60,10 @@ export default function CaseBCount2() {
   return (
     <CaseAccentTheme case="B">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="case-b-count2">
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
           <CaseHeader step={5} totalSteps={7} label="Case B · 2단계 ①" />
           <Text variant="h2" color="primary" style={styles.heading}>
             임신 중인 아이는{'\n'}몇 명인가요?

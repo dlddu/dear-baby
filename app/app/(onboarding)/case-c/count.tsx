@@ -64,7 +64,10 @@ export default function CaseCCount() {
   return (
     <CaseAccentTheme case="C">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="case-c-count">
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
           <CaseHeader step={1} totalSteps={3} label="Case C · 1/3" />
           <Text variant="h2" color="primary" style={styles.heading}>
             양육 중인 아이가 몇 명인가요?

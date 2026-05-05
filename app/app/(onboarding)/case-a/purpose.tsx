@@ -83,7 +83,10 @@ export default function CaseAPurpose() {
   return (
     <CaseAccentTheme case="A">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="case-a-purpose">
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
           <CaseHeader step={3} totalSteps={3} label="Case A · 3/3" />
           <Text variant="h2" color="primary" style={styles.heading}>
             어떤 목적으로 기록하시나요?

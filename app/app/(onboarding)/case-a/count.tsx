@@ -59,7 +59,10 @@ export default function CaseACount() {
   return (
     <CaseAccentTheme case="A">
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="case-a-count">
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
           <CaseHeader step={1} totalSteps={3} label="Case A · 1/3" />
           <Text variant="h2" color="primary" style={styles.heading}>
             임신 중인 아이는 몇 명인가요?
