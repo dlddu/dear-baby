@@ -19,7 +19,7 @@ appId: com.dlddu.dearbaby
 # placeholder file, the STT returns a canned Korean transcript, and
 # uploadAudio short-circuits to a successful state.
 
-# ─── Sign in fresh and skip due-date so the home is unblocked ────────────
+# ─── Sign in fresh and finish onboarding (Case C) so the home is unblocked ──
 
 - clearKeychain
 - launchApp:
@@ -32,12 +32,8 @@ appId: com.dlddu.dearbaby
 
 - runFlow:
     file: subflows/tester-login.yaml
-- assertVisible:
-    id: "onboarding-welcome"
-- tapOn:
-    id: "onboarding-skip-button"
-- assertVisible:
-    id: "home-tab"
+- runFlow:
+    file: subflows/onboarding-case-c-quick.yaml
 
 # ─── Scenario A: save only — audio stays in the local archive ──────────────
 

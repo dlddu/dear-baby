@@ -18,13 +18,13 @@ import (
 )
 
 // maxContentRunes caps the length of a record. 2000 UTF-8 code points
-// comfortably fits the Stage 2 text-entry screen (multiline, ~a few
-// paragraphs) and STT transcripts of a 60-second voice memo while
-// keeping the payload small on low-end networks.
+// comfortably fits the text-entry screen (multiline, ~a few paragraphs)
+// and STT transcripts of a 60-second voice memo while keeping the
+// payload small on low-end networks.
 const maxContentRunes = 2000
 
 // maxQuestionRunes caps the daily question stored alongside a record.
-// 500 UTF-8 code points is well above the longest Stage 2 prompt and
+// 500 UTF-8 code points is well above the longest daily prompt and
 // comfortably fits any future weekly-matched question text.
 const maxQuestionRunes = 500
 

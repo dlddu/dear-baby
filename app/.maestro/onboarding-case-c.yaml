@@ -1,0 +1,68 @@
+appId: com.dlddu.dearbaby
+---
+# Onboarding Case C — 순수 양육자 (임신 X · 양육 O).
+# 와이어프레임 docs/wireframes/onboarding/case-c.svg 참조.
+# 사진 입력은 (선택) 이므로 건너뛴다.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1 → 아니요, Q2 → 예 → Case C
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "q1-no"
+- tapOn:
+    id: "q1-next"
+- tapOn:
+    id: "q2-yes"
+- tapOn:
+    id: "q2-next"
+
+# C1 양육 아이 수 → 1명
+- assertVisible:
+    id: "onboarding-c1"
+- tapOn:
+    id: "c1-1"
+- tapOn:
+    id: "c1-next"
+
+# C2 양육 아이 정보
+- assertVisible:
+    id: "onboarding-c2"
+- tapOn:
+    id: "c2-name"
+- inputText: "지유"
+- tapOn:
+    id: "c2-gender-female"
+- tapOn:
+    id: "c2-birth"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- tapOn:
+    id: "c2-intro"
+- inputText: "잘 웃는 첫째"
+- tapOn:
+    id: "c2-next"
+
+# C3 기록 목적 → 책 만들기 → 홈으로
+- assertVisible:
+    id: "onboarding-c3"
+- tapOn:
+    id: "c3-book_making"
+- tapOn:
+    id: "c3-submit"
+- assertVisible:
+    id: "home-tab"

@@ -34,8 +34,24 @@ export const colors = {
     ai: '#E0D4C4',
     aiAlt: '#E8DCC8',
   },
+  // 케이스 분기 온보딩 액센트 — docs/wireframes/onboarding.md "케이스
+  // 시각 구분" 표를 그대로 옮긴 값. base 는 진행 바·강조 라인,
+  // soft 는 배지 배경 / 카드 톤, ink 는 case 라벨 텍스트에 쓴다.
+  caseAccent: {
+    a: { base: '#D85A30', soft: '#FBE4DA', ink: '#993C1D' }, // 코랄
+    b: { base: '#EF9F27', soft: '#FAEEDA', ink: '#854F0B' }, // 앰버
+    c: { base: '#378ADD', soft: '#DCEAF8', ink: '#0C447C' }, // 블루
+  },
   // 그림자 기준 색
   shadow: '#3D2E1E',
 } as const;
 
 export type ColorTokens = typeof colors;
+// CaseAccentTokens is intentionally widened to plain strings so the
+// three case palettes (A/B/C) and the neutral fallback all share a
+// single type. `as const` would narrow each entry to its literal hex.
+export type CaseAccentTokens = {
+  base: string;
+  soft: string;
+  ink: string;
+};

@@ -1,5 +1,5 @@
 -- Move all onboarding-related user state into a dedicated `onboarding`
--- table, and extend it with `ai_preview` for the Stage 2 LLM-edited
+-- table, and extend it with `ai_preview` for the LLM-edited
 -- preview. The rename from stage2_coachmark_dismissed_at →
 -- voice_coachmark_dismissed_at drops the "stage" vocabulary from the schema
 -- so names reflect what the column means, not the UX phase it was first

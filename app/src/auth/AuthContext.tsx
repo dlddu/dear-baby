@@ -9,6 +9,11 @@ import React, {
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
 import {
+  submitCaseOnboarding as apiSubmitCaseOnboarding,
+  type CaseSubmission,
+  type CaseSubmissionResponse,
+} from '../api/onboarding';
+import {
   createTextRecord as apiCreateTextRecord,
   createVoiceRecord as apiCreateVoiceRecord,
 } from '../api/records';
@@ -36,13 +41,14 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   setSession: (session: Session) => Promise<void>;
-  completeOnboarding: (dueDate: string | null) => Promise<void>;
+  // submitCaseOnboarding posts the case-branching funnel result and
+  // refreshes local user state. Returns the children rows the server
+  // persisted so the client can route to the right home tab.
+  submitCaseOnboarding: (
+    payload: CaseSubmission,
+  ) => Promise<CaseSubmissionResponse>;
   dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string, questionText?: string) => Promise<void>;
-  // createVoiceRecord saves the transcript with source="voice". The
-  // returned Record is what the caller needs to either move on or
-  // kick off the audio upload pipeline (record.id is the key for the
-  // draft store + presigned URL).
   createVoiceRecord: (content: string, questionText?: string) => Promise<Record>;
   applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -50,10 +56,10 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// statusForUser decides whether a signed-in user should be directed to the
-// onboarding funnel or straight to the app. `onboarded_at` is the backend's
-// completion marker — we check that rather than `due_date` because the
-// escape-hatch path intentionally leaves due_date null.
+// statusForUser decides whether a signed-in user should be directed to
+// the onboarding funnel or straight to the app. `onboarded_at` is the
+// backend's completion marker — checking it (rather than `case_kind`)
+// keeps the rule consistent with the legacy escape-hatch behavior.
 function statusForUser(u: User): AuthStatus {
   return u.onboarded_at ? 'authenticated' : 'onboarding';
 }
@@ -61,7 +67,6 @@ function statusForUser(u: User): AuthStatus {
 function cacheFromUser(u: User) {
   return setCachedOnboarding(
     u.onboarded_at,
-    u.due_date,
     u.voice_coachmark_dismissed_at,
     u.first_record_at,
     u.ai_preview,
@@ -118,12 +123,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(session.user);
   }, []);
 
-  const completeOnboarding = useCallback(async (dueDate: string | null) => {
-    const updated = await patchMe({ due_date: dueDate });
-    setUser(updated);
-    setStatus(statusForUser(updated));
-    await cacheFromUser(updated);
-  }, []);
+  // submitCaseOnboarding posts the funnel result. The endpoint returns
+  // both the merged user profile and the persisted children rows; we
+  // store the user (so AuthGate flips to authenticated) and bubble the
+  // children up so the caller can route to the right home tab.
+  const submitCaseOnboarding = useCallback(
+    async (payload: CaseSubmission) => {
+      const response = await apiSubmitCaseOnboarding(payload);
+      if (response.user) {
+        setUser(response.user);
+        setStatus(statusForUser(response.user));
+        await cacheFromUser(response.user);
+      }
+      return response;
+    },
+    [],
+  );
 
   // dismissVoiceCoachmark is called when the user taps the close button on
   // the home-screen voice-record coachmark. The backend stamps a timestamp
@@ -135,10 +150,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(updated);
   }, []);
 
-  // createTextRecord saves a text entry and refreshes local user state.
-  // Responsibility is strictly storage + user cache update — the home
-  // screen observes `first_record_at` to decide when to request an AI
-  // preview and subscribe to the SSE stream.
   const createTextRecord = useCallback(
     async (content: string, questionText?: string) => {
       const { user: updated } = await apiCreateTextRecord(content, questionText);
@@ -148,10 +159,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  // createVoiceRecord saves the transcript half of a voice record. The
-  // audio upload (or the decision to keep the audio local-only) is
-  // handled by the review screen, which uses the returned record_id
-  // to feed the draft store and/or uploadAudio orchestrator.
   const createVoiceRecord = useCallback(
     async (content: string, questionText?: string) => {
       const { record, user: updated } = await apiCreateVoiceRecord(
@@ -165,9 +172,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  // applyAiPreview is called by the home screen when the SSE stream
-  // delivers a `ready` event. It merges the new preview text into the
-  // current user without hitting /me again.
   const applyAiPreview = useCallback(async (preview: string) => {
     setUser((prev) => {
       if (!prev) return prev;
@@ -193,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
+      submitCaseOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
@@ -204,7 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
+      submitCaseOnboarding,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,

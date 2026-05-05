@@ -52,6 +52,12 @@ const (
 	// recorder's hard cap; it is NOT a billing safeguard — IAM is.
 	MaxAudioBytes int64 = 25 * 1024 * 1024 // 25 MiB
 
+	// MaxChildPhotoBytes caps the onboarding photo upload size. iPhone
+	// HEIC photos run 1–4 MiB; raw JPEG is comparable. 15 MiB leaves
+	// generous headroom for the rare uncompressed PNG without inviting
+	// arbitrary upload abuse.
+	MaxChildPhotoBytes int64 = 15 * 1024 * 1024
+
 	// AudioContentType is the historical default Content-Type the
 	// presigned URL allowed before WAV support was added. Kept as a
 	// backwards-compat alias for AudioFormatM4A.ContentType() — new
@@ -320,6 +326,219 @@ type PresignedPut struct {
 	ExpiresAt   time.Time `json:"expires_at"`
 	ContentType string    `json:"content_type"`
 	MaxBytes    int64     `json:"max_bytes"`
+}
+
+// ImageFormat enumerates the photo container formats accepted by the
+// case-branching onboarding photo flow. Mirrors the AudioFormat
+// pattern: each format pins both the S3 key extension and the HTTP
+// Content-Type used when presigning the PUT — drift would surface as
+// SigV4 SignatureDoesNotMatch failures.
+//
+// iOS shoots HEIC by default; we accept it as-is rather than forcing
+// the device to transcode (which is slow + lossy on phones). Android
+// devices typically share JPEG, with PNG as the third common case for
+// screenshot pickers.
+type ImageFormat string
+
+const (
+	ImageFormatJPEG ImageFormat = "jpeg"
+	ImageFormatPNG  ImageFormat = "png"
+	ImageFormatHEIC ImageFormat = "heic"
+)
+
+// ParseImageFormat normalises a wire-form value (the JSON `format`
+// field on POST /onboarding/children/photo/upload-url). Unlike audio,
+// there is no historical default — clients must send a recognised
+// format explicitly, and unrecognised values are rejected.
+func ParseImageFormat(s string) (ImageFormat, bool) {
+	switch s {
+	case string(ImageFormatJPEG), "jpg":
+		return ImageFormatJPEG, true
+	case string(ImageFormatPNG):
+		return ImageFormatPNG, true
+	case string(ImageFormatHEIC), "heif":
+		return ImageFormatHEIC, true
+	}
+	return "", false
+}
+
+// Extension returns the leading-dot extension for the format. Used as
+// the S3 key suffix.
+func (f ImageFormat) Extension() string {
+	switch f {
+	case ImageFormatPNG:
+		return ".png"
+	case ImageFormatHEIC:
+		return ".heic"
+	default:
+		return ".jpg"
+	}
+}
+
+// ContentType returns the HTTP Content-Type the presigned URL will
+// accept for this format. Must match exactly what the client sends or
+// S3 returns SignatureDoesNotMatch.
+func (f ImageFormat) ContentType() string {
+	switch f {
+	case ImageFormatPNG:
+		return "image/png"
+	case ImageFormatHEIC:
+		return "image/heic"
+	default:
+		return "image/jpeg"
+	}
+}
+
+// ImageFormatFromExtension recovers the format from a key tail. Used
+// when the server reads back a stored photo_s3_key (e.g., to delete it
+// during reset). Unknown extensions fall back to JPEG since that is
+// the safest default — the worst-case is a wrong Content-Type on a
+// download URL.
+func ImageFormatFromExtension(key string) ImageFormat {
+	switch {
+	case strings.HasSuffix(strings.ToLower(key), ".png"):
+		return ImageFormatPNG
+	case strings.HasSuffix(strings.ToLower(key), ".heic"):
+		return ImageFormatHEIC
+	default:
+		return ImageFormatJPEG
+	}
+}
+
+// BuildChildPhotoTmpKey returns the canonical S3 key for a photo the
+// user has picked but not yet committed via POST /onboarding/case. The
+// uuid is supplied by the caller (the upload-url handler generates it
+// per request). Keeping tmp uploads in their own prefix makes
+// reset-onboarding's prefix-delete cleanup trivial.
+//
+//	{prefix}users/{user_id}/onboarding-tmp/{uuid}{.ext}
+func (c *Client) BuildChildPhotoTmpKey(userID, uuid string, format ImageFormat) string {
+	return fmt.Sprintf("%susers/%s/onboarding-tmp/%s%s",
+		c.Config.KeyPrefix, userID, uuid, format.Extension())
+}
+
+// BuildChildPhotoKey returns the canonical permanent key for a child's
+// photo. Built once during the case-onboarding submission, after the
+// child id has been generated. Renamed (copy + delete) from the tmp
+// key, never written to directly by the device.
+//
+//	{prefix}users/{user_id}/children/{child_id}/photo{.ext}
+func (c *Client) BuildChildPhotoKey(userID, childID string, format ImageFormat) string {
+	return fmt.Sprintf("%susers/%s/children/%s/photo%s",
+		c.Config.KeyPrefix, userID, childID, format.Extension())
+}
+
+// IsValidChildPhotoTmpKey returns true when key matches the canonical
+// onboarding-tmp prefix for the given user in any supported image
+// format. POST /onboarding/case uses this to reject keys that point
+// outside the calling user's namespace — the client received the key
+// from the upload-url handler, but a malicious client could still hand
+// us a forged value.
+func (c *Client) IsValidChildPhotoTmpKey(userID, key string) bool {
+	if key == "" {
+		return false
+	}
+	prefix := fmt.Sprintf("%susers/%s/onboarding-tmp/", c.Config.KeyPrefix, userID)
+	if !strings.HasPrefix(key, prefix) {
+		return false
+	}
+	tail := strings.ToLower(key[len(prefix):])
+	if strings.Contains(tail, "/") {
+		return false
+	}
+	return strings.HasSuffix(tail, ".jpg") ||
+		strings.HasSuffix(tail, ".jpeg") ||
+		strings.HasSuffix(tail, ".png") ||
+		strings.HasSuffix(tail, ".heic")
+}
+
+// PresignImagePut issues a presigned PUT URL for an image upload, locked
+// to the supplied format's Content-Type. Mirrors PresignPut for audio
+// but caps the size at MaxChildPhotoBytes.
+func (c *Client) PresignImagePut(ctx context.Context, key string, format ImageFormat) (PresignedPut, error) {
+	contentType := format.ContentType()
+	req, err := c.Presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(c.Config.Bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+	}, func(o *s3.PresignOptions) {
+		o.Expires = DefaultPresignTTL
+	})
+	if err != nil {
+		return PresignedPut{}, fmt.Errorf("presign image put: %w", err)
+	}
+	if _, perr := url.Parse(req.URL); perr != nil {
+		return PresignedPut{}, fmt.Errorf("presigned url malformed: %w", perr)
+	}
+	return PresignedPut{
+		URL:         req.URL,
+		Method:      req.Method,
+		ExpiresAt:   time.Now().UTC().Add(DefaultPresignTTL),
+		ContentType: contentType,
+		MaxBytes:    MaxChildPhotoBytes,
+	}, nil
+}
+
+// CopyObject performs a server-side copy under the same bucket. Used
+// to rename(copy + delete) an onboarding-tmp photo to its permanent
+// children/{child_id} location once the user submits the funnel.
+func (c *Client) CopyObject(ctx context.Context, srcKey, dstKey string) error {
+	// CopySource expects "bucket/key" (URL-encoded). The SDK does not
+	// quote it for us.
+	src := url.PathEscape(c.Config.Bucket + "/" + srcKey)
+	// PathEscape also encodes '/', which CopySource needs preserved.
+	src = strings.ReplaceAll(src, "%2F", "/")
+	if _, err := c.S3.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(c.Config.Bucket),
+		Key:        aws.String(dstKey),
+		CopySource: aws.String(src),
+	}); err != nil {
+		return fmt.Errorf("copy object: %w", err)
+	}
+	return nil
+}
+
+// DeleteObject removes a single object. Best-effort — callers log on
+// failure but typically do not block the user, since the worst case is
+// a stale tmp object that reset-onboarding's prefix sweep will clear.
+func (c *Client) DeleteObject(ctx context.Context, key string) error {
+	if _, err := c.S3.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(c.Config.Bucket),
+		Key:    aws.String(key),
+	}); err != nil {
+		return fmt.Errorf("delete object: %w", err)
+	}
+	return nil
+}
+
+// DeletePrefix lists all objects under the given prefix and deletes
+// them. Used by reset-onboarding to wipe the per-user
+// onboarding-tmp/ + children/ folders before re-running the funnel.
+// Paginates internally so tests + scripts don't have to.
+func (c *Client) DeletePrefix(ctx context.Context, prefix string) error {
+	var continuationToken *string
+	for {
+		out, err := c.S3.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(c.Config.Bucket),
+			Prefix:            aws.String(prefix),
+			ContinuationToken: continuationToken,
+		})
+		if err != nil {
+			return fmt.Errorf("list prefix: %w", err)
+		}
+		for _, obj := range out.Contents {
+			if obj.Key == nil {
+				continue
+			}
+			if err := c.DeleteObject(ctx, *obj.Key); err != nil {
+				return err
+			}
+		}
+		if out.IsTruncated == nil || !*out.IsTruncated {
+			return nil
+		}
+		continuationToken = out.NextContinuationToken
+	}
 }
 
 // HeadObject returns true when the key exists. Used by PATCH /records to

@@ -1,0 +1,111 @@
+appId: com.dlddu.dearbaby
+---
+# Onboarding Case B — 양육 + 임신 (임신 O · 양육 O), 핵심 추가 케이스.
+# 와이어프레임 docs/wireframes/onboarding/case-b.svg 참조.
+# 사진 입력은 (선택) 이라 시뮬레이터에서 건너뛴다 — Maestro 가
+# 시스템 이미지 픽커를 안정적으로 다루지 못하기 때문.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1 + Q2 → Case B
+- tapOn:
+    id: "q1-yes"
+- tapOn:
+    id: "q1-next"
+- tapOn:
+    id: "q2-yes"
+- tapOn:
+    id: "q2-next"
+
+# B0 1단계 안내
+- assertVisible:
+    id: "onboarding-b0"
+- tapOn:
+    id: "b0-next"
+
+# B1 양육 1명
+- assertVisible:
+    id: "onboarding-b1"
+- tapOn:
+    id: "b1-1"
+- tapOn:
+    id: "b1-next"
+
+# B2 양육 아이 정보
+- assertVisible:
+    id: "onboarding-b2"
+- tapOn:
+    id: "b2-name"
+- inputText: "지유"
+- tapOn:
+    id: "b2-gender-female"
+- tapOn:
+    id: "b2-birth"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- tapOn:
+    id: "b2-next"
+
+# B3 2단계 안내
+- assertVisible:
+    id: "onboarding-b3"
+- tapOn:
+    id: "b3-next"
+
+# B4 임신 1명 (단태)
+- assertVisible:
+    id: "onboarding-b4"
+- tapOn:
+    id: "b4-single"
+- tapOn:
+    id: "b4-next"
+
+# B5 태아 정보
+- assertVisible:
+    id: "onboarding-b5"
+- tapOn:
+    id: "b5-name"
+- inputText: "튼튼이"
+- tapOn:
+    id: "b5-gender-undecided"
+- tapOn:
+    id: "b5-weeks"
+- inputText: "20"
+- tapOn:
+    id: "b5-due-date"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- tapOn:
+    id: "b5-next"
+
+# B6 아이별 기록 목적 — 첫째 / 태아 각각 최소 1개씩 선택
+- assertVisible:
+    id: "onboarding-b6"
+- tapOn:
+    id: "b6-tab-0"
+- tapOn:
+    id: "b6-book_making"
+- tapOn:
+    id: "b6-tab-1"
+- tapOn:
+    id: "b6-emotion_diary"
+- tapOn:
+    id: "b6-submit"
+- assertVisible:
+    id: "home-tab"

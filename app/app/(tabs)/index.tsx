@@ -56,10 +56,11 @@ export default function HomeTab() {
 
   const prevFirstRecordAtRef = useRef<string | null>(null);
 
-  const pregnancy = useMemo(
-    () => calcPregnancy(user?.due_date ?? null),
-    [user?.due_date],
-  );
+  // Pregnancy progress now lives on the active child (AC-006-08+), not
+  // on the user. Until that lands the home screen renders without a
+  // due-date badge — passing null preserves the existing component
+  // contract while the home/active-child wiring is built out.
+  const pregnancy = useMemo(() => calcPregnancy(null), []);
   const question = useMemo(() => pickDailyQuestion(), []);
 
   const showCoachmark =

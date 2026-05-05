@@ -1,0 +1,75 @@
+appId: com.dlddu.dearbaby
+---
+# Onboarding Case A — 첫 아이 임신 중 (임신 O · 양육 X).
+# 와이어프레임 docs/wireframes/onboarding/case-a.svg 참조.
+# CI 는 시나리오 시작 전 backend/reset-onboarding $TEST_USER_EMAIL 로
+# 시드 사용자의 온보딩 상태를 비워야 한다.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1 임신 여부 → 예
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "q1-yes"
+- tapOn:
+    id: "q1-next"
+
+# Q2 양육 여부 → 아니요  → Case A 진입
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "q2-no"
+- tapOn:
+    id: "q2-next"
+
+# A1 단태 선택
+- assertVisible:
+    id: "onboarding-a1"
+- tapOn:
+    id: "a1-single"
+- tapOn:
+    id: "a1-next"
+
+# A2 태아 정보 — 태명·성별·임신주차·예정일
+- assertVisible:
+    id: "onboarding-a2"
+- tapOn:
+    id: "a2-name"
+- inputText: "튼튼이"
+- tapOn:
+    id: "a2-gender-undecided"
+- tapOn:
+    id: "a2-weeks"
+- inputText: "17"
+- tapOn:
+    id: "a2-due-date"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- tapOn:
+    id: "a2-next"
+
+# A3 기록 목적 → 책 만들기 + 가족과 공유 → 홈으로
+- assertVisible:
+    id: "onboarding-a3"
+- tapOn:
+    id: "a3-book_making"
+- tapOn:
+    id: "a3-family_share"
+- tapOn:
+    id: "a3-submit"
+- assertVisible:
+    id: "home-tab"

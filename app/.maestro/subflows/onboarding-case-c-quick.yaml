@@ -1,0 +1,57 @@
+appId: com.dlddu.dearbaby
+---
+# Quick Case C path: 1명 양육, 단순 정보로 통과해 홈에 도달.
+# stage2-* 시나리오에서 홈 화면 검증 직전 사전 조건으로 사용한다.
+# 사진은 (선택) 입력이라 건너뛴다.
+
+# Q1 임신 여부 → 아니요
+- assertVisible:
+    id: "onboarding-q1"
+- tapOn:
+    id: "q1-no"
+- tapOn:
+    id: "q1-next"
+
+# Q2 양육 여부 → 예
+- assertVisible:
+    id: "onboarding-q2"
+- tapOn:
+    id: "q2-yes"
+- tapOn:
+    id: "q2-next"
+
+# C1 양육 아이 수 → 1명
+- assertVisible:
+    id: "onboarding-c1"
+- tapOn:
+    id: "c1-1"
+- tapOn:
+    id: "c1-next"
+
+# C2 양육 아이 정보 — 이름, 성별, 생년월일.
+- assertVisible:
+    id: "onboarding-c2"
+- tapOn:
+    id: "c2-name"
+- inputText: "지유"
+- tapOn:
+    id: "c2-gender-female"
+- tapOn:
+    id: "c2-birth"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- tapOn:
+    id: "c2-next"
+
+# C3 기록 목적 → 책 만들기 → 홈으로
+- assertVisible:
+    id: "onboarding-c3"
+- tapOn:
+    id: "c3-book_making"
+- tapOn:
+    id: "c3-submit"
+- assertVisible:
+    id: "home-tab"

@@ -73,6 +73,31 @@
 - Border Radius: 8px
 - Font: 12px/600
 
+## 케이스 분기 온보딩 컴포넌트 (PRD-006)
+
+`docs/wireframes/onboarding.md` 의 화면 사양을 코드로 옮기기 위한 케이스 분기 온보딩 전용 컴포넌트군. 모두 `app/src/components/onboarding/` 에 위치하며, 케이스 액센트 토큰(colors.caseAccent.a|b|c)을 자동으로 적용한다.
+
+| 컴포넌트 | 역할 |
+|---|---|
+| `<OnboardingScreen>` | 화면 골격(상단 ProgressBar/RepeatBadge + 본문 + 하단 CTA). 모든 온보딩 화면이 이 골격을 채운다. |
+| `<CaseAccentProvider>` / `useCaseAccent()` | 케이스(A/B/C) 액센트 컬러를 자식에게 주입. Q1·Q2(케이스 결정 전)는 그레이로 폴백. |
+| `<ProgressBar>` | 와이어프레임 상단 진행률 바 + "Case X · n/N" 텍스트. |
+| `<RepeatBadge>` | 우상단 "반복 n/N" 배지. B2·B5·C2 반복 입력 화면 전용. |
+| `<StepIndicator>` | Case B 의 ① → ② 두-단계 인디케이터. B0/B3 안내 화면 전용. |
+| `<SelectCard>` | 옵션 단일/복수 선택 카드. A1, B1, C1, A3, B6, C3 등에서 사용. |
+| `<Checkbox>` | 다중 선택 옵션 좌측 체크박스. SelectCard 의 `leading` 으로 결합. |
+| `<GenderPicker>` | 성별 선택 pill (남아·여아·미정). |
+| `<TextField>` | 단일/멀티라인 텍스트 입력 (이름·태명·임신주차·한줄 소개). |
+| `<DateField>` | iOS spinner / Android modal 데이트픽커. 예정일·생년월일. |
+| `<PhotoPicker>` | 양육 아이 사진 입력. expo-image-picker → 로컬 URI → S3 업로드 → photo_tmp_key. (선택). |
+
+원칙:
+
+- 화면 사양(문구·순서·필드 구성)은 `wireframes/onboarding.md` 가 정답이다. 컴포넌트는 그 사양을 시각화하는 도구일 뿐이다.
+- 색은 `colors.caseAccent.a|b|c` 만 사용한다. 임의로 hex 박지 않는다.
+- 라운드는 카드 `radius.md`, 칩/버튼 `radius.full`, 옵션 카드 `radius.sm` 으로 통일.
+- 그림자는 사용하지 않는다(와이어프레임 톤 유지). FAB·플로팅 요소가 아닌 한 그림자 없이 1px 테두리로 구분한다.
+
 ## Icon Style
 
 아이콘은 **원형 배경 + 중앙 아이콘** 패턴을 사용합니다. 배경색으로 카테고리를 구분합니다.

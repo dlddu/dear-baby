@@ -34,12 +34,32 @@ CREATE TABLE oauth_accounts (
 );
 CREATE TABLE onboarding (
   user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  due_date                     TEXT,
+  case_kind                    TEXT,
   onboarded_at                 TEXT,
   voice_coachmark_dismissed_at TEXT,
   first_record_at              TEXT,
   ai_preview                   TEXT,
   updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE children (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind            TEXT NOT NULL,
+  display_name    TEXT,
+  gender          TEXT NOT NULL,
+  introduction    TEXT,
+  photo_s3_key    TEXT,
+  birth_date      TEXT,
+  pregnancy_weeks INTEGER,
+  due_date        TEXT,
+  sort_order      INTEGER NOT NULL DEFAULT 0,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE child_record_purposes (
+  child_id  TEXT NOT NULL REFERENCES children(id) ON DELETE CASCADE,
+  purpose   TEXT NOT NULL,
+  PRIMARY KEY (child_id, purpose)
 );
 CREATE TABLE records (
   id         TEXT PRIMARY KEY,
@@ -108,7 +128,7 @@ func TestGetProfile_MergesOnboardingFields(t *testing.T) {
 	seedUser(t, db, "u1", "a@b.com")
 
 	if _, err := db.Exec(`
-		UPDATE onboarding SET due_date = '2025-09-15', onboarded_at = datetime('now')
+		UPDATE onboarding SET case_kind = 'A', onboarded_at = datetime('now')
 		WHERE user_id = 'u1'
 	`); err != nil {
 		t.Fatalf("stamp onboarding: %v", err)
@@ -119,8 +139,8 @@ func TestGetProfile_MergesOnboardingFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get profile: %v", err)
 	}
-	if p.DueDate == nil || *p.DueDate != "2025-09-15" {
-		t.Errorf("due_date: got %v", p.DueDate)
+	if p.CaseKind == nil || *p.CaseKind != "A" {
+		t.Errorf("case_kind: got %v", p.CaseKind)
 	}
 	if p.OnboardedAt == nil {
 		t.Error("onboarded_at should be set")
@@ -139,7 +159,7 @@ func TestGetProfile_NilOnboardingFieldsWhenRowMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get profile: %v", err)
 	}
-	if p.DueDate != nil || p.OnboardedAt != nil || p.VoiceCoachmarkDismissedAt != nil || p.FirstRecordAt != nil || p.AIPreview != nil {
+	if p.CaseKind != nil || p.OnboardedAt != nil || p.VoiceCoachmarkDismissedAt != nil || p.FirstRecordAt != nil || p.AIPreview != nil {
 		t.Errorf("missing onboarding row should give all-nil onboarding fields: got %+v", p)
 	}
 }

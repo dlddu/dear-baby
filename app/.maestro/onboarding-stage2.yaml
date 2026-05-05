@@ -1,17 +1,14 @@
 appId: com.dlddu.dearbaby
 ---
-# Onboarding Stage 2 – with-due-date path.
+# Home (post-onboarding) — voice-record coachmark + question card + dual
+# CTAs + blurred AI preview, plus first-record → AI-preview happy path.
 #
-# Verifies the home-screen voice-record coachmark + question card +
-# dual CTAs + blurred AI preview shown to users who just completed
-# Stage 1 with a due date. Combines what was previously Path 1
-# (set due date → verify Stage 2 + coachmark dismissal) and Path 3
-# (voice CTA navigation, text CTA save → AI preview) of the legacy
-# multi-path flow — both paths consume the same onboarded-with-date
-# state, so they stay together.
+# Onboarding 자체는 onboarding-case-{a,b,c}.yaml 가 검증한다. 이 시나리오는
+# 이미 완료된 사용자의 홈 동작을 본다. 가장 단순한 Case C(양육 1명) 경로로
+# 통과해 홈 진입을 보장한 뒤 AI preview 까지 확인한다.
 #
 # CI must reset the seeded test user's onboarding state before running
-# this flow; the undecided path lives in onboarding-stage2-undecided.yaml.
+# this flow.
 
 - clearKeychain
 - launchApp:
@@ -25,43 +22,15 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/tester-login.yaml
 
-- assertVisible:
-    id: "onboarding-welcome"
-
-- tapOn:
-    id: "onboarding-due-date-field"
-
-# Android: native date-picker dialog — confirm the default date.
+# Onboarding 통과 → 홈 진입.
 - runFlow:
-    when:
-      visible: "OK"
-    commands:
-      - tapOn: "OK"
+    file: subflows/onboarding-case-c-quick.yaml
 
-# iOS: inline spinner — scroll wheel + Done, same pattern as stage1.
-- runFlow:
-    when:
-      visible:
-        id: "onboarding-date-picker-done"
-    commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
-      - tapOn:
-          id: "onboarding-date-picker-done"
-
-- tapOn:
-    id: "onboarding-start-button"
-- assertVisible:
-    id: "home-tab"
-
-# Stage 2 UI
+# Stage 2 UI (홈 화면 일반 검증). week-badge 는 active child 컨텍스트에서
+# 임신 정보가 있을 때만 노출되므로 Case C 경로에서는 단언하지 않는다.
 - assertVisible:
     id: "stage2-question-card"
 - assertVisible: "첫 기록이 가장 소중해요 🌱"
-- assertVisible:
-    id: "stage2-week-badge"
 - assertVisible:
     id: "stage2-coachmark"
 - assertVisible: "🎙 말하기만 해도 기록이 돼요!"

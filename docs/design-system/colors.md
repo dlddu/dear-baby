@@ -33,6 +33,18 @@
 | **Warm Gray** | `#8C7B6B` | 보조 텍스트, 캡션 |
 | **Light Gray-Brown** | `#B5A898` | 플레이스홀더, 비활성 탭 |
 
+### Case Accent (PRD-006 케이스 분기 온보딩)
+
+각 케이스는 진행 바·배지·라벨에서 자기 색을 들어 사용자가 자기 흐름을 인지하게 한다. base / soft / ink 3단계로 구성된다.
+
+| 케이스 | Base | Soft (배경) | Ink (라벨) |
+|---|---|---|---|
+| **Case A** 코랄 | `#D85A30` | `#FBE4DA` | `#993C1D` |
+| **Case B** 앰버 | `#EF9F27` | `#FAEEDA` | `#854F0B` |
+| **Case C** 블루 | `#378ADD` | `#DCEAF8` | `#0C447C` |
+
+코드에서는 `colors.caseAccent.a|b|c.base|soft|ink` 로 접근한다. 케이스 결정 전(공통 진입 Q1·Q2)에는 그레이(`text.muted`)를 사용한다. 출처: `docs/wireframes/onboarding.md` "케이스 시각 구분" 표.
+
 ## Gradient
 
 | 이름 | 값 | 용도 |
