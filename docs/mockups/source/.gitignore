@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+.parcel-cache/
+.cache/
+
+# bundle (이 디렉토리에서 빌드되면 ../index.html 로 복사하는 것이 컨벤션)
+bundle.html
+
+# environment
+.env
+.env.local
+.DS_Store
+
+# editor
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,45 @@
+/* Google Fonts (artifact sandbox 에서도 안전하게 로드되는 Google CDN 만 사용) */
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Noto+Serif+KR:wght@400;500;700&family=Nanum+Pen+Script&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 50% 96%;
+    --foreground: 28 35% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 28 35% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 28 35% 18%;
+    --primary: 14 53% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 35 41% 89%;
+    --secondary-foreground: 28 35% 18%;
+    --muted: 35 41% 89%;
+    --muted-foreground: 28 14% 48%;
+    --accent: 22 78% 81%;
+    --accent-foreground: 28 35% 18%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 35 41% 84%;
+    --input: 35 41% 84%;
+    --ring: 14 53% 62%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-[#E8DFD3] text-ink font-sans antialiased;
+    font-feature-settings: "ss01", "tnum";
+  }
+}
+
+/* Hide native scrollbars inside phone frame for a clean mockup look */
+.phone-screen::-webkit-scrollbar { width: 0; height: 0; }
+.phone-screen { scrollbar-width: none; }
