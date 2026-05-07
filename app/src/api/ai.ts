@@ -43,7 +43,7 @@ export function openAiPreviewStream(
       onError(new Error('no access token'));
       return;
     }
-    const url = `${API_URL}/onboarding/ai-preview/events`;
+    const url = `${API_URL}/v1/onboarding/ai-preview/events`;
     source = new EventSource<AiCustomEventType>(url, {
       headers: {
         Authorization: `Bearer ${token}`,

@@ -34,6 +34,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	r.Use(httpx.Recoverer(logger))
 	r.Use(httpx.Logger(logger))
 	r.Use(httpx.CORS())
+	r.Use(httpx.APIVersionResponse())
 
 	usersStore := &users.Store{DB: db}
 	onboardingStore := &onboarding.Store{DB: db}
@@ -102,32 +103,10 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 
 	// Health endpoint — response shape must stay byte-equivalent to the
 	// pre-scaffold backend/main.go so the existing Maestro E2E flow and the
-	// CI curl smoke test keep working.
+	// CI curl smoke test keep working. Health is intentionally kept
+	// unversioned: k8s liveness/readiness probes and the landing-screen
+	// smoke check should keep working unchanged across API version bumps.
 	r.Get("/health", httpx.Health)
-
-	r.Post("/auth/google", authHandlers.Google)
-	r.Post("/auth/apple", authHandlers.Apple)
-	r.Post("/auth/refresh", authHandlers.Refresh)
-	r.Post("/auth/logout", authHandlers.Logout)
-	// Password sign-in backs the seeded test account that Apple beta
-	// reviewers and the Maestro E2E flow use to enter the app. The
-	// route is mounted unconditionally and runs in production too —
-	// the gate is the seeded password (only known to the App Store
-	// reviewer and CI), plus the secret tap pattern that gates the
-	// modal in the client.
-	r.Post("/auth/password-login", authHandlers.PasswordLogin)
-
-	r.Group(func(pr chi.Router) {
-		pr.Use(auth.RequireAuth(issuer))
-		pr.Get("/me", usersHandlers.Me)
-		pr.Patch("/me", usersHandlers.PatchMe)
-		pr.Post("/records", recordsHandlers.Create)
-		// Audio attachment routes are only meaningful when S3 is
-		// wired, but mounting them unconditionally keeps the URL
-		// surface predictable — handlers return 503 if Audio is nil.
-		pr.Post("/records/{id}/audio/upload-url", recordsHandlers.CreateAudioUploadURL)
-		pr.Patch("/records/{id}", recordsHandlers.Patch)
-	})
 
 	tasksClient := &tasks.Client{Redis: redisClient}
 	onbHandlers := &onboarding.Handlers{
@@ -137,16 +116,47 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 		UserIDFromCtxFn: auth.UserIDFromRequest,
 	}
 
-	// Authenticated onboarding routes. The SSE route permits query
-	// token fallback because some RN EventSource shims cannot set
-	// headers reliably.
-	r.Group(func(pr chi.Router) {
-		pr.Use(auth.RequireAuth(issuer))
-		pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
-	})
-	r.Group(func(pr chi.Router) {
-		pr.Use(auth.RequireAuthWithQueryFallback(issuer))
-		pr.Get("/onboarding/ai-preview/events", onbHandlers.AIPreviewEvents)
+	// All product API routes live under /v1. Bumping the version is a
+	// single edit (httpx.APIVersionPrefix) plus a new chi.Route block;
+	// the v1 surface stays parallel-mountable next to /v2 when the time
+	// comes, and clients pin themselves via apiFetch's base path.
+	r.Route(httpx.APIVersionPrefix, func(v chi.Router) {
+		v.Post("/auth/google", authHandlers.Google)
+		v.Post("/auth/apple", authHandlers.Apple)
+		v.Post("/auth/refresh", authHandlers.Refresh)
+		v.Post("/auth/logout", authHandlers.Logout)
+		// Password sign-in backs the seeded test account that Apple
+		// beta reviewers and the Maestro E2E flow use to enter the
+		// app. The route is mounted unconditionally and runs in
+		// production too — the gate is the seeded password (only
+		// known to the App Store reviewer and CI), plus the secret
+		// tap pattern that gates the modal in the client.
+		v.Post("/auth/password-login", authHandlers.PasswordLogin)
+
+		v.Group(func(pr chi.Router) {
+			pr.Use(auth.RequireAuth(issuer))
+			pr.Get("/me", usersHandlers.Me)
+			pr.Patch("/me", usersHandlers.PatchMe)
+			pr.Post("/records", recordsHandlers.Create)
+			// Audio attachment routes are only meaningful when S3
+			// is wired, but mounting them unconditionally keeps
+			// the URL surface predictable — handlers return 503
+			// if Audio is nil.
+			pr.Post("/records/{id}/audio/upload-url", recordsHandlers.CreateAudioUploadURL)
+			pr.Patch("/records/{id}", recordsHandlers.Patch)
+		})
+
+		// Authenticated onboarding routes. The SSE route permits
+		// query token fallback because some RN EventSource shims
+		// cannot set headers reliably.
+		v.Group(func(pr chi.Router) {
+			pr.Use(auth.RequireAuth(issuer))
+			pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
+		})
+		v.Group(func(pr chi.Router) {
+			pr.Use(auth.RequireAuthWithQueryFallback(issuer))
+			pr.Get("/onboarding/ai-preview/events", onbHandlers.AIPreviewEvents)
+		})
 	})
 
 	return r, nil
