@@ -86,8 +86,11 @@ platform :ios do
     )
   end
 
-  desc "Print the next TestFlight buildNumber for CI to capture (latest+1)"
+  desc "Write the next TestFlight buildNumber (latest+1) to BUILD_NUMBER_FILE"
   lane :next_build_number do
+    output_path = ENV["BUILD_NUMBER_FILE"]
+    UI.user_error!("BUILD_NUMBER_FILE env not set") if output_path.to_s.empty?
+
     api_key = load_app_store_connect_api_key
     latest = latest_testflight_build_number(
       api_key: api_key,
@@ -96,9 +99,9 @@ platform :ios do
     )
     next_bn = latest.to_i + 1
     UI.success("Next TestFlight build number: #{next_bn}")
-    # Distinctive prefix the workflow greps for; avoids matching any
-    # other line Fastlane emits.
-    puts "DEAR_BABY_NEXT_BUILD_NUMBER=#{next_bn}"
+    # Write to a file rather than stdout — fastlane prefixes everything
+    # printed during a lane run, which makes grep-based capture brittle.
+    File.write(output_path, next_bn.to_s)
   end
 
   after_all do |lane|

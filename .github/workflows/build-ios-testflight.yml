@@ -79,12 +79,14 @@ jobs:
       # latest from App Store Connect and add one.
       - name: Compute next TestFlight build number
         id: build_number
+        env:
+          BUILD_NUMBER_FILE: ${{ runner.temp }}/next_build_number.txt
         run: |
           set -euo pipefail
-          bundle exec fastlane next_build_number | tee /tmp/next_bn.log
-          bn=$(grep -oE '^DEAR_BABY_NEXT_BUILD_NUMBER=[0-9]+' /tmp/next_bn.log | tail -1 | cut -d= -f2)
+          bundle exec fastlane next_build_number
+          bn=$(cat "$BUILD_NUMBER_FILE")
           if [ -z "$bn" ]; then
-            echo "::error::failed to parse next build number from fastlane output"
+            echo "::error::next_build_number lane produced empty file"
             exit 1
           fi
           echo "value=$bn" >> "$GITHUB_OUTPUT"
