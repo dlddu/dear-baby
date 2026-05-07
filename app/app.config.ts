@@ -2,12 +2,11 @@ import type { ExpoConfig, ConfigContext } from "expo/config";
 
 // Extends the static config in `app.json` with dynamic fields that have to
 // be resolved at prebuild time — currently just `ios.buildNumber`, which
-// must be monotonically increasing across TestFlight uploads. In CI we
-// bake the workflow run number directly into `Info.plist` via `expo
-// prebuild`; the previous setup relied on an Xcode macro
-// (`$(CURRENT_PROJECT_VERSION)`) that was hand-edited into the committed
-// Info.plist, which doesn't survive when we regenerate the iOS project
-// from scratch.
+// must be monotonically increasing across TestFlight uploads. CI computes
+// the next number from App Store Connect (latest TestFlight build + 1)
+// and exports it as `IOS_BUILD_NUMBER` before this prebuild runs;
+// `GITHUB_RUN_NUMBER` is kept as a fallback for legacy local invocations
+// only.
 //
 // Static iOS values (appleTeamId, usesAppleSignIn, etc.) live in app.json
 // so the Fastfile can parse them too — keep this file for things that
@@ -20,6 +19,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: config.slug ?? "dear-baby",
   ios: {
     ...config.ios,
-    buildNumber: process.env.GITHUB_RUN_NUMBER ?? "1",
+    buildNumber:
+      process.env.IOS_BUILD_NUMBER ?? process.env.GITHUB_RUN_NUMBER ?? "1",
   },
 });

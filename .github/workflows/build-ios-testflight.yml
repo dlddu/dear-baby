@@ -36,7 +36,7 @@ jobs:
       run:
         working-directory: app
     outputs:
-      build-number: ${{ github.run_number }}
+      build-number: ${{ steps.build_number.outputs.value }}
     env:
       EXPO_PUBLIC_API_URL: ${{ inputs.expo-public-api-url }}
       EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
@@ -71,6 +71,26 @@ jobs:
 
       - name: Generate one-shot keychain password
         run: echo "MATCH_KEYCHAIN_PASSWORD=$(uuidgen)" >> "$GITHUB_ENV"
+
+      # TestFlight requires a globally monotonic CFBundleVersion across
+      # the app, so we can't rely on per-workflow `github.run_number` —
+      # ci.yml's deploy-testflight and submit-testflight-beta have
+      # independent counters and would collide. Query the current
+      # latest from App Store Connect and add one.
+      - name: Compute next TestFlight build number
+        id: build_number
+        run: |
+          set -euo pipefail
+          bundle exec fastlane next_build_number | tee /tmp/next_bn.log
+          bn=$(grep -oE '^DEAR_BABY_NEXT_BUILD_NUMBER=[0-9]+' /tmp/next_bn.log | tail -1 | cut -d= -f2)
+          if [ -z "$bn" ]; then
+            echo "::error::failed to parse next build number from fastlane output"
+            exit 1
+          fi
+          echo "value=$bn" >> "$GITHUB_OUTPUT"
+          # Picked up by app.config.ts during expo prebuild and stamped
+          # into Info.plist's CFBundleVersion.
+          echo "IOS_BUILD_NUMBER=$bn" >> "$GITHUB_ENV"
 
       - name: Expo prebuild (iOS)
         run: npx expo prebuild --platform ios --clean

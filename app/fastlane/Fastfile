@@ -86,6 +86,21 @@ platform :ios do
     )
   end
 
+  desc "Print the next TestFlight buildNumber for CI to capture (latest+1)"
+  lane :next_build_number do
+    api_key = load_app_store_connect_api_key
+    latest = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: BUNDLE_IDENTIFIER,
+      initial_build_number: 0,
+    )
+    next_bn = latest.to_i + 1
+    UI.success("Next TestFlight build number: #{next_bn}")
+    # Distinctive prefix the workflow greps for; avoids matching any
+    # other line Fastlane emits.
+    puts "DEAR_BABY_NEXT_BUILD_NUMBER=#{next_bn}"
+  end
+
   after_all do |lane|
     cleanup_signing_artifacts
   end
