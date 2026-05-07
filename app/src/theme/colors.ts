@@ -5,6 +5,8 @@ export const colors = {
   primary: {
     coral: '#D4836B',
     peach: '#F5C6A8',
+    /** Coral 10% alpha — 선택 옵션 카드 등 약한 강조 배경 */
+    coralTint: '#D4836B1A',
   },
   bg: {
     cream: '#FAF6F1',

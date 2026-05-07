@@ -13,3 +13,7 @@ export { IconCircle } from './IconCircle';
 export type { IconCircleProps } from './IconCircle';
 export { RecordQuestionHeader } from './RecordQuestionHeader';
 export type { RecordQuestionHeaderProps } from './RecordQuestionHeader';
+export { QuestionHeader } from './QuestionHeader';
+export type { QuestionHeaderProps } from './QuestionHeader';
+export { ProgressDots } from './ProgressDots';
+export type { ProgressDotsProps } from './ProgressDots';

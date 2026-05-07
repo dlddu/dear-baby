@@ -1,0 +1,56 @@
+appId: com.dlddu.dearbaby
+---
+# Q1·Q2 케이스 분기 (PRD-006 AC-006-01) — Case B 흐름 검증.
+#
+# Case A 의 결말(welcome)은 onboarding-stage1-* 시리즈가 이미 커버한다.
+# 본 플로우는 그 외 결말 두 가지를 검증한다:
+#
+#   ① Case B (임신 O · 양육 O)  → not-ready placeholder → 홈 진입
+#   ② Case C 는 단일 시나리오로 한 플로우에 두 번 다시 로그인하는 비용이
+#      커서 별도 시나리오로 빠질 수 있으나, 현재 단계에서는 Case B 한
+#      가지만 정식 검증한다 (Case C 는 분기 로직만 단위 검증되고 동일한
+#      not-ready 화면을 보여주는 구조).
+#
+# CI must reset the seeded test user's onboarding state via
+# `backend/reset-onboarding $TEST_USER_EMAIL` before running this flow.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1 화면 도착
+- assertVisible:
+    id: "onboarding-q1"
+- assertVisible: "지금 임신 중이신가요?"
+
+# Q1 = 네, 임신 중이에요
+- tapOn:
+    id: "onboarding-q1-yes"
+
+# Q2 화면 도착
+- assertVisible:
+    id: "onboarding-q2"
+- assertVisible: "아이가 있나요?"
+
+# Q2 = 네, 있어요 (Case B)
+- tapOn:
+    id: "onboarding-q2-yes"
+
+# not-ready placeholder 도착
+- assertVisible:
+    id: "onboarding-not-ready"
+- assertVisible: "홈으로 시작하기"
+
+# 홈으로 시작 → AuthGate 가 status=authenticated 로 플립하면 (tabs)로 이동
+- tapOn:
+    id: "onboarding-not-ready-start"
+- assertVisible:
+    id: "home-tab"

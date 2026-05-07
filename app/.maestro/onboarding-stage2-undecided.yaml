@@ -21,8 +21,9 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/tester-login.yaml
 
-- assertVisible:
-    id: "onboarding-welcome"
+# Q1·Q2 (Case A: 임신 O · 양육 X) → welcome
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseA.yaml
 
 - tapOn:
     id: "onboarding-skip-button"
