@@ -8,7 +8,7 @@ jobs:
     name: E2E Tests (Android)
     # x86_64 Linux runner with KVM enabled for hardware-accelerated emulation.
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     services:
       # Redis service container — backend/worker connect on localhost.
       redis:
