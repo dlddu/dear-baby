@@ -1,4 +1,4 @@
-import { API_URL } from '../config/env';
+import { API_BASE_URL } from '../config/env';
 import { apiFetch } from './client';
 import type { Session, SessionResponse, User } from './types';
 
@@ -6,7 +6,7 @@ import type { Session, SessionResponse, User } from './types';
 // session. The backend verifies the ID token against Google's JWKS before
 // issuing the access/refresh pair.
 export async function exchangeGoogleIdToken(idToken: string): Promise<Session> {
-  const res = await fetch(`${API_URL}/auth/google`, {
+  const res = await fetch(`${API_BASE_URL}/auth/google`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id_token: idToken }),
@@ -31,7 +31,7 @@ export async function exchangeAppleAuthCode(input: {
   givenName?: string | null;
   familyName?: string | null;
 }): Promise<Session> {
-  const res = await fetch(`${API_URL}/auth/apple`, {
+  const res = await fetch(`${API_BASE_URL}/auth/apple`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -70,7 +70,7 @@ export async function passwordLogin(input: {
   email: string;
   password: string;
 }): Promise<Session> {
-  const res = await fetch(`${API_URL}/auth/password-login`, {
+  const res = await fetch(`${API_BASE_URL}/auth/password-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -93,7 +93,7 @@ export async function passwordLogin(input: {
 // swallowed — clearing local tokens is the source of truth for sign-out.
 export async function logout(refreshToken: string): Promise<void> {
   try {
-    await fetch(`${API_URL}/auth/logout`, {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),

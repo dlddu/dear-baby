@@ -265,14 +265,14 @@ jobs:
           echo "backend Redis wiring OK"
 
       - name: AI preview enqueue path is gated on Redis
-        # POST /onboarding/ai-preview requires a valid access token from
-        # the auth pipeline. Assert that the route exists (401) rather
-        # than 404 — a 404 would mean the Redis-dependent route group
-        # didn't mount.
+        # POST /v1/onboarding/ai-preview requires a valid access token
+        # from the auth pipeline. Assert that the route exists (401)
+        # rather than 404 — a 404 would mean the Redis-dependent route
+        # group didn't mount.
         run: |
           set -euo pipefail
           code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
-            -X POST http://127.0.0.1:18080/onboarding/ai-preview)
+            -X POST http://127.0.0.1:18080/v1/onboarding/ai-preview)
           if [ "$code" != "401" ]; then
             echo "expected 401 (route exists, auth missing), got $code, body=$(cat /tmp/body.txt)"
             exit 1
@@ -301,7 +301,7 @@ jobs:
           session=$(curl -fsS -X POST \
             -H 'Content-Type: application/json' \
             -d '{"email":"integration@dear-baby.test","password":"integration-password"}' \
-            http://127.0.0.1:18080/auth/password-login)
+            http://127.0.0.1:18080/v1/auth/password-login)
           echo "$session" | head -c 200
           echo
           access_token=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
@@ -310,15 +310,15 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::complete onboarding"
-          # Stamp onboarded_at so /onboarding/ai-preview proceeds (which
-          # the seeded user does not have by default — the seeder
-          # leaves onboarding state untouched on every boot to mirror a
-          # fresh sign-up).
+          # Stamp onboarded_at so /v1/onboarding/ai-preview proceeds
+          # (which the seeded user does not have by default — the
+          # seeder leaves onboarding state untouched on every boot to
+          # mirror a fresh sign-up).
           curl -fsS -X PATCH \
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
             -d '{"due_date":"2026-09-01"}' \
-            http://127.0.0.1:18080/me >/dev/null
+            http://127.0.0.1:18080/v1/me >/dev/null
           echo "::endgroup::"
 
           echo "::group::create record"
@@ -326,7 +326,7 @@ jobs:
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
             -d '{"content":"today i felt you move for the first time"}' \
-            http://127.0.0.1:18080/records >/tmp/record.json
+            http://127.0.0.1:18080/v1/records >/tmp/record.json
           cat /tmp/record.json | head -c 400
           echo
           echo "::endgroup::"
@@ -335,7 +335,7 @@ jobs:
           code=$(curl -s -o /tmp/req.txt -w '%{http_code}' \
             -X POST \
             -H "Authorization: Bearer $access_token" \
-            http://127.0.0.1:18080/onboarding/ai-preview)
+            http://127.0.0.1:18080/v1/onboarding/ai-preview)
           if [ "$code" != "202" ]; then
             echo "expected 202, got $code body=$(cat /tmp/req.txt)"
             exit 1
@@ -343,12 +343,12 @@ jobs:
           echo "enqueue accepted (202)"
           echo "::endgroup::"
 
-          echo "::group::poll /me for ai_preview (up to 45s)"
+          echo "::group::poll /v1/me for ai_preview (up to 45s)"
           preview=""
           for i in $(seq 1 45); do
             preview=$(curl -fsS \
               -H "Authorization: Bearer $access_token" \
-              http://127.0.0.1:18080/me \
+              http://127.0.0.1:18080/v1/me \
               | python3 -c 'import json,sys; v=json.load(sys.stdin).get("ai_preview") or ""; print(v)')
             if [ -n "$preview" ]; then
               break
@@ -403,7 +403,7 @@ jobs:
           session=$(curl -fsS -X POST \
             -H 'Content-Type: application/json' \
             -d '{"email":"integration@dear-baby.test","password":"integration-password"}' \
-            http://127.0.0.1:18080/auth/password-login)
+            http://127.0.0.1:18080/v1/auth/password-login)
           access_token=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
           echo "::endgroup::"
 
@@ -412,7 +412,7 @@ jobs:
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
             -d '{"content":"오늘 처음으로 너의 발길질을 느꼈어","source":"voice"}' \
-            http://127.0.0.1:18080/records >/tmp/voice-rec.json
+            http://127.0.0.1:18080/v1/records >/tmp/voice-rec.json
           record_id=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["id"])')
           source=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["source"])')
           audio_key=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["audio_s3_key"])')
@@ -428,7 +428,7 @@ jobs:
           echo "::group::request presigned upload URL"
           curl -fsS -X POST \
             -H "Authorization: Bearer $access_token" \
-            "http://127.0.0.1:18080/records/$record_id/audio/upload-url" >/tmp/presign.json
+            "http://127.0.0.1:18080/v1/records/$record_id/audio/upload-url" >/tmp/presign.json
           upload_url=$(python3 -c 'import json; print(json.load(open("/tmp/presign.json"))["upload_url"])')
           server_audio_key=$(python3 -c 'import json; print(json.load(open("/tmp/presign.json"))["audio_s3_key"])')
           content_type=$(python3 -c 'import json; print(json.load(open("/tmp/presign.json"))["content_type"])')
@@ -459,7 +459,7 @@ jobs:
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
             -d "{\"audio_s3_key\":\"$server_audio_key\"}" \
-            "http://127.0.0.1:18080/records/$record_id" >/tmp/patched.json
+            "http://127.0.0.1:18080/v1/records/$record_id" >/tmp/patched.json
           stored_key=$(python3 -c 'import json; print(json.load(open("/tmp/patched.json"))["record"]["audio_s3_key"])')
           if [ "$stored_key" != "$server_audio_key" ]; then
             echo "audio_s3_key mismatch: stored=$stored_key sent=$server_audio_key"; exit 1
@@ -479,7 +479,7 @@ jobs:
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
             -d "{\"audio_s3_key\":\"$server_audio_key\"}" \
-            "http://127.0.0.1:18080/records/$record_id")
+            "http://127.0.0.1:18080/v1/records/$record_id")
           if [ "$code" != "409" ]; then
             echo "expected 409 (already attached), got $code body=$(cat /tmp/patch2.txt)"; exit 1
           fi

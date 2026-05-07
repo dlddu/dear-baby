@@ -1,7 +1,7 @@
 import EventSource from 'react-native-sse';
 
 import { posthogHeaders } from '../analytics/client';
-import { API_URL } from '../config/env';
+import { API_BASE_URL } from '../config/env';
 import { getAccessToken } from '../auth/tokens';
 import { apiFetch } from './client';
 
@@ -43,7 +43,7 @@ export function openAiPreviewStream(
       onError(new Error('no access token'));
       return;
     }
-    const url = `${API_URL}/onboarding/ai-preview/events`;
+    const url = `${API_BASE_URL}/onboarding/ai-preview/events`;
     source = new EventSource<AiCustomEventType>(url, {
       headers: {
         Authorization: `Bearer ${token}`,

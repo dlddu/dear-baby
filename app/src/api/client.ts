@@ -1,5 +1,5 @@
 import { posthogHeaders } from '../analytics/client';
-import { API_URL } from '../config/env';
+import { API_BASE_URL } from '../config/env';
 import {
   clearTokens,
   getAccessToken,
@@ -16,7 +16,7 @@ async function refreshAccessOnce(): Promise<string | null> {
   refreshingPromise = (async () => {
     const refresh = await getRefreshToken();
     if (!refresh) return null;
-    const res = await fetch(`${API_URL}/auth/refresh`, {
+    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refresh }),
@@ -58,12 +58,12 @@ export async function apiFetch(
     headers.set(k, v);
   }
 
-  let res = await fetch(`${API_URL}${path}`, { ...init, headers });
+  let res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
   if (res.status === 401 && access) {
     const newAccess = await refreshAccessOnce();
     if (newAccess) {
       headers.set('Authorization', `Bearer ${newAccess}`);
-      res = await fetch(`${API_URL}${path}`, { ...init, headers });
+      res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
     }
   }
   return res;
