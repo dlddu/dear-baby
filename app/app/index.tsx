@@ -183,49 +183,14 @@ export default function Landing() {
 
   useEffect(() => {
     let cancelled = false;
-    let dismissTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const showError = () => {
-      if (cancelled) return;
-      setErrorVisible(true);
-      Animated.parallel([
-        Animated.timing(errorOpacity, {
-          toValue: 1,
-          duration: TOAST_FADE_MS,
-          useNativeDriver: true,
-        }),
-        Animated.timing(errorOffset, {
-          toValue: 0,
-          duration: TOAST_FADE_MS,
-          useNativeDriver: true,
-        }),
-      ]).start();
-      dismissTimer = setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(errorOpacity, {
-            toValue: 0,
-            duration: TOAST_FADE_MS,
-            useNativeDriver: true,
-          }),
-          Animated.timing(errorOffset, {
-            toValue: TOAST_OFFSET_PX,
-            duration: TOAST_FADE_MS,
-            useNativeDriver: true,
-          }),
-        ]).start(({ finished }) => {
-          if (!cancelled && finished) setErrorVisible(false);
-        });
-      }, TOAST_VISIBLE_MS);
-    };
-
     (async () => {
       try {
         const res = await fetch(`${API_URL}/health`);
         const json = (await res.json()) as { status: string };
-        if (json.status !== 'ok') showError();
+        if (json.status !== 'ok' && !cancelled) setErrorVisible(true);
       } catch (e) {
         console.error('health check failed', e);
-        showError();
+        if (!cancelled) setErrorVisible(true);
       } finally {
         // `health-check-complete` is the positive signal Maestro waits on
         // before asserting the error toast's absence. Without it the test
@@ -235,12 +200,49 @@ export default function Landing() {
         if (!cancelled) setHealthChecked(true);
       }
     })();
-
     return () => {
       cancelled = true;
-      if (dismissTimer) clearTimeout(dismissTimer);
     };
-  }, [errorOffset, errorOpacity]);
+  }, []);
+
+  // Drive the toast fade in/out from a separate effect that depends on
+  // errorVisible. Effects run after React commits, so the Animated.View
+  // is mounted by the time start() runs and the native driver has a bound
+  // view to write opacity/translateY to. Calling start() in the same tick
+  // as setErrorVisible(true) — the previous shape — left the native driver
+  // without a target view on the first frame and the toast never appeared.
+  useEffect(() => {
+    if (!errorVisible) return;
+    Animated.parallel([
+      Animated.timing(errorOpacity, {
+        toValue: 1,
+        duration: TOAST_FADE_MS,
+        useNativeDriver: true,
+      }),
+      Animated.timing(errorOffset, {
+        toValue: 0,
+        duration: TOAST_FADE_MS,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    const dismissTimer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(errorOpacity, {
+          toValue: 0,
+          duration: TOAST_FADE_MS,
+          useNativeDriver: true,
+        }),
+        Animated.timing(errorOffset, {
+          toValue: TOAST_OFFSET_PX,
+          duration: TOAST_FADE_MS,
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished) setErrorVisible(false);
+      });
+    }, TOAST_VISIBLE_MS);
+    return () => clearTimeout(dismissTimer);
+  }, [errorVisible, errorOffset, errorOpacity]);
 
   return (
     <LinearGradient
