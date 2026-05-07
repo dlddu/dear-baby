@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -20,6 +21,7 @@ import {
   GOOGLE_WEB_CLIENT_ID,
 } from '../src/config/env';
 import { colors } from '../src/theme/colors';
+import { fontFamilies } from '../src/theme/fonts';
 import { radius } from '../src/theme/radius';
 import { shadows } from '../src/theme/shadows';
 import { spacing } from '../src/theme/spacing';
@@ -74,19 +76,19 @@ function GoogleSignInButton() {
       }}
       style={({ pressed }) => [styles.googleButton, pressed && styles.pressed]}
     >
+      <Text style={styles.googleGlyph}>G</Text>
       <Text variant="body" color="primary" style={styles.googleLabel}>
-        Sign in with Google
+        Google로 시작하기
       </Text>
     </Pressable>
   );
 }
 
-// AppleSignInButton renders Apple's branded "Sign in with Apple" button on
-// iOS and exchanges the returned authorization code with the backend. Apple
-// only delivers the user's full name on the very first sign-in, so we
-// forward whatever we get and let the backend persist it; on subsequent
-// sign-ins Apple sends a null fullName and the backend keeps the previously
-// stored value (see users.Store.UpsertByOAuth).
+// AppleSignInButton renders an ink-filled "Apple로 시작하기" pill that matches
+// the M-01 mockup. We render our own button (instead of Apple's branded
+// component) so the visual treatment matches Google's button — Apple's HIG
+// allows custom buttons as long as the Apple logo and standard wording are
+// used. The flow itself still goes through expo-apple-authentication.
 function AppleSignInButton() {
   const { setSession } = useAuth();
   const [available, setAvailable] = useState(false);
@@ -133,14 +135,16 @@ function AppleSignInButton() {
   };
 
   return (
-    <AppleAuthentication.AppleAuthenticationButton
+    <Pressable
       testID="apple-signin-button"
-      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-      cornerRadius={radius.sm}
-      style={styles.appleButton}
       onPress={onPress}
-    />
+      style={({ pressed }) => [styles.appleButton, pressed && styles.pressed]}
+    >
+      <Text style={styles.appleGlyph}></Text>
+      <Text variant="body" color="onPrimary" style={styles.appleLabel}>
+        Apple로 시작하기
+      </Text>
+    </Pressable>
   );
 }
 
@@ -239,15 +243,32 @@ export default function Landing() {
   }, [errorOffset, errorOpacity]);
 
   return (
-    <View style={styles.container} testID="root">
-      <Text variant="display" color="primary" style={styles.title}>
-        dear-baby
-      </Text>
-      <Text variant="emotion" color="secondary" style={styles.tagline}>
-        아기를 기다리는 소중한 시간, 함께 기록해볼까요?
-      </Text>
-      {hasGoogleConfig && <GoogleSignInButton />}
-      {Platform.OS === 'ios' && <AppleSignInButton />}
+    <LinearGradient
+      colors={[colors.bg.cream, 'rgba(245, 198, 168, 0.4)']}
+      style={styles.container}
+      testID="root"
+    >
+      <View style={styles.hero}>
+        <Text style={styles.brand}>
+          Dear{'\n'}Baby
+        </Text>
+        <Text style={styles.tagline}>기록을 책으로</Text>
+        <Text variant="body" color="secondary" style={styles.subtitle}>
+          매일의 작은 마음이{'\n'}사라지지 않도록
+        </Text>
+      </View>
+
+      <View style={styles.actions}>
+        {Platform.OS === 'ios' && <AppleSignInButton />}
+        {hasGoogleConfig && <GoogleSignInButton />}
+      </View>
+
+      <View style={styles.footer}>
+        <Text variant="caption" color="muted" style={styles.footerText}>
+          계속하시면 <Text style={styles.footerLink}>이용약관</Text>과{'\n'}
+          <Text style={styles.footerLink}>개인정보 처리방침</Text>에 동의합니다
+        </Text>
+      </View>
 
       <Pressable
         testID="tester-corner-tl"
@@ -295,33 +316,104 @@ export default function Landing() {
         />
       )}
       <StatusBar style="dark" />
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg.cream,
+    paddingHorizontal: spacing[6],
+    paddingTop: 80,
+    paddingBottom: spacing[6],
+  },
+  hero: {
+    alignItems: 'center',
+    paddingHorizontal: spacing[2],
+  },
+  // M-01 의 "Dear / Baby" 로고. mockup 의 44px/700 leading-none 그대로.
+  brand: {
+    fontFamily: fontFamilies.serif,
+    fontSize: 44,
+    fontWeight: '700',
+    lineHeight: 44,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing[2],
+  },
+  // "기록을 책으로" — mockup 의 손글씨(Nanum Pen Script)를 앱의 감성 세리프
+  // (Gowun Batang)로 매핑. 24px coral.
+  tagline: {
+    fontFamily: fontFamilies.emotion,
+    fontSize: 24,
+    lineHeight: 32,
+    color: colors.primary.coral,
+    textAlign: 'center',
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginTop: spacing[3],
+    maxWidth: 280,
+  },
+  actions: {
+    marginTop: 48,
+    gap: spacing[3],
+  },
+  appleButton: {
+    height: 56,
+    borderRadius: radius.full,
+    backgroundColor: colors.text.primary,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing[6],
-    gap: spacing[4],
+    gap: spacing[2],
   },
-  title: { textAlign: 'center' },
-  tagline: { textAlign: 'center', marginBottom: spacing[4] },
+  appleGlyph: {
+    fontSize: 18,
+    color: colors.text.onPrimary,
+  },
+  appleLabel: {
+    fontFamily: fontFamilies.sansSemibold,
+    fontWeight: '600',
+    fontSize: 15,
+  },
   googleButton: {
+    height: 56,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface.ivory,
     borderWidth: 1,
     borderColor: colors.bg.beige,
-    backgroundColor: colors.surface.ivory,
-    borderRadius: radius.sm,
-    paddingVertical: spacing[4],
-    paddingHorizontal: spacing[5],
-    alignSelf: 'stretch',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[2],
+    ...shadows.soft,
   },
-  googleLabel: { fontWeight: '600' },
+  googleGlyph: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  googleLabel: {
+    fontFamily: fontFamilies.sansSemibold,
+    fontWeight: '600',
+    fontSize: 15,
+  },
   pressed: { opacity: 0.9 },
+  footer: {
+    marginTop: spacing[6],
+    paddingHorizontal: spacing[2],
+  },
+  footerText: {
+    fontSize: 11,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  footerLink: {
+    color: colors.primary.coral,
+    textDecorationLine: 'underline',
+  },
   // Invisible 80×80 hot zones in the top corners. Sized large enough
   // for a thumb-friendly tap target without spilling into the safe area
   // where the OS chrome lives. Background is omitted so the cream
@@ -344,14 +436,6 @@ const styles = StyleSheet.create({
   },
   cornerHitTopRight: {
     right: 0,
-  },
-  // Apple HIG requires the proprietary AppleAuthenticationButton with a
-  // fixed height/width set via style. Background color and border radius
-  // must be controlled by buttonStyle/cornerRadius props (see component
-  // docs); we only set width + height here.
-  appleButton: {
-    alignSelf: 'stretch',
-    height: 48,
   },
   toast: {
     position: 'absolute',
