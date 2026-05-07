@@ -65,10 +65,6 @@ mockup 은 React + Tailwind 기반 단일 번들이다.
 
 이 요소를 임의로 줄이거나 단순화하지 않는다. UX 변경은 mockup 부터 수정.
 
-## 와이어프레임 (deprecated) 절대 참조 금지
-
-`docs/wireframes/` 는 2026-05-06 부터 deprecated 상태이다. 화면 구현의 시각 출처는 **오직 mockup React 소스** 이다. wireframe 을 보고 코드를 짜지 않는다.
-
 ## 출력 시 동반 보고
 
 화면 구현이 끝나면 PR 설명 또는 사용자 보고에 다음을 포함한다:

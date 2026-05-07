@@ -60,9 +60,6 @@
 - [Mockups (브라우저로 열기) — 35개 화면 단일 React 번들](mockups/index.html)
 - [Mockups Source — React + Tailwind 소스 (재현 가능)](mockups/source/)
 
-### 와이어프레임 *(deprecated · 참조 금지)*
-- ~~[Onboarding Wireframes](wireframes/onboarding.md)~~ — 2026-05-06 부터 mockup 으로 대체. 작업 시 참조하지 않음.
-
 ### 테스트 문서
 - [TEST-001: 음성 일기 기록 테스트](tests/TEST-001-voice-diary.md)
 - [TEST-002: 매일 다른 질문 알림 테스트](tests/TEST-002-daily-questions.md)

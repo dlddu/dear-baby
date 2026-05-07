@@ -13,7 +13,7 @@ updated: 2026-04-18
 Stage 2 홈 화면의 컨텍스트 배지 ("임신 17주 3일") 를 위해 프론트엔드에서
 `due_date` 를 현재 주수로 환산한다. 이 문서는 계산의 기준과 경계 처리의
 근거를 한 곳에 모아 둔 단일 레퍼런스다. UI/UX 스펙은
-[`docs/wireframes/onboarding.md`](../wireframes/onboarding.md) 를
+[`docs/mockups/`](../mockups) 를
 참고한다.
 
 ## 모델

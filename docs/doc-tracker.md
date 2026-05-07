@@ -16,7 +16,6 @@ updated: 2026-05-02
 - Acceptance Criteria: **35개** (모두 가치 연결됨)
 - 테스트 문서: **6개** (TEST-001 ~ TEST-006), 모든 PRD 커버됨
 - 흐름도: **1개** (onboarding-flow.md)
-- 와이어프레임: **1개** (wireframes/onboarding.md) — *deprecated, mockup 으로 대체*
 - Mockup: **35개 화면** (M-01 ~ M-34 + 갤러리), 단일 React 번들 `mockups/index.html`. 모든 사용자 여정 stage 1:1 매핑
 - 용어집: **1개** (GLOSSARY-001)
 - **건강 상태**: ✅ 건강함
@@ -78,8 +77,7 @@ updated: 2026-05-02
 | 2026-05-02 | PRD-006 (케이스 분기 온보딩 + 출산 전환 + 다자녀) 추가 | PRD 5, AC 25 (대략) | PRD 6, AC 35 |
 | 2026-05-02 | TEST-006 추가 (19 TC) | TEST 5 | TEST 6 |
 | 2026-05-02 | docs/README.md 의 PRD/테스트 목록 갱신 | — | — |
-| 2026-05-03 | 온보딩 와이어프레임 신설(`wireframes/onboarding.md`) 및 기존 `design-system/onboarding.md` 폐기 | 와이어프레임 0 | 와이어프레임 1 |
-| 2026-05-06 | 페이지 단위 mockup HTML 35개 신설 (`mockups/`) — 5개 사용자 여정 stage 와 1:1 매핑, 디자인 시스템 토큰 1:1 적용. 기존 와이어프레임은 *deprecated* 표기 (참조 금지 · 사용자 지시) | mockup 0 | mockup 35 |
+| 2026-05-06 | 페이지 단위 mockup HTML 35개 신설 (`mockups/`) — 5개 사용자 여정 stage 와 1:1 매핑, 디자인 시스템 토큰 1:1 적용 | mockup 0 | mockup 35 |
 | 2026-05-06 | mockup 을 React + Vite + Tailwind + shadcn/ui 기반 단일 번들로 재작성. 정적 HTML 버전 폐기. 소스는 `mockups/source/`, 번들은 `mockups/index.html`. Tailwind config 에 dear-baby 디자인 토큰을 1:1 매핑하여 코드와 디자인 시스템 사이 정합성 강화. | 정적 HTML 35 | React 번들 35 |
 
 ## 향후 검토 항목 (PRD-006에서 도출됨)
