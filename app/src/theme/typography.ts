@@ -35,6 +35,13 @@ export const typography = {
     fontWeight: '700',
     lineHeight: 28,
   },
+  /** 감성 타이틀 — 22/700 Serif. 온보딩 질문 헤더처럼 섹션 타이틀에 정서적 무게를 줄 때. */
+  h2Serif: {
+    fontFamily: fontFamilies.serif,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 32,
+  },
   /** 카드 타이틀 — 17/600 */
   h3: {
     fontFamily: fontFamilies.sansSemibold,
