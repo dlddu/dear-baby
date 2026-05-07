@@ -1,6 +1,6 @@
 # DearBaby — Mockups
 
-페이지 단위 mockup 35개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었으며 `docs/wireframes/` 는 참조하지 않았다.
+페이지 단위 mockup 35개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
 
 ## 빠른 보기
 
@@ -162,4 +162,3 @@ Tailwind 사용:
 ## 개발 메모
 
 - **이전 정적 HTML 버전** (2026-05-06 작성, vanilla HTML + 외부 styles.css) 은 sandbox 에서 외부 CSS 가 로드되지 않는 문제로 폐기되었다. 2026-05-06 같은 날 React 기반으로 재작성됨.
-- 와이어프레임 (`docs/wireframes/`) 은 *deprecated* — 이 mockup 들이 시각 기준점이다.

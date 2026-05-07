@@ -7,7 +7,7 @@
 | **다루는 단계** | Stage 1 발견 → Stage 2 가입 → Stage 3 케이스 분기 → Stage 4 케이스별 입력 |
 | **관련 PRD** | [PRD-006: 케이스 분기 온보딩 및 아이 컨텍스트 관리](../prd/PRD-006-onboarding-cases.md) |
 | **관련 시스템 흐름** | [`flows/onboarding-flow.md`](../flows/onboarding-flow.md) |
-| **관련 화면** | [`wireframes/onboarding.md`](../wireframes/onboarding.md) |
+| **관련 화면** | [`mockups/`](../mockups) |
 | **관련 페르소나** | 🌸 Case A · 🌼 Case B · 🌿 Case C 모두 |
 | **앞 플로우로부터 인계** | (없음 — 첫 플로우) |
 | **다음 플로우로 인계** | 케이스(A/B/C) · 활성 아이 정보 · 임신 주차/예정일 또는 양육 일수 → [Daily Recording Journey](daily-recording-journey.md) |
@@ -94,7 +94,7 @@ flowchart TD
 
 ### Stage 4 — 🌸🌼🌿 케이스별 정보 입력
 
-각 케이스의 화면 단위 정보는 [`wireframes/onboarding.md`](../wireframes/onboarding.md)에 있다. 본 문서는 **사용자 관점의 부담 차이**에 집중한다.
+각 케이스의 화면 단위 정보는 [`mockups/`](../mockups)에 있다. 본 문서는 **사용자 관점의 부담 차이**에 집중한다.
 
 | 케이스 | 화면 수 | 사용자 감정 | 핵심 입력 부담 완화 장치 | 관련 AC |
 |---|:---:|---|---|---|
@@ -104,7 +104,7 @@ flowchart TD
 
 #### 카피 톤이 곧 가치 체험
 
-[`wireframes/onboarding.md`](../wireframes/onboarding.md)의 카피 가이드대로, 본 플로우의 카피는 **V-001 (감정 보존)** 가치를 가입 첫 순간부터 체감시킨다.
+[`mockups/`](../mockups)의 카피대로, 본 플로우의 카피는 **V-001 (감정 보존)** 가치를 가입 첫 순간부터 체감시킨다.
 
 | ❌ 시스템 톤 | ✅ DearBaby 톤 | 가치 체험 |
 |---|---|---|
@@ -150,7 +150,7 @@ flowchart TD
 | 2 | Stage 2 | OAuth 외 옵션 부재 시 일부 이탈 | 1탭 로그인 자체가 짧음 | 이메일 옵션 추가 검토 |
 | 3 | Stage 3 | "임신 X · 양육 X" 미정의 | (PRD-006 미해결) | 향후 케이스 검토 |
 | 4 | Stage 4 (Case B) | 7화면 — 중도 이탈 위험 | B0·B3 안내 화면 + 단계 인디케이터 ①→② | 입력 진행률 % 표시, "이만큼 남았어요" 카피 |
-| 5 | Stage 4 | 시스템 톤 카피의 정서적 거리감 | 와이어프레임 카피 가이드 | 모든 신규 카피 작성 시 가이드 강제 적용 |
+| 5 | Stage 4 | 시스템 톤 카피의 정서적 거리감 | mockup 카피 가이드 | 모든 신규 카피 작성 시 가이드 강제 적용 |
 
 ---
 
@@ -184,7 +184,7 @@ flowchart TD
 ## 관련 문서
 
 - [`flows/onboarding-flow.md`](../flows/onboarding-flow.md) — 시스템 흐름도
-- [`wireframes/onboarding.md`](../wireframes/onboarding.md) — 화면 와이어프레임
+- [`mockups/`](../mockups) — 화면 mockup
 - [`prd/PRD-006-onboarding-cases.md`](../prd/PRD-006-onboarding-cases.md) — Acceptance Criteria
 - [→ 다음 플로우: Daily Recording Journey](daily-recording-journey.md)
 - [← 인덱스로 돌아가기](README.md)
