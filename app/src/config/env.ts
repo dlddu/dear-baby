@@ -5,16 +5,6 @@
 export const API_URL: string =
   process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080';
 
-// API_VERSION is the URL-path version segment the backend mounts product
-// routes under. Health stays unversioned and uses API_URL directly.
-// Bumping versions is a coordinated change: ship a backend that mounts
-// /v2 alongside /v1, then flip this constant.
-export const API_VERSION = 'v1';
-
-// API_BASE_URL is the prefix for all versioned API calls. Use it (not
-// API_URL) when building URLs for endpoints that live under /v{N}.
-export const API_BASE_URL: string = `${API_URL}/${API_VERSION}`;
-
 export const GOOGLE_IOS_CLIENT_ID: string =
   process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
 
