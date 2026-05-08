@@ -37,6 +37,8 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dorny/paths-filter@v3
         id: filter
         with:

@@ -21,7 +21,7 @@ on:
         type: string
         required: false
         default: ""
-        description: Git ref to check out. Empty checks out the workflow's default ref.
+        description: Git ref to check out. Empty falls back to the caller's PR head SHA, then github.sha.
     outputs:
       build-number:
         description: TestFlight buildNumber stamped into the IPA.
@@ -54,7 +54,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup JS
         uses: ./.github/actions/setup-js
