@@ -156,4 +156,6 @@ jobs:
       github.event_name == 'pull_request' &&
       (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/deploy-play-internal.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
     secrets: inherit
