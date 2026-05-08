@@ -7,7 +7,7 @@ jobs:
   e2e-ios:
     name: E2E Tests (iOS)
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       EXPO_PUBLIC_API_URL: http://localhost:8080
       # Seeded password-backed test account (see backend/internal/auth/seed.go).

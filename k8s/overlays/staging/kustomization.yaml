@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Staging environment — mirrors production's overlay structure with
+# only the namespace differing. Both overlays apply the same
+# differentiator (namespace) on top of base/ so we don't end up with
+# an asymmetric setup where only one environment is qualified.
+namespace: dear-baby-staging
+
+resources:
+  - ../../base

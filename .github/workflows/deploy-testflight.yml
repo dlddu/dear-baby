@@ -1,67 +1,17 @@
 name: Deploy iOS to TestFlight
 
+# PR-preview path: build the iOS app against the staging backend and
+# upload it to TestFlight (internal testers only). The actual build
+# pipeline lives in build-ios-testflight.yml so the production-URL
+# rebuild used by submit-testflight-beta.yml shares the same steps.
+
 on:
   workflow_call:
 
 jobs:
   deploy-testflight:
     name: Deploy iOS to TestFlight
-    # Only deploy on PRs — on push to main the caller skips this workflow.
-    runs-on: macos-26
-    timeout-minutes: 60
-    defaults:
-      run:
-        working-directory: app
-    env:
-      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
-      EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
-      EXPO_PUBLIC_POSTHOG_HOST: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
-      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
-      IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
-      IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
-      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      GIT_SHA: ${{ github.event.pull_request.head.sha }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup JS
-        uses: ./.github/actions/setup-js
-
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-          bundler-cache: true
-          working-directory: app
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.3.app
-
-      - name: Generate one-shot keychain password
-        run: echo "MATCH_KEYCHAIN_PASSWORD=$(uuidgen)" >> "$GITHUB_ENV"
-
-      - name: Expo prebuild (iOS)
-        run: npx expo prebuild --platform ios --clean
-
-      - name: Install CocoaPods
-        working-directory: app/ios
-        run: pod install --repo-update
-
-      - name: Fastlane beta
-        run: bundle exec fastlane beta
-
-      - name: Upload build artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build-logs
-          path: |
-            app/fastlane/report.xml
-            app/build/
-            ~/Library/Logs/gym/
-          if-no-files-found: ignore
+    uses: ./.github/workflows/build-ios-testflight.yml
+    with:
+      expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
+    secrets: inherit
