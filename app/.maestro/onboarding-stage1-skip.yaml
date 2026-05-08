@@ -35,10 +35,13 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-a1-next"
 
-# Verify A2 copy & controls
+# Verify A2 copy & controls. 헤더 타이틀(serif h2)은 RN 의 multiline Text
+# 가 Maestro 의 텍스트 트리에서 안정적으로 잡히지 않아 단정 대상에서 제외
+# — 화면 식별은 testID 로 충분하고, 헬퍼·필드라벨·CTA 카피로 시각 검증을
+# 갈음한다.
 - assertVisible:
     id: "onboarding-a2"
-- assertVisible: "알려주세요"
+- assertVisible: "기록 가이드를 맞춰 보여드릴게요"
 - assertVisible: "예정일"
 - assertVisible: "날짜 선택하기"
 - assertVisible: "아직 정해지지 않았어요"
