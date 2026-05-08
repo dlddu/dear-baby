@@ -1,8 +1,8 @@
 appId: com.dlddu.dearbaby
 ---
-# Onboarding Stage 1 – skip path.
+# Onboarding Case A – skip-date path.
 #
-# Verifies the welcome screen UI and the "skip due date" escape hatch
+# Verifies the A2 screen UI and the [아직 정해지지 않았어요] escape hatch
 # that lands the user on home with no due_date stored.
 #
 # CI must reset the seeded test user's onboarding state via
@@ -23,20 +23,41 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/tester-login.yaml
 
-# Q1·Q2 (Case A: 임신 O · 양육 X) → welcome
+# Q1·Q2 (Case A: 임신 O · 양육 X) → a1
 - runFlow:
     file: subflows/onboarding-q1-q2-caseA.yaml
 
-# Verify all welcome-screen copy & controls
-- assertVisible: "DearBaby"
-- assertVisible: "반가워요, 엄마 🌷"
-- assertVisible: "아기를 만날 예정일을 알려주세요"
-- assertVisible: "날짜 선택하기"
-- assertVisible: "시작하기"
-- assertVisible: "아직 정해지지 않았어요"
-
-# Tap skip → should navigate to home
+# A1 단태 선택 → A2 진입
+- assertVisible:
+    id: "onboarding-a1"
 - tapOn:
-    id: "onboarding-skip-button"
+    id: "onboarding-a1-count-1"
+- tapOn:
+    id: "onboarding-a1-next"
+
+# Verify A2 copy & controls
+- assertVisible:
+    id: "onboarding-a2"
+- assertVisible: "아이의 정보를"
+- assertVisible: "예정일"
+- assertVisible: "날짜 선택하기"
+- assertVisible: "아직 정해지지 않았어요"
+- assertVisible: "여자아이"
+- assertVisible: "남자아이"
+- assertVisible: "아직 몰라요"
+- assertVisible: "임신 주차"
+- assertVisible: "시작하기"
+
+# 예정일 스킵 → 성별·주차만 입력 → 홈으로
+- tapOn:
+    id: "onboarding-a2-due-date-skip"
+- tapOn:
+    id: "onboarding-a2-gender-unknown"
+- tapOn:
+    id: "onboarding-a2-week"
+- inputText: "12"
+- hideKeyboard
+- tapOn:
+    id: "onboarding-a2-next"
 - assertVisible:
     id: "home-tab"

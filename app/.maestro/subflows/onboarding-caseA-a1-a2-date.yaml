@@ -1,0 +1,68 @@
+appId: com.dlddu.dearbaby
+---
+# Reusable Case A a1·a2 subflow — date selected path.
+#
+# Caller must be on the a1 screen (id "onboarding-a1") — typically reached
+# via subflows/onboarding-q1-q2-caseA.yaml. This subflow:
+#
+#   1. Selects 단태 (count=1) on a1 and taps [다음]
+#   2. Opens the 예정일 picker, confirms the default date
+#   3. Selects 성별 = 아직 몰라요
+#   4. Inputs 임신 주차 = 17
+#   5. Taps [시작하기] → home
+#
+# After this subflow runs the user is on the home tab with onboarded_at
+# stamped and due_date set (Stage 2 with-date variant).
+
+- assertVisible:
+    id: "onboarding-a1"
+
+# 단태아 선택 → a2 진입
+- tapOn:
+    id: "onboarding-a1-count-1"
+- tapOn:
+    id: "onboarding-a1-next"
+- assertVisible:
+    id: "onboarding-a2"
+
+# 예정일 picker 열기
+- tapOn:
+    id: "onboarding-a2-due-date-field"
+
+# Android: native date-picker dialog — confirm the default date.
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+
+# iOS: inline spinner renders near the bottom of the screen. A
+# center-of-screen swipe misses it, so we target the picker area with
+# explicit coordinates to scroll a wheel and trigger onChange.
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-a2-date-picker-done"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn:
+          id: "onboarding-a2-date-picker-done"
+
+# 성별 = 아직 몰라요
+- tapOn:
+    id: "onboarding-a2-gender-unknown"
+
+# 임신 주차 = 17
+- tapOn:
+    id: "onboarding-a2-week"
+- inputText: "17"
+- hideKeyboard
+
+# [시작하기] → 홈
+- tapOn:
+    id: "onboarding-a2-next"
+- assertVisible:
+    id: "home-tab"

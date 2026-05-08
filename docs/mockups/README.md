@@ -54,7 +54,7 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-02 | Q1 — 임신 중인가요? | Onboarding · 2-1 |
 | M-03 | Q2 — 양육 아이가 있나요? | Onboarding · 2-2 |
 | M-04 | A1 — 임신 아이 수 | Onboarding · 3-A1 (Case A) |
-| M-05 | A2 — 태아 정보 | Onboarding · 3-A2 (Case A) |
+| M-05 | A2 — 태아 정보 (예정일·태명·성별·임신 주차) | Onboarding · 3-A2 (Case A) |
 | M-06 | A3 — 기록 목적 | Onboarding · 3-A3 (Case A) |
 | M-07 | B0 — 안내 ① | Onboarding · 4-B0 (Case B) |
 | M-08 | B1 — 양육 아이 수 | Onboarding · 4-B1 (Case B) |

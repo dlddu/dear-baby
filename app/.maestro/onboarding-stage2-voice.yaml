@@ -32,13 +32,12 @@ appId: com.dlddu.dearbaby
 
 - runFlow:
     file: subflows/tester-login.yaml
-# Q1·Q2 (Case A: 임신 O · 양육 X) → welcome
+# Q1·Q2 (Case A: 임신 O · 양육 X) → a1
 - runFlow:
     file: subflows/onboarding-q1-q2-caseA.yaml
-- tapOn:
-    id: "onboarding-skip-button"
-- assertVisible:
-    id: "home-tab"
+# a1 → a2 → 홈 (예정일 스킵 경로)
+- runFlow:
+    file: subflows/onboarding-caseA-a1-a2-skip.yaml
 
 # ─── Scenario A: save only — audio stays in the local archive ──────────────
 

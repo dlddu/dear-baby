@@ -2,7 +2,7 @@ appId: com.dlddu.dearbaby
 ---
 # Q1·Q2 케이스 분기 (PRD-006 AC-006-01) — Case B 흐름 검증.
 #
-# Case A 의 결말(welcome)은 onboarding-stage1-* 시리즈가 이미 커버한다.
+# Case A 의 결말(a1·a2 → 홈)은 onboarding-stage1-* 시리즈가 이미 커버한다.
 # 본 플로우는 그 외 결말 두 가지를 검증한다:
 #
 #   ① Case B (임신 O · 양육 O)  → not-ready placeholder → 홈 진입

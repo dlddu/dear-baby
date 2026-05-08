@@ -45,8 +45,11 @@ updated: 2026-04-15
 | 서사 *(제안)* | `Narrative` | `narrative` | `narratives` / `narrative_id` | AI가 여러 기록을 엮어 생성한 편지 형식의 이야기 | PRD-003, V-003 |
 | 실물 책 *(제안)* | `Book` | `book` | `books` / `book_id` | 서사와 미디어로 제작된 물리적 책 제품 | PRD-004, V-006 |
 | 미디어 *(제안)* | `Media` | `media`, `mediaItem` | `media` / `media_id`, `media_type` | 기록에 첨부된 사진/영상/음성 메모 | PRD-005, V-007 |
-| 임신 주차 *(제안)* | `PregnancyWeek` (number) | `pregnancyWeek`, `currentWeek` | `pregnancy_week` | 출산 예정일 기반으로 계산된 현재 주차 | PRD-002, AC-002-02 |
-| 출산 예정일 *(제안)* | `DueDate` (ISO 8601 date string) | `dueDate` | `due_date` | EDD. 사용자가 입력하며 임신 주차 계산의 기준 | PRD-002, AC-002-02 |
+| 임신 주차 *(제안)* | `PregnancyWeek` (number) | `pregnancyWeek`, `currentWeek` | `pregnancy_week` | 출산 예정일 기반으로 계산된 현재 주차. 사용자가 직접 입력할 수도 있다 | PRD-002, AC-002-02, PRD-006, AC-006-02 |
+| 출산 예정일 *(제안)* | `DueDate` (ISO 8601 date string) | `dueDate` | `due_date` | EDD. 사용자가 입력하며 임신 주차 계산의 기준 | PRD-002, AC-002-02, PRD-006, AC-006-02 |
+| 임신 아이 수 *(제안)* | `FetusCount` (`1 \| 2 \| 3`) | `fetusCount` | — (frontend only) | 동시에 품고 있는 태아 수. 단태/쌍둥이/세쌍둥이+ 의 입력 표기. 백엔드 영속화는 추후 PR | PRD-006, AC-006-02 |
+| 태명 *(제안)* | `Nickname` (string) | `nickname` | — (frontend only) | 태아 또는 아이의 애칭. 선택 입력 | PRD-006, AC-006-02 |
+| 성별 (태아/아이) *(제안)* | `Gender` (`'female' \| 'male' \| 'unknown'`) | `gender` | — (frontend only) | 태아 또는 아이의 성별. 선택 입력. 'unknown' 은 "아직 몰라요" | PRD-006, AC-006-02 |
 | OAuth 계정 연결 | — (DB only) | — | `oauth_accounts` / `provider`, `provider_user_id` | 사용자와 외부 OAuth 제공자(Google, Apple)의 연결 | `backend/internal/migrations/0001_users.up.sql` |
 | 리프레시 토큰 저장소 | `RefreshStore` | `refreshStore` | `refresh_tokens` | 서버에 영속되는 리프레시 토큰 레코드 | `backend/internal/auth/store.go` |
 

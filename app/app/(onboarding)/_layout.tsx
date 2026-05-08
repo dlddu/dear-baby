@@ -7,8 +7,10 @@ import { colors } from '../../src/theme/colors';
 // screen can own its own full-bleed layout, and uses the same cream
 // background as the rest of the app so there are no seams between stacks.
 //
-// OnboardingProvider 는 이 스택 안에서만 살아 있다. 사용자가 홈으로 빠져
-// 나가면 Provider 가 unmount 되며 Q1·Q2 답변도 함께 정리된다 (영속화 X).
+// OnboardingProvider 는 이 스택 안에서 마운트되고, mount 시 SecureStore
+// 에서 진행 중 입력을 hydrate 한다. 사용자가 앱을 강제 종료한 뒤
+// 재진입해도 마지막 입력 상태가 그대로 표시된다. `completeOnboarding`
+// 성공 시 SecureStore 의 진행 슬롯은 자동으로 정리된다.
 export default function OnboardingLayout() {
   return (
     <OnboardingProvider>
@@ -20,7 +22,8 @@ export default function OnboardingLayout() {
       >
         <Stack.Screen name="q1" />
         <Stack.Screen name="q2" />
-        <Stack.Screen name="welcome" />
+        <Stack.Screen name="a1" />
+        <Stack.Screen name="a2" />
         <Stack.Screen name="not-ready" />
       </Stack>
     </OnboardingProvider>
