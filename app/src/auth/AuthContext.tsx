@@ -16,6 +16,7 @@ import type { Record, Session, User } from '../api/types';
 import { patchMe } from '../api/users';
 import {
   clearOnboardingCache,
+  clearOnboardingDraft,
   getCachedOnboardedAt,
   setCachedOnboarding,
 } from './onboardingCache';
@@ -123,6 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(updated);
     setStatus(statusForUser(updated));
     await cacheFromUser(updated);
+    // 백엔드 onboarded_at 이 스탬프되었으니 진행 중 입력 슬롯도 정리한다.
+    // OnboardingProvider 가 unmount 되면서 자체 cleanup 도 하지만, 모드 전환
+    // 타이밍의 누수를 막기 위해 여기서도 한 번 더 정리.
+    await clearOnboardingDraft();
   }, []);
 
   // dismissVoiceCoachmark is called when the user taps the close button on

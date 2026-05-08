@@ -3,8 +3,8 @@
 //
 // PRD-006 AC-006-01 의 두 독립 체크 중 두 번째. Q1 답변과 조합해 Case A/B/C
 // (또는 fallback-A) 로 분기한다. 분기 결과가 'A' 혹은 'fallback-A' 이면
-// 기존 welcome 화면(예정일 입력)으로 push, 'B'/'C' 면 not-ready placeholder
-// 로 push.
+// Case A 입력 흐름의 시작인 a1(임신 아이 수)으로 push, 'B'/'C' 면 Case B/C
+// 화면이 아직 준비되지 않았으므로 not-ready placeholder 로 push.
 
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -26,11 +26,11 @@ export default function OnboardingQ2() {
   const onSelect = (value: boolean) => {
     setQ2(value);
     // q1Pregnant 가 null 인 경우는 사용자가 Q2 로 직접 진입한 비정상 흐름.
-    // 이 때는 안전 기본값으로 임신 미상태(fallback-A) 로 처리해 welcome 으로 보낸다.
+    // 이 때는 안전 기본값으로 임신 미상태(fallback-A) 로 처리해 a1 으로 보낸다.
     const q1 = q1Pregnant ?? false;
-    const goesToWelcome = q1 ? !value : true; // A 또는 fallback-A
-    if (goesToWelcome) {
-      router.push('/(onboarding)/welcome');
+    const goesToCaseA = q1 ? !value : true; // A 또는 fallback-A
+    if (goesToCaseA) {
+      router.push('/(onboarding)/a1');
     } else {
       router.push('/(onboarding)/not-ready');
     }

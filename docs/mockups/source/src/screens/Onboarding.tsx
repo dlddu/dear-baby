@@ -252,6 +252,15 @@ function FetusInfoForm({ heading }: { heading?: string }) {
             <Pill>아직 몰라요</Pill>
           </div>
         </div>
+        <div>
+          <FieldLabel>임신 주차</FieldLabel>
+          <div className="relative">
+            <Input placeholder="17" type="number" />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[14px] text-ink-sub font-medium pointer-events-none">
+              주
+            </span>
+          </div>
+        </div>
       </div>
     </>
   )

@@ -25,37 +25,13 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/tester-login.yaml
 
-# Q1·Q2 (Case A: 임신 O · 양육 X) → welcome
+# Q1·Q2 (Case A: 임신 O · 양육 X) → a1
 - runFlow:
     file: subflows/onboarding-q1-q2-caseA.yaml
 
-- tapOn:
-    id: "onboarding-due-date-field"
-
-# Android: native date-picker dialog — confirm the default date.
+# a1 → a2 → 홈 (예정일 선택 경로)
 - runFlow:
-    when:
-      visible: "OK"
-    commands:
-      - tapOn: "OK"
-
-# iOS: inline spinner — scroll wheel + Done, same pattern as stage1.
-- runFlow:
-    when:
-      visible:
-        id: "onboarding-date-picker-done"
-    commands:
-      - swipe:
-          start: "50%, 85%"
-          end: "50%, 70%"
-          duration: 400
-      - tapOn:
-          id: "onboarding-date-picker-done"
-
-- tapOn:
-    id: "onboarding-start-button"
-- assertVisible:
-    id: "home-tab"
+    file: subflows/onboarding-caseA-a1-a2-date.yaml
 
 # Stage 2 UI
 - assertVisible:

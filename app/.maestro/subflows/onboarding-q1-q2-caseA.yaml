@@ -4,8 +4,8 @@ appId: com.dlddu.dearbaby
 # Caller must already be on the Q1 screen (id "onboarding-q1") — usually
 # by having just signed in via subflows/tester-login.yaml.
 #
-# After this subflow runs the user is on the welcome screen
-# (id "onboarding-welcome"), which is Stage 1 의 예정일 입력 단계다.
+# After this subflow runs the user is on the A1 screen
+# (id "onboarding-a1"), Case A 의 첫 입력 화면(임신 아이 수)이다.
 
 - assertVisible:
     id: "onboarding-q1"
@@ -17,9 +17,9 @@ appId: com.dlddu.dearbaby
 - assertVisible:
     id: "onboarding-q2"
 
-# Q2 = 아니요, 첫 아이예요 → Case A → welcome 화면
+# Q2 = 아니요, 첫 아이예요 → Case A → a1 화면
 - tapOn:
     id: "onboarding-q2-no"
 
 - assertVisible:
-    id: "onboarding-welcome"
+    id: "onboarding-a1"

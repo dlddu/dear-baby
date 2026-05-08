@@ -17,3 +17,7 @@ export { QuestionHeader } from './QuestionHeader';
 export type { QuestionHeaderProps } from './QuestionHeader';
 export { ProgressDots } from './ProgressDots';
 export type { ProgressDotsProps } from './ProgressDots';
+export { NumberPicker } from './NumberPicker';
+export type { NumberPickerProps, NumberPickerValue } from './NumberPicker';
+export { Pill } from './Pill';
+export type { PillProps } from './Pill';

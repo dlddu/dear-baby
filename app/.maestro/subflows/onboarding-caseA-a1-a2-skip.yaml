@@ -1,0 +1,49 @@
+appId: com.dlddu.dearbaby
+---
+# Reusable Case A a1·a2 subflow — date skip path.
+#
+# Caller must be on the a1 screen (id "onboarding-a1") — typically reached
+# via subflows/onboarding-q1-q2-caseA.yaml. This subflow:
+#
+#   1. Selects 단태 (count=1) on a1 and taps [다음]
+#   2. Skips the 예정일 with [아직 정해지지 않았어요]
+#   3. Selects 성별 = 아직 몰라요
+#   4. Inputs 임신 주차 = 12
+#   5. Taps [시작하기] → home
+#
+# After this subflow runs the user is on the home tab with onboarded_at
+# stamped and due_date == null (Stage 2 undecided variant).
+
+- assertVisible:
+    id: "onboarding-a1"
+
+# 단태아 선택 → a2 진입
+- tapOn:
+    id: "onboarding-a1-count-1"
+- tapOn:
+    id: "onboarding-a1-next"
+- assertVisible:
+    id: "onboarding-a2"
+
+# 예정일 스킵
+- tapOn:
+    id: "onboarding-a2-due-date-skip"
+
+# 성별 = 아직 몰라요
+- tapOn:
+    id: "onboarding-a2-gender-unknown"
+
+# 임신 주차 = 12
+- tapOn:
+    id: "onboarding-a2-week"
+- inputText: "12"
+# 키보드 닫기 — iOS 의 number-pad 키보드는 return 키가 없어 hideKeyboard
+# 가 실패한다. 비입력 텍스트를 탭해 키보드를 내린다.
+- tapOn:
+    text: "기록 가이드를 맞춰 보여드릴게요"
+
+# [시작하기] → 홈
+- tapOn:
+    id: "onboarding-a2-next"
+- assertVisible:
+    id: "home-tab"
