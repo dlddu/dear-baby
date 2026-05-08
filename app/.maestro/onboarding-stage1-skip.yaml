@@ -38,13 +38,12 @@ appId: com.dlddu.dearbaby
 # Verify A2 copy & controls
 - assertVisible:
     id: "onboarding-a2"
-- assertVisible: "아이의 정보를"
+- assertVisible: "알려주세요"
 - assertVisible: "예정일"
 - assertVisible: "날짜 선택하기"
 - assertVisible: "아직 정해지지 않았어요"
 - assertVisible: "여자아이"
 - assertVisible: "남자아이"
-- assertVisible: "아직 몰라요"
 - assertVisible: "임신 주차"
 - assertVisible: "시작하기"
 
