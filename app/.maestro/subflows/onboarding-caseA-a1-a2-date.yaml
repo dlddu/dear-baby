@@ -59,7 +59,10 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-a2-week"
 - inputText: "17"
-- hideKeyboard
+# 키보드 닫기 — iOS 의 number-pad 키보드는 return 키가 없어 hideKeyboard
+# 가 실패한다. 비입력 텍스트를 탭해 키보드를 내린다.
+- tapOn:
+    text: "기록 가이드를 맞춰 보여드릴게요"
 
 # [시작하기] → 홈
 - tapOn:
