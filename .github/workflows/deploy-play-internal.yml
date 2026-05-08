@@ -1,0 +1,20 @@
+name: Deploy Android to Play Store (Internal)
+
+# PR-preview path: build the Android app against the staging backend and
+# upload it to the Play Store internal track. The actual build pipeline
+# lives in build-android-play-internal.yml so any future
+# production-track promotion workflow can share the same steps. Mirrors
+# deploy-testflight.yml on the iOS side.
+
+on:
+  workflow_call:
+
+jobs:
+  deploy-play-internal:
+    name: Deploy Android to Play Store (Internal)
+    uses: ./.github/workflows/build-android-play-internal.yml
+    with:
+      expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
+      ref: ${{ github.event.pull_request.head.sha }}
+      track: internal
+    secrets: inherit
