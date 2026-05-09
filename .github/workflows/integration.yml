@@ -16,17 +16,18 @@ jobs:
       - name: Build backend image (local)
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: backend
           file: backend/Dockerfile
           push: false
           load: true
           tags: ghcr.io/dlddu/dear-baby:ci
           cache-from: type=gha
 
-      # LANGFUSE_{PUBLIC,SECRET}_KEY, when present, activate the
-      # observeOpenAI wrapper inside the worker so CI runs ship traces.
-      # Both keys are required together; the worker deployment references
-      # langfuse-secret as optional, so absence is a no-op pass-through.
+      # LANGFUSE_{PUBLIC,SECRET}_KEY, when present, activate the OTLP
+      # exporter inside the worker so CI runs ship traces. Both keys are
+      # required together; the worker deployment references
+      # langfuse-secret as optional, so absence leaves the tracer
+      # provider unset (spans are dropped without exporting).
       - name: Check Langfuse keys
         id: has_langfuse_keys
         env:

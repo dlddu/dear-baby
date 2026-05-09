@@ -30,10 +30,11 @@ services:
       REDIS_URL: "redis://redis:6379"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY required}"
       OPENROUTER_MODEL: "${OPENROUTER_MODEL:?OPENROUTER_MODEL required}"
-      # Langfuse keys are optional locally — without them the span
-      # processor is never installed and observeOpenAI spans go nowhere.
-      # LANGFUSE_BASE_URL defaults to US (our account region); set it
-      # explicitly if you switch projects.
+      # Langfuse keys are optional locally. When unset the worker boots
+      # tracing as a no-op and OpenRouter spans are dropped silently.
+      # LANGFUSE_BASE_URL points the OTLP exporter at the right region
+      # (US is our account region; swap to https://cloud.langfuse.com
+      # for EU).
       LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY:-}"
       LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY:-}"
       LANGFUSE_BASE_URL: "${LANGFUSE_BASE_URL:-https://us.cloud.langfuse.com}"

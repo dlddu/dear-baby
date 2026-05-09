@@ -1,23 +1,23 @@
-# Two-stage build: compile TypeScript in the builder stage, then copy the
-# compiled output + production dependencies into a slim runtime image.
+# syntax=docker/dockerfile:1
+# Multi-stage build: compile a static binary in golang-alpine, then copy
+# it into a distroless runtime image. Build context is the worker
+# directory itself — the worker is self-contained and doesn't need
+# anything from the repo root.
 
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install --no-audit --no-fund
-COPY tsconfig.json ./
-COPY src ./src
-RUN npm run build
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS build
+ARG TARGETOS
+ARG TARGETARCH
+WORKDIR /src
+# Copy module files first so dependency download caches independently of
+# source changes.
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . ./
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" -o /out/dear-baby-worker ./cmd/worker
 
-FROM node:20-alpine AS runtime
-# Create /app and hand it to the `node` user before switching, so npm
-# can write node_modules as non-root. WORKDIR alone would mkdir /app
-# owned by root and the subsequent `npm install` would EACCES.
-RUN mkdir -p /app && chown node:node /app
-WORKDIR /app
-ENV NODE_ENV=production
-USER node
-COPY --chown=node:node package.json package-lock.json* ./
-RUN npm install --omit=dev --no-audit --no-fund
-COPY --chown=node:node --from=builder /app/dist ./dist
-CMD ["node", "dist/index.js"]
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /
+COPY --from=build /out/dear-baby-worker /dear-baby-worker
+USER nonroot:nonroot
+ENTRYPOINT ["/dear-baby-worker"]

@@ -29,8 +29,9 @@ spec:
             # pair together without touching the manifest.
             - secretRef:
                 name: openrouter-secret
-            # Optional: when langfuse-secret is missing, observeOpenAI
-            # degrades to a pass-through and the worker still ships.
+            # Optional: when langfuse-secret is missing, the worker's
+            # tracing bootstrap returns a no-op handle and OpenRouter
+            # spans are dropped silently, so the deployment still ships.
             - secretRef:
                 name: langfuse-secret
                 optional: true
