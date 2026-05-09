@@ -19,7 +19,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: .
+          context: worker
           file: worker/Dockerfile
           push: true
           tags: |

@@ -44,7 +44,7 @@ jobs:
       - name: Build worker image (local)
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: worker
           file: worker/Dockerfile
           push: false
           load: true
