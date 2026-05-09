@@ -132,10 +132,13 @@ platform :android do
       json_key: json_key_path,
       track: "internal",
       aab: aab_path,
-      # internal track으로 즉시 게재. 신규 앱일 때(어떤 트랙에서도 한 번도
-      # roll-out된 적 없는 "Draft app" 상태)는 Play API가 "completed"를
-      # 거절하므로, 최초 1회는 Play Console에서 수동 roll-out 필요.
-      release_status: "completed",
+      # `draft`는 internal track에 빌드를 저장만 하고 roll-out은 안 함 —
+      # Play Console에서 수동 "Start rollout to Internal testing" 1회
+      # 필요. 앱이 "Draft app" 상태(Production 트랙에 release가 한 번도
+      # 등록된 적 없음)인 동안 Play API는 `completed`를 거절하므로
+      # 그 기간 동안 사용. Production launch 이후 `completed`로 승격해
+      # hands-off rollout으로 전환 가능.
+      release_status: "draft",
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_changelogs: false,
