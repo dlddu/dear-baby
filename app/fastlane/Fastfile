@@ -132,7 +132,14 @@ platform :android do
       json_key: json_key_path,
       track: "internal",
       aab: aab_path,
-      release_status: "completed",
+      # `draft` saves the build into the internal track without rolling
+      # it out — internal testers can still install via the testing
+      # link. The Play API rejects `completed` while the app itself is
+      # in Draft state (i.e. before the Production track has ever been
+      # promoted), so this also works pre-launch. Once the app is
+      # published to Production we can revisit promoting to `completed`
+      # for hands-off rollout.
+      release_status: "draft",
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_changelogs: false,
