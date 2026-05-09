@@ -253,28 +253,37 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 // (dev/staging/prod) and the file extension (per format) vary — so a
 // key string is meaningful in logs:
 //
-//	{prefix}users/{user_id}/records/{record_id}{.m4a|.wav}
+//	{prefix}year=YYYY/month=MM/day=DD/users/{user_id}/records/{record_id}{.m4a|.wav}
+//
+// The leading year=/month=/day= triple is Hive-style time partitioning
+// (UTC, derived from the record's created_at). Athena/Glue/Spark
+// auto-detect these as partition columns, which keeps analytics scans
+// cheap and lets S3 lifecycle rules target whole date ranges with a
+// single prefix. The date is fixed at record-creation time so the
+// server can rebuild the same key during PATCH validation.
 //
 // Callers MUST go through this function; constructing keys by hand
 // elsewhere defeats the prefix-validation invariant in PATCH /records.
-func (c *Client) BuildRecordAudioKey(userID, recordID string, format AudioFormat) string {
-	return fmt.Sprintf("%susers/%s/records/%s%s", c.Config.KeyPrefix, userID, recordID, format.Extension())
+func (c *Client) BuildRecordAudioKey(userID, recordID string, format AudioFormat, createdAt time.Time) string {
+	t := createdAt.UTC()
+	return fmt.Sprintf("%syear=%04d/month=%02d/day=%02d/users/%s/records/%s%s",
+		c.Config.KeyPrefix, t.Year(), t.Month(), t.Day(), userID, recordID, format.Extension())
 }
 
 // IsValidRecordAudioKey returns true when key matches the canonical
-// format for the given user and record in any supported audio format.
-// PATCH /records uses this to reject keys that point outside the
-// calling user's record namespace — the client never gets to choose
-// its own key. Either extension (.m4a or .wav) is accepted; which one
-// the client uses is signalled by the format field on the upload-url
-// request and verified later by the HEAD check (a key the device
-// didn't actually upload to has no object to find).
-func (c *Client) IsValidRecordAudioKey(userID, recordID, key string) bool {
+// format for the given user, record, and creation time in any
+// supported audio format. PATCH /records uses this to reject keys that
+// point outside the calling user's record namespace — the client never
+// gets to choose its own key. Either extension (.m4a or .wav) is
+// accepted; which one the client uses is signalled by the format field
+// on the upload-url request and verified later by the HEAD check (a
+// key the device didn't actually upload to has no object to find).
+func (c *Client) IsValidRecordAudioKey(userID, recordID, key string, createdAt time.Time) bool {
 	if key == "" {
 		return false
 	}
-	return key == c.BuildRecordAudioKey(userID, recordID, AudioFormatM4A) ||
-		key == c.BuildRecordAudioKey(userID, recordID, AudioFormatWAV)
+	return key == c.BuildRecordAudioKey(userID, recordID, AudioFormatM4A, createdAt) ||
+		key == c.BuildRecordAudioKey(userID, recordID, AudioFormatWAV, createdAt)
 }
 
 // PresignPut issues a presigned PUT URL for the given key, locked to

@@ -85,16 +85,18 @@ type fakeAudio struct {
 	lastContent string
 }
 
-func (f *fakeAudio) BuildRecordAudioKey(userID, recordID string, format storage.AudioFormat) string {
-	return fmt.Sprintf("%susers/%s/records/%s%s", f.prefix, userID, recordID, format.Extension())
+func (f *fakeAudio) BuildRecordAudioKey(userID, recordID string, format storage.AudioFormat, createdAt time.Time) string {
+	t := createdAt.UTC()
+	return fmt.Sprintf("%syear=%04d/month=%02d/day=%02d/users/%s/records/%s%s",
+		f.prefix, t.Year(), t.Month(), t.Day(), userID, recordID, format.Extension())
 }
 
-func (f *fakeAudio) IsValidRecordAudioKey(userID, recordID, key string) bool {
+func (f *fakeAudio) IsValidRecordAudioKey(userID, recordID, key string, createdAt time.Time) bool {
 	if key == "" {
 		return false
 	}
-	return key == f.BuildRecordAudioKey(userID, recordID, storage.AudioFormatM4A) ||
-		key == f.BuildRecordAudioKey(userID, recordID, storage.AudioFormatWAV)
+	return key == f.BuildRecordAudioKey(userID, recordID, storage.AudioFormatM4A, createdAt) ||
+		key == f.BuildRecordAudioKey(userID, recordID, storage.AudioFormatWAV, createdAt)
 }
 
 func (f *fakeAudio) PresignPut(_ context.Context, key string, format storage.AudioFormat) (storage.PresignedPut, error) {
@@ -451,20 +453,37 @@ func routeWithChi(h *Handlers) http.Handler {
 	return r
 }
 
+// seededRecordCreatedAt is the fixed UTC timestamp seedVoiceRecord stamps
+// onto rows. Pinning created_at means tests can predict the time-partition
+// segment in canonical S3 keys without depending on wall-clock at runtime.
+var seededRecordCreatedAt = time.Date(2026, 5, 9, 14, 30, 0, 0, time.UTC)
+
+// seededRecordCreatedAtSQL is seededRecordCreatedAt in the SQLite layout
+// (`YYYY-MM-DD HH:MM:SS`, UTC) so it round-trips cleanly through the
+// store's time.Parse on read.
+const seededRecordCreatedAtSQL = "2026-05-09 14:30:00"
+
+// seededRecordPartition is the canonical Hive-style time-partition path
+// segment that BuildRecordAudioKey produces for seededRecordCreatedAt.
+// Tests use it to assemble expected keys without recomputing the format.
+const seededRecordPartition = "year=2026/month=05/day=09"
+
 // seedVoiceRecord inserts a row directly so each PATCH/upload-url
 // test starts from a known state without going through Create.
+// created_at is pinned to seededRecordCreatedAtSQL so callers can
+// derive the expected time-partitioned S3 key deterministically.
 func seedVoiceRecord(t *testing.T, db *sql.DB, recordID, userID, content string, audioKey *string) {
 	t.Helper()
 	if audioKey == nil {
-		_, err := db.Exec(`INSERT INTO records (id, user_id, content, source) VALUES (?,?,?,?)`,
-			recordID, userID, content, "voice")
+		_, err := db.Exec(`INSERT INTO records (id, user_id, content, source, created_at) VALUES (?,?,?,?,?)`,
+			recordID, userID, content, "voice", seededRecordCreatedAtSQL)
 		if err != nil {
 			t.Fatalf("seed record: %v", err)
 		}
 		return
 	}
-	_, err := db.Exec(`INSERT INTO records (id, user_id, content, source, audio_s3_key) VALUES (?,?,?,?,?)`,
-		recordID, userID, content, "voice", *audioKey)
+	_, err := db.Exec(`INSERT INTO records (id, user_id, content, source, audio_s3_key, created_at) VALUES (?,?,?,?,?,?)`,
+		recordID, userID, content, "voice", *audioKey, seededRecordCreatedAtSQL)
 	if err != nil {
 		t.Fatalf("seed record: %v", err)
 	}
@@ -505,7 +524,7 @@ func TestUploadURL_HappyPath(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	wantKey := "test/users/u1/records/rec-1.m4a"
+	wantKey := "test/" + seededRecordPartition + "/users/u1/records/rec-1.m4a"
 	if body.AudioS3Key != wantKey {
 		t.Errorf("audio_s3_key: got %q want %q", body.AudioS3Key, wantKey)
 	}
@@ -535,7 +554,7 @@ func TestUploadURL_AnotherUsersRecord_404(t *testing.T) {
 func TestUploadURL_AlreadyAttached_409(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
-	key := "test/users/u1/records/rec-1.m4a"
+	key := "test/" + seededRecordPartition + "/users/u1/records/rec-1.m4a"
 	seedVoiceRecord(t, db, "rec-1", "u1", "x", &key)
 
 	rec := runReq(t, h, http.MethodPost, "/records/rec-1/audio/upload-url", "u1", "")
@@ -558,7 +577,7 @@ func TestUploadURL_WAVFormat_KeyAndContentType(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	wantKey := "test/users/u1/records/rec-1.wav"
+	wantKey := "test/" + seededRecordPartition + "/users/u1/records/rec-1.wav"
 	if body.AudioS3Key != wantKey {
 		t.Errorf("audio_s3_key: got %q want %q", body.AudioS3Key, wantKey)
 	}
@@ -585,7 +604,7 @@ func TestUploadURL_DefaultFormatIsM4A(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.AudioS3Key != "test/users/u1/records/rec-1.m4a" {
+	if body.AudioS3Key != "test/"+seededRecordPartition+"/users/u1/records/rec-1.m4a" {
 		t.Errorf("audio_s3_key: got %q", body.AudioS3Key)
 	}
 	if audio.lastFormat != storage.AudioFormatM4A {
@@ -609,7 +628,7 @@ func TestPatch_WAVKey_AttachesAudio(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
 	seedVoiceRecord(t, db, "rec-1", "u1", "transcript", nil)
-	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatWAV)
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatWAV, seededRecordCreatedAt)
 	audio.objects[key] = true
 
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
@@ -646,7 +665,7 @@ func TestPatch_HappyPath_AttachesAudio(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
 	seedVoiceRecord(t, db, "rec-1", "u1", "transcript", nil)
-	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A)
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A, seededRecordCreatedAt)
 	audio.objects[key] = true
 
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
@@ -667,7 +686,7 @@ func TestPatch_KeyOutsideUserNamespace_400(t *testing.T) {
 	defer db.Close()
 	seedUser(t, db, "u2", "u2@b.com")
 	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
-	wrong := audio.BuildRecordAudioKey("u2", "rec-1", storage.AudioFormatM4A)
+	wrong := audio.BuildRecordAudioKey("u2", "rec-1", storage.AudioFormatM4A, seededRecordCreatedAt)
 
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(wrong))
 	if rec.Code != http.StatusBadRequest {
@@ -679,7 +698,7 @@ func TestPatch_MissingS3Object_400(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
 	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
-	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A)
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A, seededRecordCreatedAt)
 
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))
 	if rec.Code != http.StatusBadRequest {
@@ -690,7 +709,7 @@ func TestPatch_MissingS3Object_400(t *testing.T) {
 func TestPatch_AlreadyAttached_409(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
-	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A)
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A, seededRecordCreatedAt)
 	seedVoiceRecord(t, db, "rec-1", "u1", "x", &key)
 	audio.objects[key] = true
 
@@ -704,7 +723,7 @@ func TestPatch_HeadObjectError_500(t *testing.T) {
 	h, db, audio := newHandlers(t, "u1")
 	defer db.Close()
 	seedVoiceRecord(t, db, "rec-1", "u1", "x", nil)
-	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A)
+	key := audio.BuildRecordAudioKey("u1", "rec-1", storage.AudioFormatM4A, seededRecordCreatedAt)
 	audio.headErr = errors.New("network down")
 
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", attachBody(key))

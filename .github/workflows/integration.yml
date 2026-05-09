@@ -437,9 +437,10 @@ jobs:
           content_type=$(python3 -c 'import json; print(json.load(open("/tmp/presign.json"))["content_type"])')
           echo "audio_s3_key=$server_audio_key content_type=$content_type"
           # Backend should return the canonical key under our configured
-          # prefix; "ci/users/{uid}/records/{rid}.m4a" shape.
+          # prefix with the Hive-style time partition segment, e.g.
+          # "ci/year=YYYY/month=MM/day=DD/users/{uid}/records/{rid}.m4a".
           case "$server_audio_key" in
-            ci/users/*/records/*.m4a) ;;
+            ci/year=[0-9][0-9][0-9][0-9]/month=[0-9][0-9]/day=[0-9][0-9]/users/*/records/*.m4a) ;;
             *) echo "unexpected key shape: $server_audio_key"; exit 1 ;;
           esac
           echo "::endgroup::"
