@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
@@ -32,8 +33,8 @@ const maxQuestionRunes = 500
 // need. Defining it as an interface here lets tests substitute a fake
 // without pulling in the AWS SDK at all.
 type AudioStorage interface {
-	BuildRecordAudioKey(userID, recordID string, format storage.AudioFormat) string
-	IsValidRecordAudioKey(userID, recordID, key string) bool
+	BuildRecordAudioKey(userID, recordID string, format storage.AudioFormat, createdAt time.Time) string
+	IsValidRecordAudioKey(userID, recordID, key string, createdAt time.Time) bool
 	PresignPut(ctx context.Context, key string, format storage.AudioFormat) (storage.PresignedPut, error)
 	HeadObject(ctx context.Context, key string) (bool, error)
 }
@@ -207,7 +208,7 @@ func (h *Handlers) CreateAudioUploadURL(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	key := h.Audio.BuildRecordAudioKey(uid, recordID, format)
+	key := h.Audio.BuildRecordAudioKey(uid, recordID, format, rec.CreatedAt)
 	put, err := h.Audio.PresignPut(r.Context(), key, format)
 	if err != nil {
 		slog.Error("presign put failed", "err", err, "user_id", uid, "record_id", recordID, "format", format)
@@ -283,7 +284,7 @@ func (h *Handlers) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.Audio.IsValidRecordAudioKey(uid, recordID, key) {
+	if !h.Audio.IsValidRecordAudioKey(uid, recordID, key, rec.CreatedAt) {
 		// The client tried to PATCH a key that doesn't match this
 		// user's canonical namespace. Treat as 400 — this is a bug,
 		// not a legitimate state.

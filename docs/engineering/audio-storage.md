@@ -9,11 +9,21 @@ A voice record produces two artifacts. They live separately on purpose.
 | Artifact | Where it lives | Required? |
 |---|---|---|
 | Transcript | `records.content` (server) | Yes — the row exists only when transcript is committed. |
-| Audio blob | S3 object at `users/{user_id}/records/{record_id}.{m4a\|wav}` (under the configured prefix) | No — `records.audio_s3_key` may stay null forever. |
+| Audio blob | S3 object at `year=YYYY/month=MM/day=DD/users/{user_id}/records/{record_id}.{m4a\|wav}` (under the configured prefix) | No — `records.audio_s3_key` may stay null forever. |
 
 The transcript is the authoritative diary entry. The audio is a souvenir the user can keep, upload later, or delete entirely. Two records with identical transcripts are functionally identical even if one has audio and the other doesn't.
 
 The extension and Content-Type vary by recording platform: Android captures AAC-in-MP4 (`.m4a`, `audio/mp4`) and iOS captures 16 kHz mono linear-PCM (`.wav`, `audio/wav`) — whisper.cpp consumes the latter natively, so STT skips an AAC decode. The client signals which one it produced via the `format` field on the upload-url request; the server uses that to build the matching S3 key and to lock the presigned PUT's Content-Type. Older clients that omit the field default to `m4a`.
+
+### Time partitioning
+
+The leading `year=YYYY/month=MM/day=DD/` triple is Hive-style partitioning, derived from the record's `created_at` in UTC. Three things follow from this:
+
+- **Analytics scans are cheap.** AWS Athena, Glue, and Spark auto-detect `key=value` segments as partition columns, so a query like `WHERE year='2026' AND month='05'` only scans that month's prefix instead of the whole bucket.
+- **S3 lifecycle rules target whole date ranges.** A "delete audio older than two years" policy attaches to `year=2024/` once and naturally widens as time passes — no per-object tagging needed.
+- **The partition is fixed at record-creation time.** The server uses `records.created_at` (UTC) when building the key in both `POST /records/{id}/audio/upload-url` and `PATCH /records/{id}`, so the same row always resolves to the same key. Late-arriving audio (a record created last week, uploaded today) lands under the record's original date — which is what analytics actually wants.
+
+Existing rows attached before this layout was introduced keep their legacy `users/{user_id}/records/{record_id}.{ext}` keys; `audio_s3_key` is one-way, so they are never re-validated. New uploads use the partitioned format.
 
 ## Why the backend doesn't proxy audio
 
@@ -77,10 +87,10 @@ A misconfigured deploy that's missing `AWS_REGION` or `AWS_S3_BUCKET` fails fast
 The records-audio writer role's permissions policy should restrict to:
 
 ```
-arn:aws:s3:::${AWS_S3_BUCKET}/${AWS_S3_KEY_PREFIX}users/*
+arn:aws:s3:::${AWS_S3_BUCKET}/${AWS_S3_KEY_PREFIX}year=*/month=*/day=*/users/*
 ```
 
-with permission for `s3:PutObject`, `s3:GetObject`, and `s3:HeadObject`. The backend never lists, never deletes — those operations go through ops tooling.
+with permission for `s3:PutObject`, `s3:GetObject`, and `s3:HeadObject`. The backend never lists, never deletes — those operations go through ops tooling. Buckets that still hold legacy unpartitioned keys (`${AWS_S3_KEY_PREFIX}users/*`) need both patterns in the policy until those rows are migrated or aged out.
 
 ## Key invariants
 

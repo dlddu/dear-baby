@@ -1,6 +1,9 @@
 package storage
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNormalisePrefix(t *testing.T) {
 	cases := []struct {
@@ -22,56 +25,77 @@ func TestNormalisePrefix(t *testing.T) {
 }
 
 func TestBuildRecordAudioKey(t *testing.T) {
+	// 2026-05-09 14:30:00 UTC — chosen so single-digit month/day exercise
+	// zero-padding, and a non-UTC input proves we normalise to UTC.
+	utc := time.Date(2026, 5, 9, 14, 30, 0, 0, time.UTC)
+	// Same instant expressed in KST (UTC+9). After UTC normalisation the
+	// partition must still resolve to 2026-05-09 (14:30 UTC), not the
+	// local 2026-05-09 23:30.
+	kst := time.FixedZone("KST", 9*60*60)
+	utcAsKST := utc.In(kst)
+
 	cases := []struct {
+		name                       string
 		prefix, user, record, want string
 		format                     AudioFormat
+		createdAt                  time.Time
 	}{
-		{"", "u1", "r1", "users/u1/records/r1.m4a", AudioFormatM4A},
-		{"prod/", "u1", "r1", "prod/users/u1/records/r1.m4a", AudioFormatM4A},
-		{"dev/alice/", "u-2", "r-3", "dev/alice/users/u-2/records/r-3.m4a", AudioFormatM4A},
-		{"", "u1", "r1", "users/u1/records/r1.wav", AudioFormatWAV},
-		{"prod/", "u1", "r1", "prod/users/u1/records/r1.wav", AudioFormatWAV},
+		{"empty prefix m4a", "", "u1", "r1", "year=2026/month=05/day=09/users/u1/records/r1.m4a", AudioFormatM4A, utc},
+		{"prod prefix m4a", "prod/", "u1", "r1", "prod/year=2026/month=05/day=09/users/u1/records/r1.m4a", AudioFormatM4A, utc},
+		{"nested prefix m4a", "dev/alice/", "u-2", "r-3", "dev/alice/year=2026/month=05/day=09/users/u-2/records/r-3.m4a", AudioFormatM4A, utc},
+		{"empty prefix wav", "", "u1", "r1", "year=2026/month=05/day=09/users/u1/records/r1.wav", AudioFormatWAV, utc},
+		{"prod prefix wav", "prod/", "u1", "r1", "prod/year=2026/month=05/day=09/users/u1/records/r1.wav", AudioFormatWAV, utc},
+		{"non-UTC input normalised", "prod/", "u1", "r1", "prod/year=2026/month=05/day=09/users/u1/records/r1.m4a", AudioFormatM4A, utcAsKST},
 	}
 	for _, tc := range cases {
 		c := &Client{Config: Config{KeyPrefix: tc.prefix}}
-		if got := c.BuildRecordAudioKey(tc.user, tc.record, tc.format); got != tc.want {
-			t.Errorf("BuildRecordAudioKey(%q,%q,%q,%q) = %q want %q",
-				tc.prefix, tc.user, tc.record, tc.format, got, tc.want)
+		if got := c.BuildRecordAudioKey(tc.user, tc.record, tc.format, tc.createdAt); got != tc.want {
+			t.Errorf("%s: BuildRecordAudioKey = %q want %q", tc.name, got, tc.want)
 		}
 	}
 }
 
 func TestIsValidRecordAudioKey(t *testing.T) {
 	c := &Client{Config: Config{KeyPrefix: "prod/"}}
-	m4a := c.BuildRecordAudioKey("u1", "r1", AudioFormatM4A)
-	wav := c.BuildRecordAudioKey("u1", "r1", AudioFormatWAV)
-	if !c.IsValidRecordAudioKey("u1", "r1", m4a) {
+	createdAt := time.Date(2026, 5, 9, 14, 30, 0, 0, time.UTC)
+	m4a := c.BuildRecordAudioKey("u1", "r1", AudioFormatM4A, createdAt)
+	wav := c.BuildRecordAudioKey("u1", "r1", AudioFormatWAV, createdAt)
+	if !c.IsValidRecordAudioKey("u1", "r1", m4a, createdAt) {
 		t.Errorf("expected %q to be valid for u1/r1", m4a)
 	}
-	if !c.IsValidRecordAudioKey("u1", "r1", wav) {
+	if !c.IsValidRecordAudioKey("u1", "r1", wav, createdAt) {
 		t.Errorf("expected %q to be valid for u1/r1", wav)
 	}
 	// Wrong user.
-	if c.IsValidRecordAudioKey("u2", "r1", m4a) {
+	if c.IsValidRecordAudioKey("u2", "r1", m4a, createdAt) {
 		t.Errorf("expected %q to be invalid for u2/r1", m4a)
 	}
-	if c.IsValidRecordAudioKey("u2", "r1", wav) {
+	if c.IsValidRecordAudioKey("u2", "r1", wav, createdAt) {
 		t.Errorf("expected %q to be invalid for u2/r1", wav)
 	}
 	// Wrong record.
-	if c.IsValidRecordAudioKey("u1", "r2", m4a) {
+	if c.IsValidRecordAudioKey("u1", "r2", m4a, createdAt) {
 		t.Errorf("expected %q to be invalid for u1/r2", m4a)
 	}
+	// Wrong creation date — partition must match.
+	otherDay := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
+	if c.IsValidRecordAudioKey("u1", "r1", m4a, otherDay) {
+		t.Errorf("expected %q to be invalid when validated against a different day", m4a)
+	}
 	// Empty rejected.
-	if c.IsValidRecordAudioKey("u1", "r1", "") {
+	if c.IsValidRecordAudioKey("u1", "r1", "", createdAt) {
 		t.Errorf("empty key should be invalid")
 	}
+	// Legacy unpartitioned key rejected.
+	if c.IsValidRecordAudioKey("u1", "r1", "prod/users/u1/records/r1.m4a", createdAt) {
+		t.Errorf("legacy unpartitioned key should be invalid")
+	}
 	// Path traversal / hand-rolled key rejected (different prefix).
-	if c.IsValidRecordAudioKey("u1", "r1", "users/u1/records/r1.m4a") {
+	if c.IsValidRecordAudioKey("u1", "r1", "year=2026/month=05/day=09/users/u1/records/r1.m4a", createdAt) {
 		t.Errorf("key without configured prefix should be invalid")
 	}
 	// Unknown extension rejected — the canonical format is .m4a or .wav.
-	if c.IsValidRecordAudioKey("u1", "r1", "prod/users/u1/records/r1.mp3") {
+	if c.IsValidRecordAudioKey("u1", "r1", "prod/year=2026/month=05/day=09/users/u1/records/r1.mp3", createdAt) {
 		t.Errorf("unsupported extension should be invalid")
 	}
 }
