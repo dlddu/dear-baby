@@ -21,3 +21,18 @@ export type FetusDraft = {
   /** 출산 예정일 — ISO 8601 date (YYYY-MM-DD) 또는 미입력 */
   dueDate?: string;
 };
+
+/** 양육 아이 수. Case B/C 의 양육 아이 입력 슬롯 카운트. 1·2·3+ 로 표기되지만 코드에서는 3+를 3 으로 다룬다. */
+export type ChildCount = 1 | 2 | 3;
+
+/** Case B/C 양육 아이 입력 슬롯. 다자녀인 경우 배열로 들고 다닌다. */
+export type ChildDraft = {
+  /** 이름 — 필수 입력 */
+  name?: string;
+  /** 성별 — 선택 입력 */
+  gender?: Gender;
+  /** 생년월일 — ISO 8601 date (YYYY-MM-DD) 또는 미입력 */
+  birthDate?: string;
+  /** 한줄소개 — 선택 입력 */
+  bio?: string;
+};
