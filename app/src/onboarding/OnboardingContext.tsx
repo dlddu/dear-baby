@@ -32,7 +32,7 @@ import {
   saveOnboardingDraft,
 } from '../auth/onboardingCache';
 
-import type { FetusCount, FetusDraft } from './types';
+import type { ChildCount, ChildDraft, FetusCount, FetusDraft } from './types';
 
 export type OnboardingCase = 'A' | 'B' | 'C' | 'fallback-A';
 
@@ -44,11 +44,17 @@ type OnboardingContextValue = {
   fetusCount: FetusCount | null;
   fetuses: FetusDraft[];
   currentFetusIndex: number;
+  childCount: ChildCount | null;
+  children: ChildDraft[];
+  currentChildIndex: number;
   setQ1: (value: boolean) => void;
   setQ2: (value: boolean) => void;
   setFetusCount: (value: FetusCount) => void;
   updateFetus: (index: number, patch: Partial<FetusDraft>) => void;
   setCurrentFetusIndex: (index: number) => void;
+  setChildCount: (value: ChildCount) => void;
+  updateChild: (index: number, patch: Partial<ChildDraft>) => void;
+  setCurrentChildIndex: (index: number) => void;
   /** 현재 답변 조합으로 결정된 Case. 둘 다 입력되지 않았으면 null. */
   caseDecision: () => OnboardingCase | null;
   /** Case B/C 결말에서 "홈으로 시작하기" 처리 — onboarded_at 만 스탬프, due_date 는 null. */
@@ -58,6 +64,12 @@ type OnboardingContextValue = {
    * 스탬프한다. 다태 다중 dueDate 영속화는 별도 작업.
    */
   completeAsA: () => Promise<void>;
+  /**
+   * Case C 결말 — 임신 정보가 없으므로 due_date 는 null 로, onboarded_at 만
+   * 스탬프한다. 양육 아이 정보의 백엔드 영속화는 별도 작업. 현재 동작은
+   * `completeAsBC` 와 동일하지만 Case 분리를 명시하기 위해 별도 함수로 둔다.
+   */
+  completeAsC: () => Promise<void>;
   /** 진행 중 입력 초기화. 비상 상황·디버그 용도. */
   resetOnboardingDraft: () => Promise<void>;
 };
@@ -75,7 +87,11 @@ function decide(
   return 'fallback-A';
 }
 
-export function OnboardingProvider({ children }: { children: ReactNode }) {
+export function OnboardingProvider({
+  children: reactChildren,
+}: {
+  children: ReactNode;
+}) {
   const { completeOnboarding } = useAuth();
   const [hydrating, setHydrating] = useState(true);
   const [q1Pregnant, setQ1Pregnant] = useState<boolean | null>(null);
@@ -83,6 +99,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [fetusCount, setFetusCountState] = useState<FetusCount | null>(null);
   const [fetuses, setFetuses] = useState<FetusDraft[]>([]);
   const [currentFetusIndex, setCurrentFetusIndexState] = useState(0);
+  const [childCount, setChildCountState] = useState<ChildCount | null>(null);
+  const [children, setChildren] = useState<ChildDraft[]>([]);
+  const [currentChildIndex, setCurrentChildIndexState] = useState(0);
 
   // SecureStore 에서 마지막 입력 상태를 hydrate. 마운트 한 번만.
   useEffect(() => {
@@ -96,6 +115,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         setFetusCountState(draft.fetusCount);
         setFetuses(draft.fetuses);
         setCurrentFetusIndexState(draft.currentFetusIndex);
+        setChildCountState(draft.childCount);
+        setChildren(draft.children);
+        setCurrentChildIndexState(draft.currentChildIndex);
       } catch (e) {
         console.warn('[onboarding] loadOnboardingDraft failed', e);
       } finally {
@@ -155,6 +177,41 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     void saveOnboardingDraft({ currentFetusIndex: index });
   }, []);
 
+  const setChildCount = useCallback((value: ChildCount) => {
+    setChildCountState(value);
+    // 카운트가 바뀌면 children 배열의 길이를 맞춰주고 인덱스도 0 으로 초기화.
+    setChildren((prev) => {
+      const next = prev.slice(0, value);
+      while (next.length < value) next.push({});
+      void saveOnboardingDraft({
+        childCount: value,
+        children: next,
+        currentChildIndex: 0,
+      });
+      return next;
+    });
+    setCurrentChildIndexState(0);
+  }, []);
+
+  const updateChild = useCallback(
+    (index: number, patch: Partial<ChildDraft>) => {
+      setChildren((prev) => {
+        const next = prev.slice();
+        // 슬롯이 아직 없을 수도 있으니 채워준다.
+        while (next.length <= index) next.push({});
+        next[index] = { ...next[index], ...patch };
+        void saveOnboardingDraft({ children: next });
+        return next;
+      });
+    },
+    [],
+  );
+
+  const setCurrentChildIndex = useCallback((index: number) => {
+    setCurrentChildIndexState(index);
+    void saveOnboardingDraft({ currentChildIndex: index });
+  }, []);
+
   const caseDecision = useCallback(
     () => decide(q1Pregnant, q2HasChildren),
     [q1Pregnant, q2HasChildren],
@@ -171,12 +228,20 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     await clearOnboardingDraft();
   }, [completeOnboarding, fetuses]);
 
+  const completeAsC = useCallback(async () => {
+    await completeOnboarding(null);
+    await clearOnboardingDraft();
+  }, [completeOnboarding]);
+
   const resetOnboardingDraft = useCallback(async () => {
     setQ1Pregnant(null);
     setQ2HasChildren(null);
     setFetusCountState(null);
     setFetuses([]);
     setCurrentFetusIndexState(0);
+    setChildCountState(null);
+    setChildren([]);
+    setCurrentChildIndexState(0);
     await clearOnboardingDraft();
   }, []);
 
@@ -188,14 +253,21 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       fetusCount,
       fetuses,
       currentFetusIndex,
+      childCount,
+      children,
+      currentChildIndex,
       setQ1,
       setQ2,
       setFetusCount,
       updateFetus,
       setCurrentFetusIndex,
+      setChildCount,
+      updateChild,
+      setCurrentChildIndex,
       caseDecision,
       completeAsBC,
       completeAsA,
+      completeAsC,
       resetOnboardingDraft,
     }),
     [
@@ -205,14 +277,21 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       fetusCount,
       fetuses,
       currentFetusIndex,
+      childCount,
+      children,
+      currentChildIndex,
       setQ1,
       setQ2,
       setFetusCount,
       updateFetus,
       setCurrentFetusIndex,
+      setChildCount,
+      updateChild,
+      setCurrentChildIndex,
       caseDecision,
       completeAsBC,
       completeAsA,
+      completeAsC,
       resetOnboardingDraft,
     ],
   );
@@ -230,7 +309,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   return (
     <OnboardingContext.Provider value={value}>
-      {children}
+      {reactChildren}
     </OnboardingContext.Provider>
   );
 }

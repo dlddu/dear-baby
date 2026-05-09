@@ -1,6 +1,11 @@
 import * as SecureStore from 'expo-secure-store';
 
-import type { FetusCount, FetusDraft } from '../onboarding/types';
+import type {
+  ChildCount,
+  ChildDraft,
+  FetusCount,
+  FetusDraft,
+} from '../onboarding/types';
 
 // Lightweight local cache of onboarding state. This lets the app stay on the
 // correct screen when /me fails on cold boot (airplane mode, backend hiccup)
@@ -21,6 +26,9 @@ const DRAFT_Q2_KEY = 'db_draft_q2_has_children';
 const DRAFT_FETUS_COUNT_KEY = 'db_draft_fetus_count';
 const DRAFT_FETUSES_KEY = 'db_draft_fetuses';
 const DRAFT_CURRENT_FETUS_INDEX_KEY = 'db_draft_current_fetus_index';
+const DRAFT_CHILD_COUNT_KEY = 'db_draft_child_count';
+const DRAFT_CHILDREN_KEY = 'db_draft_children';
+const DRAFT_CURRENT_CHILD_INDEX_KEY = 'db_draft_current_child_index';
 
 export async function getCachedOnboardedAt(): Promise<string | null> {
   return SecureStore.getItemAsync(ONBOARDED_AT_KEY);
@@ -100,6 +108,9 @@ export type OnboardingDraft = {
   fetusCount: FetusCount | null;
   fetuses: FetusDraft[];
   currentFetusIndex: number;
+  childCount: ChildCount | null;
+  children: ChildDraft[];
+  currentChildIndex: number;
 };
 
 const EMPTY_DRAFT: OnboardingDraft = {
@@ -108,6 +119,9 @@ const EMPTY_DRAFT: OnboardingDraft = {
   fetusCount: null,
   fetuses: [],
   currentFetusIndex: 0,
+  childCount: null,
+  children: [],
+  currentChildIndex: 0,
 };
 
 function parseBool(raw: string | null): boolean | null {
@@ -133,21 +147,46 @@ function parseFetuses(raw: string | null): FetusDraft[] {
   }
 }
 
+function parseChildCount(raw: string | null): ChildCount | null {
+  if (raw === '1' || raw === '2' || raw === '3') {
+    return Number(raw) as ChildCount;
+  }
+  return null;
+}
+
+function parseChildren(raw: string | null): ChildDraft[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ChildDraft[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
-  const [q1, q2, count, fetuses, idx] = await Promise.all([
-    SecureStore.getItemAsync(DRAFT_Q1_KEY),
-    SecureStore.getItemAsync(DRAFT_Q2_KEY),
-    SecureStore.getItemAsync(DRAFT_FETUS_COUNT_KEY),
-    SecureStore.getItemAsync(DRAFT_FETUSES_KEY),
-    SecureStore.getItemAsync(DRAFT_CURRENT_FETUS_INDEX_KEY),
-  ]);
+  const [q1, q2, count, fetuses, idx, childCount, children, childIdx] =
+    await Promise.all([
+      SecureStore.getItemAsync(DRAFT_Q1_KEY),
+      SecureStore.getItemAsync(DRAFT_Q2_KEY),
+      SecureStore.getItemAsync(DRAFT_FETUS_COUNT_KEY),
+      SecureStore.getItemAsync(DRAFT_FETUSES_KEY),
+      SecureStore.getItemAsync(DRAFT_CURRENT_FETUS_INDEX_KEY),
+      SecureStore.getItemAsync(DRAFT_CHILD_COUNT_KEY),
+      SecureStore.getItemAsync(DRAFT_CHILDREN_KEY),
+      SecureStore.getItemAsync(DRAFT_CURRENT_CHILD_INDEX_KEY),
+    ]);
   const parsedIdx = idx ? Number.parseInt(idx, 10) : 0;
+  const parsedChildIdx = childIdx ? Number.parseInt(childIdx, 10) : 0;
   return {
     q1Pregnant: parseBool(q1),
     q2HasChildren: parseBool(q2),
     fetusCount: parseFetusCount(count),
     fetuses: parseFetuses(fetuses),
     currentFetusIndex: Number.isFinite(parsedIdx) ? parsedIdx : 0,
+    childCount: parseChildCount(childCount),
+    children: parseChildren(children),
+    currentChildIndex: Number.isFinite(parsedChildIdx) ? parsedChildIdx : 0,
   };
 }
 
@@ -198,6 +237,32 @@ export async function saveOnboardingDraft(
       ),
     );
   }
+  if ('childCount' in partial) {
+    writes.push(
+      partial.childCount === null || partial.childCount === undefined
+        ? SecureStore.deleteItemAsync(DRAFT_CHILD_COUNT_KEY)
+        : SecureStore.setItemAsync(
+            DRAFT_CHILD_COUNT_KEY,
+            String(partial.childCount),
+          ),
+    );
+  }
+  if ('children' in partial) {
+    writes.push(
+      SecureStore.setItemAsync(
+        DRAFT_CHILDREN_KEY,
+        JSON.stringify(partial.children ?? []),
+      ),
+    );
+  }
+  if ('currentChildIndex' in partial) {
+    writes.push(
+      SecureStore.setItemAsync(
+        DRAFT_CURRENT_CHILD_INDEX_KEY,
+        String(partial.currentChildIndex ?? 0),
+      ),
+    );
+  }
   await Promise.all(writes);
 }
 
@@ -208,6 +273,9 @@ export async function clearOnboardingDraft(): Promise<void> {
     SecureStore.deleteItemAsync(DRAFT_FETUS_COUNT_KEY),
     SecureStore.deleteItemAsync(DRAFT_FETUSES_KEY),
     SecureStore.deleteItemAsync(DRAFT_CURRENT_FETUS_INDEX_KEY),
+    SecureStore.deleteItemAsync(DRAFT_CHILD_COUNT_KEY),
+    SecureStore.deleteItemAsync(DRAFT_CHILDREN_KEY),
+    SecureStore.deleteItemAsync(DRAFT_CURRENT_CHILD_INDEX_KEY),
   ]);
 }
 
