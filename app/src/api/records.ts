@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 
+import { posthogClient } from '../analytics/client';
 import { apiFetch } from './client';
 import type { CreateRecordResponse, Record } from './types';
 
@@ -32,7 +33,14 @@ export async function createTextRecord(
   if (!res.ok) {
     throw new Error(`createTextRecord failed: ${res.status}`);
   }
-  return (await res.json()) as CreateRecordResponse;
+  const body = (await res.json()) as CreateRecordResponse;
+  posthogClient?.capture('record_posted', {
+    source: 'text',
+    content_length: content.length,
+    has_question: Boolean(questionText),
+    record_id: body.record.id,
+  });
+  return body;
 }
 
 // createVoiceRecord POSTs a voice-source entry to the backend. The audio
@@ -55,7 +63,14 @@ export async function createVoiceRecord(
   if (!res.ok) {
     throw new Error(`createVoiceRecord failed: ${res.status}`);
   }
-  return (await res.json()) as CreateRecordResponse;
+  const body = (await res.json()) as CreateRecordResponse;
+  posthogClient?.capture('record_posted', {
+    source: 'voice',
+    content_length: content.length,
+    has_question: Boolean(questionText),
+    record_id: body.record.id,
+  });
+  return body;
 }
 
 // AudioUploadURL is the response shape of POST /records/{id}/audio/upload-url.
