@@ -1,9 +1,10 @@
-name: Deploy iOS to TestFlight
+name: Deploy Android to Play Store (Internal)
 
-# PR-preview path: build the iOS app against the staging backend and
-# upload it to TestFlight (internal testers only). The actual build
-# pipeline lives in build-ios-testflight.yml so the production-URL
-# rebuild used by submit-testflight-beta.yml shares the same steps.
+# PR-preview path: build the Android app against the staging backend and
+# upload it to the Play Store internal track. The actual build pipeline
+# lives in build-android-play-internal.yml so any future
+# production-track promotion workflow can share the same steps. Mirrors
+# deploy-testflight.yml on the iOS side.
 #
 # `ref` is taken as an explicit input rather than reading
 # `github.event.pull_request.head.sha` here, so this wrapper doesn't
@@ -19,10 +20,11 @@ on:
         description: Git ref to check out and build.
 
 jobs:
-  deploy-testflight:
-    name: Deploy iOS to TestFlight
-    uses: ./.github/workflows/build-ios-testflight.yml
+  deploy-play-internal:
+    name: Deploy Android to Play Store (Internal)
+    uses: ./.github/workflows/build-android-play-internal.yml
     with:
       expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
       ref: ${{ inputs.ref }}
+      track: internal
     secrets: inherit

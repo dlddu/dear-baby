@@ -1,0 +1,117 @@
+name: Build Android for Play Store (Internal)
+
+# Reusable workflow that bakes a Release AAB, signs it with the upload
+# keystore, and uploads it to the Play Store internal track via
+# Fastlane's `:play_internal` lane. Mirrors build-ios-testflight.yml so
+# the PR-preview path (deploy-play-internal.yml) and any future external
+# track promotion can share the same build steps.
+#
+# `version-code` mirrors the value `app/app.config.ts` stamps into
+# AndroidManifest.xml's android:versionCode, so callers can promote the
+# upload without a separate Play Store API lookup.
+
+on:
+  workflow_call:
+    inputs:
+      expo-public-api-url:
+        type: string
+        required: true
+        description: Backend base URL baked into the AAB via EXPO_PUBLIC_API_URL.
+      ref:
+        type: string
+        required: false
+        default: ""
+        description: Git ref to check out. Empty checks out the workflow's default ref.
+      track:
+        type: string
+        required: false
+        default: "internal"
+        description: Play Store track to publish to. Defaults to internal.
+    outputs:
+      version-code:
+        description: Play Store versionCode stamped into the AAB.
+        value: ${{ jobs.build.outputs.version-code }}
+
+jobs:
+  build:
+    name: Build & upload to Play Store (${{ inputs.track }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: app
+    outputs:
+      version-code: ${{ steps.version_code.outputs.value }}
+    env:
+      EXPO_PUBLIC_API_URL: ${{ inputs.expo-public-api-url }}
+      EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
+      EXPO_PUBLIC_POSTHOG_HOST: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      PLAY_STORE_JSON_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
+      PLAY_STORE_JSON_KEY_BASE64: ${{ secrets.PLAY_STORE_JSON_KEY_BASE64 }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup JS
+        uses: ./.github/actions/setup-js
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: app
+
+      # Play Store requires a globally monotonic versionCode across the
+      # app, so we can't rely on per-workflow `github.run_number` —
+      # ci.yml's deploy-play-internal and any future production-promotion
+      # workflow have independent counters and would collide. Query the
+      # current latest from the Play Developer API and add one.
+      - name: Compute next Play Store versionCode
+        id: version_code
+        env:
+          BUILD_NUMBER_FILE: ${{ runner.temp }}/next_version_code.txt
+        run: |
+          set -euo pipefail
+          bundle exec fastlane android next_play_version_code
+          vc=$(cat "$BUILD_NUMBER_FILE")
+          if [ -z "$vc" ]; then
+            echo "::error::next_play_version_code lane produced empty file"
+            exit 1
+          fi
+          echo "value=$vc" >> "$GITHUB_OUTPUT"
+          # Picked up by app.config.ts during expo prebuild and stamped
+          # into AndroidManifest.xml's android:versionCode.
+          echo "ANDROID_VERSION_CODE=$vc" >> "$GITHUB_ENV"
+
+      - name: Expo prebuild (Android)
+        run: npx expo prebuild --platform android --clean
+
+      - name: Fastlane play_internal
+        run: bundle exec fastlane android play_internal
+
+      - name: Upload build artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            app/fastlane/report.xml
+            app/android/app/build/outputs/bundle/release/
+            app/android/app/build/outputs/logs/
+          if-no-files-found: ignore

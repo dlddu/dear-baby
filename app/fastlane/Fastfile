@@ -1,4 +1,6 @@
 require "json"
+require "base64"
+require "google/apis/androidpublisher_v3"
 
 default_platform(:ios)
 
@@ -9,6 +11,7 @@ default_platform(:ios)
 APP_JSON = JSON.parse(File.read(File.expand_path("../app.json", __dir__))).fetch("expo").freeze
 APPLE_TEAM_ID = APP_JSON.fetch("ios").fetch("appleTeamId").freeze
 BUNDLE_IDENTIFIER = APP_JSON.fetch("ios").fetch("bundleIdentifier").freeze
+ANDROID_PACKAGE_NAME = APP_JSON.fetch("android").fetch("package").freeze
 
 platform :ios do
   desc "Build the iOS app and upload it to TestFlight (internal testers only)"
@@ -110,6 +113,88 @@ platform :ios do
 
   error do |lane, exception|
     cleanup_signing_artifacts
+  end
+end
+
+platform :android do
+  desc "Build the Android AAB and upload it to Google Play (internal track)"
+  lane :play_internal do
+    aab_path = build_release_aab
+    json_key_path = write_play_store_json_key
+
+    short_sha = ENV["GIT_SHA"].to_s[0, 7]
+    pr_number = ENV["PR_NUMBER"].to_s
+    release_notes = pr_number.empty? \
+      ? "Build #{short_sha}" \
+      : "PR ##{pr_number} · #{short_sha}"
+
+    upload_to_play_store(
+      package_name: ANDROID_PACKAGE_NAME,
+      json_key: json_key_path,
+      track: "internal",
+      aab: aab_path,
+      # `draft`는 internal track에 빌드를 저장만 하고 roll-out은 안 함 —
+      # Play Console에서 수동 "Start rollout to Internal testing" 1회
+      # 필요. 앱이 "Draft app" 상태(Production 트랙에 release가 한 번도
+      # 등록된 적 없음)인 동안 Play API는 `completed`를 거절하므로
+      # 그 기간 동안 사용. Production launch 이후 `completed`로 승격해
+      # hands-off rollout으로 전환 가능.
+      release_status: "draft",
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: false,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      changes_not_sent_for_review: true,
+      validate_only: false,
+    )
+
+    UI.success("Uploaded #{aab_path} to Play Store internal track (#{release_notes})")
+  end
+
+  desc "Write the next Play Store versionCode (latest+1) to BUILD_NUMBER_FILE"
+  lane :next_play_version_code do
+    output_path = ENV["BUILD_NUMBER_FILE"]
+    UI.user_error!("BUILD_NUMBER_FILE env not set") if output_path.to_s.empty?
+
+    json_key_path = write_play_store_json_key
+
+    # Cross-check two sources:
+    # 1. Track releases — covers versionCodes promoted to internal/
+    #    alpha/beta/production (incl. higher codes already promoted to
+    #    a "later" track that an internal upload must not rewind).
+    # 2. Edit's bundle/APK list — covers versionCodes uploaded to the
+    #    artifact library but not yet assigned to any release (e.g.
+    #    when a previous CI run uploaded the AAB then failed before
+    #    creating the release). google_play_track_version_codes misses
+    #    these, so we'd otherwise hit "Version code N has already been
+    #    used" on the next upload.
+    track_codes = %w[internal alpha beta production].flat_map do |track|
+      begin
+        google_play_track_version_codes(
+          package_name: ANDROID_PACKAGE_NAME,
+          json_key: json_key_path,
+          track: track,
+        )
+      rescue StandardError
+        []
+      end
+    end.map(&:to_i)
+
+    artifact_codes = play_store_artifact_version_codes(json_key_path, ANDROID_PACKAGE_NAME)
+
+    latest = (track_codes + artifact_codes).max || 0
+    next_vc = latest + 1
+    UI.success("Play Store versionCodes — tracks: #{track_codes.sort.uniq}, artifacts: #{artifact_codes.sort.uniq}; next: #{next_vc}")
+    File.write(output_path, next_vc.to_s)
+  end
+
+  after_all do |lane|
+    cleanup_android_signing_artifacts
+  end
+
+  error do |lane, exception|
+    cleanup_android_signing_artifacts
   end
 end
 
@@ -236,4 +321,151 @@ def cleanup_signing_artifacts
   sh("security delete-keychain fastlane_tmp_keychain || true", log: false)
   api_key_dir = File.expand_path("~/private_keys")
   FileUtils.rm_rf(api_key_dir) if Dir.exist?(api_key_dir)
+end
+
+# Build pipeline: decodes the upload keystore from CI secrets, runs
+# `gradlew bundleRelease` with injected signing properties, and returns
+# the resulting AAB path. Mirrors `build_release_ipa` for iOS.
+def build_release_aab
+  android_dir = File.expand_path("../android", __dir__)
+  unless Dir.exist?(android_dir)
+    UI.user_error!("No android dir at #{android_dir}. Did you run `expo prebuild --platform android`?")
+  end
+
+  required = %w[
+    ANDROID_KEYSTORE_BASE64
+    ANDROID_KEYSTORE_PASSWORD
+    ANDROID_KEY_ALIAS
+    ANDROID_KEY_PASSWORD
+  ]
+  missing = required.select { |k| ENV[k].to_s.empty? }
+  UI.user_error!("Missing required env vars for android build: #{missing.join(', ')}") unless missing.empty?
+
+  tmp_dir = ENV["RUNNER_TEMP"] || Dir.mktmpdir("fastlane-android-signing")
+  FileUtils.mkdir_p(tmp_dir)
+  keystore_path = File.join(tmp_dir, "release.keystore")
+  sh("echo \"$ANDROID_KEYSTORE_BASE64\" | base64 --decode > #{keystore_path.shellescape}")
+
+  # AGP picks up `android.injected.signing.*` only when the release
+  # buildType doesn't already have a signingConfig assigned. The Expo
+  # prebuild template assigns `signingConfigs.debug` to the release
+  # buildType so debug builds work out of the box; strip that single
+  # line from the release block so the injected config takes effect.
+  app_build_gradle = File.join(android_dir, "app", "build.gradle")
+  patch_release_signing_config!(app_build_gradle)
+
+  gradle(
+    project_dir: android_dir,
+    task: "bundle",
+    build_type: "Release",
+    flags: "--no-daemon",
+    properties: {
+      "android.injected.signing.store.file" => keystore_path,
+      "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+      "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
+      "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
+    },
+  )
+
+  aab_path = Actions.lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH]
+  UI.user_error!("gradle did not produce an AAB output path") if aab_path.to_s.empty?
+  UI.user_error!("AAB not found at #{aab_path}") unless File.exist?(aab_path)
+  aab_path
+end
+
+# Removes the `signingConfig signingConfigs.debug` line from the release
+# block of app/build.gradle (and only the release block) so AGP's
+# injected signing config is what actually signs the AAB.
+def patch_release_signing_config!(build_gradle)
+  UI.user_error!("Cannot patch missing build.gradle: #{build_gradle}") unless File.exist?(build_gradle)
+
+  lines = File.readlines(build_gradle)
+  in_build_types = false
+  in_release = false
+  brace_depth = 0
+  patched = false
+
+  lines.each_with_index do |line, idx|
+    in_build_types = true if !in_build_types && line =~ /\bbuildTypes\s*\{/
+
+    if in_build_types && !in_release && line =~ /\brelease\s*\{/
+      in_release = true
+      brace_depth = line.count("{") - line.count("}")
+      next
+    end
+
+    if in_release
+      brace_depth += line.count("{") - line.count("}")
+      if line.include?("signingConfig signingConfigs.debug")
+        lines[idx] = line.sub(/^.*signingConfig\s+signingConfigs\.debug.*\n/, "")
+        patched = true
+      end
+      in_release = false if brace_depth <= 0
+    end
+  end
+
+  if patched
+    File.write(build_gradle, lines.join)
+    UI.message("Stripped debug signingConfig from release block of #{build_gradle}")
+  else
+    UI.message("No debug signingConfig assignment found in release block — leaving #{build_gradle} untouched")
+  end
+end
+
+# Writes the Play Store service account JSON to disk (decoded from the
+# raw or base64 form CI provides) and returns the path. Both forms are
+# accepted because the GitHub UI strips trailing newlines from secrets,
+# which can break some JSON parsers — operators can pre-base64 to
+# sidestep that.
+def write_play_store_json_key
+  raw = ENV["PLAY_STORE_JSON_KEY"].to_s
+  b64 = ENV["PLAY_STORE_JSON_KEY_BASE64"].to_s
+  UI.user_error!("PLAY_STORE_JSON_KEY or PLAY_STORE_JSON_KEY_BASE64 must be set") if raw.empty? && b64.empty?
+
+  json_dir = File.expand_path("~/private_keys")
+  FileUtils.mkdir_p(json_dir)
+  json_path = File.join(json_dir, "play_store_service_account.json")
+
+  contents = raw.empty? ? Base64.decode64(b64) : raw
+  File.write(json_path, contents)
+  json_path
+end
+
+def cleanup_android_signing_artifacts
+  json_dir = File.expand_path("~/private_keys")
+  FileUtils.rm_rf(json_dir) if Dir.exist?(json_dir)
+end
+
+# Returns every versionCode currently uploaded to the app's Edit
+# artifact library — both AAB bundles and APKs, regardless of whether
+# they've been assigned to a track release yet. Lets
+# `:next_play_version_code` avoid collisions with orphan artifacts
+# that a previous failed CI run left behind.
+def play_store_artifact_version_codes(json_key_path, package_name)
+  service = Google::Apis::AndroidpublisherV3::AndroidPublisherService.new
+  service.authorization = Google::Auth::ServiceAccountCredentials.make_creds(
+    json_key_io: File.open(json_key_path),
+    scope: "https://www.googleapis.com/auth/androidpublisher",
+  )
+
+  edit = service.insert_edit(package_name)
+  bundles = []
+  apks = []
+  begin
+    bundles = (service.list_edit_bundles(package_name, edit.id).bundles || [])
+      .map { |b| b.version_code.to_i }
+    apks = (service.list_edit_apks(package_name, edit.id).apks || [])
+      .map { |a| a.version_code.to_i }
+  ensure
+    # Edits expire automatically, but explicit cleanup keeps the app's
+    # edit history tidy. Best-effort — a stale edit doesn't block
+    # subsequent uploads.
+    begin
+      service.delete_edit(package_name, edit.id)
+    rescue StandardError
+      nil
+    end
+  end
+
+  (bundles + apks).uniq
 end
