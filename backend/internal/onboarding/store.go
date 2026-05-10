@@ -306,6 +306,68 @@ func (s *Store) UpsertCaseA(ctx context.Context, userID string, dueDate *string,
 	return nil
 }
 
+// UpsertCaseB atomically replaces the user's children + fetuses with the
+// provided lists in a single transaction, copies dueDate into
+// onboarding.due_date, and stamps onboarded_at. Unlike Case A·C, the
+// caller provides per-child / per-fetus purposes (B2-purpose 1:1, B6
+// 일괄) — the server stores what it receives.
+func (s *Store) UpsertCaseB(ctx context.Context, userID string, dueDate *string, children []Child, fetuses []Fetus) error {
+	if err := s.ensureRow(ctx, userID); err != nil {
+		return err
+	}
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback()
+
+	var dueArg any
+	if dueDate != nil {
+		dueArg = *dueDate
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE onboarding
+		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
+		WHERE user_id = ?
+	`, dueArg, userID); err != nil {
+		return fmt.Errorf("update onboarding: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM children WHERE user_id = ?`, userID); err != nil {
+		return fmt.Errorf("delete children: %w", err)
+	}
+	for i, c := range children {
+		purposes, err := json.Marshal(c.Purposes)
+		if err != nil {
+			return fmt.Errorf("marshal purposes: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO children (user_id, ordinal, name, gender, birth_date, bio, purposes_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, userID, i, nullableString(c.Name), nullableString(c.Gender), nullableString(c.BirthDate), nullableString(c.Bio), string(purposes)); err != nil {
+			return fmt.Errorf("insert child %d: %w", i, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM fetuses WHERE user_id = ?`, userID); err != nil {
+		return fmt.Errorf("delete fetuses: %w", err)
+	}
+	for i, f := range fetuses {
+		purposes, err := json.Marshal(f.Purposes)
+		if err != nil {
+			return fmt.Errorf("marshal purposes: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO fetuses (user_id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, userID, i, nullableString(f.Nickname), nullableString(f.Gender), nullableInt(f.PregnancyWeek), nullableString(f.DueDate), string(purposes)); err != nil {
+			return fmt.Errorf("insert fetus %d: %w", i, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
 // UpsertCaseC atomically replaces the user's children with the provided
 // list and stamps onboarded_at (with due_date null since Case C has no
 // pregnancy). Same purposes-replication contract as UpsertCaseA.

@@ -52,6 +52,19 @@ export type CaseCPayload = {
   children: CaseCChildPayload[];
 };
 
+// Case B 의 child·fetus payload — A·C 와 wire shape 가 같다.
+// purposes 는 Case B 에서 child·fetus 별로 다르게 선택될 수 있다 (B2-purpose
+// 1:1, B6 일괄). 클라이언트에서 OnboardingContext.children[i].purposes /
+// fetuses[i].purposes 를 그대로 보낸다.
+export type CaseBChildPayload = CaseCChildPayload;
+export type CaseBFetusPayload = CaseAFetusPayload;
+
+export type CaseBPayload = {
+  due_date: string | null;
+  children: CaseBChildPayload[];
+  fetuses: CaseBFetusPayload[];
+};
+
 // submitOnboardingCaseA finalizes Case A onboarding — persists the
 // fetuses + due_date, stamps onboarded_at, and returns the refreshed
 // /me Profile. Called from `OnboardingContext.completeAsA`.
@@ -80,6 +93,23 @@ export async function submitOnboardingCaseC(
   });
   if (!res.ok) {
     throw new Error(`submitOnboardingCaseC failed: ${res.status}`);
+  }
+  return (await res.json()) as User;
+}
+
+// submitOnboardingCaseB finalizes Case B onboarding — persists both
+// children + fetuses rows in a single transaction, stamps onboarded_at,
+// and returns the refreshed /me Profile. Each child / fetus carries its
+// own purposes selection (Case A·C 의 단일 슬롯 복제와 다른 모델).
+export async function submitOnboardingCaseB(
+  payload: CaseBPayload,
+): Promise<User> {
+  const res = await apiFetch('/me/onboarding/case-b', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(`submitOnboardingCaseB failed: ${res.status}`);
   }
   return (await res.json()) as User;
 }

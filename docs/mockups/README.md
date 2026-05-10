@@ -59,6 +59,7 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-07 | B0 — 안내 ① | Onboarding · 4-B0 (Case B) |
 | M-08 | B1 — 양육 아이 수 | Onboarding · 4-B1 (Case B) |
 | M-09 | B2 — 양육 아이 정보 | Onboarding · 4-B2 (Case B) |
+| _(없음)_ | B2-Purpose — 양육 아이 기록 목적 (1:1, mockup 외 신설) | Onboarding · 4-B2-Purpose (Case B) |
 | M-10 | B3 — 안내 ② | Onboarding · 4-B3 (Case B) |
 | M-11 | B4 — 임신 아이 수 | Onboarding · 4-B4 (Case B) |
 | M-12 | B5 — 태아 정보 | Onboarding · 4-B5 (Case B) |

@@ -535,3 +535,141 @@ func TestUpsertCaseC_UserNotFound(t *testing.T) {
 		t.Errorf("err: got %v want ErrNotFound", err)
 	}
 }
+
+func TestUpsertCaseB_InsertsBothAndStamps(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	due := "2025-09-15"
+	bd := "2023-04-01"
+	children := []Child{
+		{Name: ptrStr("서연"), Gender: ptrStr("female"), BirthDate: &bd, Bio: ptrStr("활발"), Purposes: []string{"일상의 발견", "말과 행동의 성장"}},
+	}
+	fetuses := []Fetus{
+		{Nickname: ptrStr("콩이"), Gender: ptrStr("unknown"), PregnancyWeek: ptrInt(17), DueDate: &due, Purposes: []string{"매일의 마음", "몸의 변화"}},
+	}
+	if err := store.UpsertCaseB(ctx, "u1", &due, children, fetuses); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	o, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if o.DueDate == nil || *o.DueDate != due {
+		t.Errorf("due_date: got %v want %s", o.DueDate, due)
+	}
+	if o.OnboardedAt == nil {
+		t.Error("onboarded_at should be set")
+	}
+
+	gotChildren, err := store.ListChildren(ctx, "u1")
+	if err != nil {
+		t.Fatalf("list children: %v", err)
+	}
+	if len(gotChildren) != 1 || gotChildren[0].Name == nil || *gotChildren[0].Name != "서연" {
+		t.Errorf("children: got %+v", gotChildren)
+	}
+	if len(gotChildren[0].Purposes) != 2 || gotChildren[0].Purposes[0] != "일상의 발견" {
+		t.Errorf("child purposes: got %+v", gotChildren[0].Purposes)
+	}
+
+	gotFetuses, err := store.ListFetuses(ctx, "u1")
+	if err != nil {
+		t.Fatalf("list fetuses: %v", err)
+	}
+	if len(gotFetuses) != 1 || gotFetuses[0].Nickname == nil || *gotFetuses[0].Nickname != "콩이" {
+		t.Errorf("fetuses: got %+v", gotFetuses)
+	}
+	if len(gotFetuses[0].Purposes) != 2 || gotFetuses[0].Purposes[0] != "매일의 마음" {
+		t.Errorf("fetus purposes: got %+v", gotFetuses[0].Purposes)
+	}
+}
+
+func TestUpsertCaseB_NullDueDate(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	if err := store.UpsertCaseB(ctx, "u1", nil,
+		[]Child{{Name: ptrStr("서연"), Purposes: []string{}}},
+		[]Fetus{{Purposes: []string{}}},
+	); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	o, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if o.DueDate != nil {
+		t.Errorf("due_date should be null: got %v", *o.DueDate)
+	}
+	if o.OnboardedAt == nil {
+		t.Error("onboarded_at should be set")
+	}
+}
+
+func TestUpsertCaseB_ReplacesExisting(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	due := "2025-09-15"
+
+	// First upsert: 2 children, 2 fetuses
+	if err := store.UpsertCaseB(ctx, "u1", &due,
+		[]Child{
+			{Name: ptrStr("서연"), Purposes: []string{"일상의 발견"}},
+			{Name: ptrStr("이서"), Purposes: []string{"일상의 발견"}},
+		},
+		[]Fetus{
+			{Nickname: ptrStr("콩이"), Purposes: []string{"매일의 마음"}},
+			{Nickname: ptrStr("샛별"), Purposes: []string{"매일의 마음"}},
+		},
+	); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+
+	// Second upsert: 1 of each — old rows must be deleted.
+	if err := store.UpsertCaseB(ctx, "u1", &due,
+		[]Child{{Name: ptrStr("새이름"), Purposes: []string{"음식·취향"}}},
+		[]Fetus{{Nickname: ptrStr("새콩"), Purposes: []string{"몸의 변화"}}},
+	); err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+	gotChildren, err := store.ListChildren(ctx, "u1")
+	if err != nil {
+		t.Fatalf("list children: %v", err)
+	}
+	if len(gotChildren) != 1 || *gotChildren[0].Name != "새이름" {
+		t.Errorf("children: got %+v", gotChildren)
+	}
+	gotFetuses, err := store.ListFetuses(ctx, "u1")
+	if err != nil {
+		t.Fatalf("list fetuses: %v", err)
+	}
+	if len(gotFetuses) != 1 || *gotFetuses[0].Nickname != "새콩" {
+		t.Errorf("fetuses: got %+v", gotFetuses)
+	}
+}
+
+func TestUpsertCaseB_UserNotFound(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	store := &Store{DB: db}
+	err := store.UpsertCaseB(context.Background(), "missing", nil,
+		[]Child{{Purposes: []string{}}},
+		[]Fetus{{Purposes: []string{}}},
+	)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err: got %v want ErrNotFound", err)
+	}
+}

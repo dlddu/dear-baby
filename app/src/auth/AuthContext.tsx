@@ -16,8 +16,10 @@ import type { Record, Session, User } from '../api/types';
 import {
   patchMe,
   submitOnboardingCaseA as apiSubmitCaseA,
+  submitOnboardingCaseB as apiSubmitCaseB,
   submitOnboardingCaseC as apiSubmitCaseC,
   type CaseAPayload,
+  type CaseBPayload,
   type CaseCPayload,
 } from '../api/users';
 import {
@@ -49,6 +51,12 @@ type AuthContextValue = {
    * 백엔드에 영속화하고 onboarded_at 을 스탬프한다.
    */
   completeOnboardingCaseA: (payload: CaseAPayload) => Promise<void>;
+  /**
+   * Case B 결말 — 양육 아이 + 태아 양쪽 행을 한 번의 트랜잭션으로 영속화하고,
+   * 첫 태아의 dueDate 를 onboarding.due_date 로 복사한 뒤 onboarded_at 을
+   * 스탬프한다. child·fetus 의 purposes 는 슬롯별로 다를 수 있다.
+   */
+  completeOnboardingCaseB: (payload: CaseBPayload) => Promise<void>;
   /**
    * Case C 결말 — 모든 아이 행(각 행에 동일 purposes 복제)을 백엔드에 영속화하고
    * due_date 는 null 로, onboarded_at 만 스탬프한다.
@@ -154,6 +162,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearOnboardingDraft();
   }, []);
 
+  const completeOnboardingCaseB = useCallback(async (payload: CaseBPayload) => {
+    const updated = await apiSubmitCaseB(payload);
+    setUser(updated);
+    setStatus(statusForUser(updated));
+    await cacheFromUser(updated);
+    await clearOnboardingDraft();
+  }, []);
+
   const completeOnboardingCaseC = useCallback(async (payload: CaseCPayload) => {
     const updated = await apiSubmitCaseC(payload);
     setUser(updated);
@@ -232,6 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession,
       completeOnboarding,
       completeOnboardingCaseA,
+      completeOnboardingCaseB,
       completeOnboardingCaseC,
       dismissVoiceCoachmark,
       createTextRecord,
@@ -245,6 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession,
       completeOnboarding,
       completeOnboardingCaseA,
+      completeOnboardingCaseB,
       completeOnboardingCaseC,
       dismissVoiceCoachmark,
       createTextRecord,
