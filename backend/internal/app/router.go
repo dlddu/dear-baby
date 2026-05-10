@@ -66,7 +66,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	}
 	usersHandlers := &users.Handlers{
 		Store:                 usersStore,
-		Onboarding:            onboardingStore,
+		Onboarding:            &onboardingAdapter{store: onboardingStore},
 		OnboardingErrNotFound: onboarding.ErrNotFound,
 		UserIDFromCtxFn:       auth.UserIDFromRequest,
 	}
@@ -137,6 +137,8 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 			pr.Use(auth.RequireAuth(issuer))
 			pr.Get("/me", usersHandlers.Me)
 			pr.Patch("/me", usersHandlers.PatchMe)
+			pr.Post("/me/onboarding/case-a", usersHandlers.PostOnboardingCaseA)
+			pr.Post("/me/onboarding/case-c", usersHandlers.PostOnboardingCaseC)
 			pr.Post("/records", recordsHandlers.Create)
 			// Audio attachment routes are only meaningful when S3
 			// is wired, but mounting them unconditionally keeps
@@ -160,4 +162,48 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	})
 
 	return r, nil
+}
+
+// onboardingAdapter satisfies users.OnboardingUpdater by translating the
+// users-package wire shapes (OnboardingFetus/OnboardingChild) into the
+// onboarding-package types and forwarding to the concrete store. The
+// indirection keeps users from importing onboarding directly.
+type onboardingAdapter struct {
+	store *onboarding.Store
+}
+
+func (a *onboardingAdapter) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error {
+	return a.store.UpdateDueDateAndOnboardedAt(ctx, userID, dueDate)
+}
+
+func (a *onboardingAdapter) DismissVoiceCoachmark(ctx context.Context, userID string) error {
+	return a.store.DismissVoiceCoachmark(ctx, userID)
+}
+
+func (a *onboardingAdapter) UpsertCaseA(ctx context.Context, userID string, dueDate *string, fetuses []users.OnboardingFetus) error {
+	out := make([]onboarding.Fetus, len(fetuses))
+	for i, f := range fetuses {
+		out[i] = onboarding.Fetus{
+			Nickname:      f.Nickname,
+			Gender:        f.Gender,
+			PregnancyWeek: f.PregnancyWeek,
+			DueDate:       f.DueDate,
+			Purposes:      f.Purposes,
+		}
+	}
+	return a.store.UpsertCaseA(ctx, userID, dueDate, out)
+}
+
+func (a *onboardingAdapter) UpsertCaseC(ctx context.Context, userID string, children []users.OnboardingChild) error {
+	out := make([]onboarding.Child, len(children))
+	for i, c := range children {
+		out[i] = onboarding.Child{
+			Name:      c.Name,
+			Gender:    c.Gender,
+			BirthDate: c.BirthDate,
+			Bio:       c.Bio,
+			Purposes:  c.Purposes,
+		}
+	}
+	return a.store.UpsertCaseC(ctx, userID, out)
 }

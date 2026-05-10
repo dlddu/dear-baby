@@ -1,3 +1,26 @@
+// FetusProfile mirrors the backend `fetuses` row exposed on /me. Stored
+// shape lives in `backend/internal/users/model.go` (`FetusProfile`).
+export type FetusProfile = {
+  ordinal: number;
+  nickname: string | null;
+  gender: string | null;
+  pregnancy_week: number | null;
+  due_date: string | null;
+  // 기록 목적(Purpose) 한국어 라벨 그대로 (PRD-006 AC-006-02).
+  purposes: string[];
+};
+
+// ChildProfile mirrors the backend `children` row exposed on /me.
+export type ChildProfile = {
+  ordinal: number;
+  name: string | null;
+  gender: string | null;
+  birth_date: string | null;
+  bio: string | null;
+  // 기록 목적(Purpose) 한국어 라벨 그대로 (PRD-006 AC-006-04).
+  purposes: string[];
+};
+
 export type User = {
   id: string;
   email: string;
@@ -21,6 +44,11 @@ export type User = {
   // first record. The home screen subscribes to an SSE stream that
   // notifies when this flips from null → string.
   ai_preview: string | null;
+  // Per-태아 / per-아이 onboarding rows. Empty array until Case A/C
+  // completion. Each row carries the chip-selected purposes the client
+  // replicated to every entry on A3/C3.
+  fetuses: FetusProfile[];
+  children: ChildProfile[];
   created_at: string;
   updated_at: string;
 };

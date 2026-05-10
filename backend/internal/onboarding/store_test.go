@@ -43,6 +43,28 @@ CREATE TABLE records (
   content    TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE fetuses (
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ordinal        INTEGER NOT NULL,
+  nickname       TEXT,
+  gender         TEXT,
+  pregnancy_week INTEGER,
+  due_date       TEXT,
+  purposes_json  TEXT NOT NULL DEFAULT '[]',
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, ordinal)
+);
+CREATE TABLE children (
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ordinal        INTEGER NOT NULL,
+  name           TEXT,
+  gender         TEXT,
+  birth_date     TEXT,
+  bio            TEXT,
+  purposes_json  TEXT NOT NULL DEFAULT '[]',
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, ordinal)
+);
 `
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatalf("schema: %v", err)
@@ -312,5 +334,204 @@ func TestEnsureRowTx_Idempotent(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("rows: got %d want 1", n)
+	}
+}
+
+func ptrStr(s string) *string { return &s }
+func ptrInt(i int) *int       { return &i }
+
+func TestUpsertCaseA_InsertsAndStamps(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	due := "2025-09-15"
+	fetuses := []Fetus{
+		{Nickname: ptrStr("콩이"), Gender: ptrStr("unknown"), PregnancyWeek: ptrInt(17), DueDate: &due, Purposes: []string{"매일의 마음", "몸의 변화"}},
+		{Nickname: ptrStr("쪼이"), Gender: ptrStr("female"), PregnancyWeek: ptrInt(17), DueDate: &due, Purposes: []string{"매일의 마음", "몸의 변화"}},
+	}
+	if err := store.UpsertCaseA(ctx, "u1", &due, fetuses); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	o, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if o.DueDate == nil || *o.DueDate != due {
+		t.Errorf("due_date: got %v want %s", o.DueDate, due)
+	}
+	if o.OnboardedAt == nil {
+		t.Error("onboarded_at should be set")
+	}
+
+	got, err := store.ListFetuses(ctx, "u1")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("rows: got %d want 2", len(got))
+	}
+	if got[0].Ordinal != 0 || got[1].Ordinal != 1 {
+		t.Errorf("ordinals: got %d, %d", got[0].Ordinal, got[1].Ordinal)
+	}
+	if got[0].Nickname == nil || *got[0].Nickname != "콩이" {
+		t.Errorf("nickname[0]: got %v", got[0].Nickname)
+	}
+	if len(got[0].Purposes) != 2 || got[0].Purposes[0] != "매일의 마음" {
+		t.Errorf("purposes: got %+v", got[0].Purposes)
+	}
+}
+
+func TestUpsertCaseA_ReplacesExisting(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	due := "2025-09-15"
+
+	// First upsert with 2 fetuses.
+	if err := store.UpsertCaseA(ctx, "u1", &due, []Fetus{
+		{Nickname: ptrStr("콩이"), Purposes: []string{"매일의 마음"}},
+		{Nickname: ptrStr("쪼이"), Purposes: []string{"매일의 마음"}},
+	}); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+
+	// Second upsert with 1 fetus — old rows should be deleted.
+	if err := store.UpsertCaseA(ctx, "u1", &due, []Fetus{
+		{Nickname: ptrStr("새콩"), Purposes: []string{"몸의 변화"}},
+	}); err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+
+	got, err := store.ListFetuses(ctx, "u1")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("rows: got %d want 1", len(got))
+	}
+	if got[0].Nickname == nil || *got[0].Nickname != "새콩" {
+		t.Errorf("nickname: got %v want 새콩", got[0].Nickname)
+	}
+	if len(got[0].Purposes) != 1 || got[0].Purposes[0] != "몸의 변화" {
+		t.Errorf("purposes: got %+v", got[0].Purposes)
+	}
+}
+
+func TestUpsertCaseA_NullDueDate(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	if err := store.UpsertCaseA(ctx, "u1", nil, []Fetus{{Purposes: []string{}}}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	o, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if o.DueDate != nil {
+		t.Errorf("due_date should be null: got %v", *o.DueDate)
+	}
+	if o.OnboardedAt == nil {
+		t.Error("onboarded_at should be set")
+	}
+}
+
+func TestUpsertCaseA_UserNotFound(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	store := &Store{DB: db}
+	err := store.UpsertCaseA(context.Background(), "missing", nil, []Fetus{{Purposes: []string{}}})
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err: got %v want ErrNotFound", err)
+	}
+}
+
+func TestUpsertCaseC_InsertsAndStamps(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	bd := "2023-04-01"
+	children := []Child{
+		{Name: ptrStr("민준"), Gender: ptrStr("male"), BirthDate: &bd, Bio: ptrStr("활발"), Purposes: []string{"일상의 발견", "말과 행동의 성장"}},
+	}
+	if err := store.UpsertCaseC(ctx, "u1", children); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	o, err := store.GetByID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if o.DueDate != nil {
+		t.Errorf("due_date should be null for Case C: got %v", *o.DueDate)
+	}
+	if o.OnboardedAt == nil {
+		t.Error("onboarded_at should be set")
+	}
+
+	got, err := store.ListChildren(ctx, "u1")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("rows: got %d want 1", len(got))
+	}
+	if got[0].Name == nil || *got[0].Name != "민준" {
+		t.Errorf("name: got %v", got[0].Name)
+	}
+	if len(got[0].Purposes) != 2 {
+		t.Errorf("purposes: got %+v", got[0].Purposes)
+	}
+}
+
+func TestUpsertCaseC_ReplacesExisting(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	if err := store.UpsertCaseC(ctx, "u1", []Child{
+		{Name: ptrStr("민준"), Purposes: []string{"일상의 발견"}},
+		{Name: ptrStr("서연"), Purposes: []string{"일상의 발견"}},
+	}); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+	if err := store.UpsertCaseC(ctx, "u1", []Child{
+		{Name: ptrStr("새이름"), Purposes: []string{"음식·취향"}},
+	}); err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+	got, err := store.ListChildren(ctx, "u1")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 1 || got[0].Name == nil || *got[0].Name != "새이름" {
+		t.Errorf("rows: got %+v", got)
+	}
+}
+
+func TestUpsertCaseC_UserNotFound(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	store := &Store{DB: db}
+	err := store.UpsertCaseC(context.Background(), "missing", []Child{{Purposes: []string{}}})
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err: got %v want ErrNotFound", err)
 	}
 }

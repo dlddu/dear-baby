@@ -50,6 +50,7 @@ updated: 2026-04-15
 | 임신 아이 수 *(제안)* | `FetusCount` (`1 \| 2 \| 3`) | `fetusCount` | — (frontend only) | 동시에 품고 있는 태아 수. 단태/쌍둥이/세쌍둥이+ 의 입력 표기. 백엔드 영속화는 추후 PR | PRD-006, AC-006-02 |
 | 태명 *(제안)* | `Nickname` (string) | `nickname` | — (frontend only) | 태아 또는 아이의 애칭. 선택 입력 | PRD-006, AC-006-02 |
 | 성별 (태아/아이) *(제안)* | `Gender` (`'female' \| 'male' \| 'unknown'`) | `gender` | — (frontend only) | 태아 또는 아이의 성별. 선택 입력. 'unknown' 은 "아직 몰라요" | PRD-006, AC-006-02 |
+| 기록 목적 | `Purpose` (string), `purposes: string[]` | `purposes` | `fetuses.purposes_json`, `children.purposes_json` (TEXT, JSON 배열) | A3·C3 화면에서 사용자가 선택한 칩 라벨. **사용자가 선택한 한국어 라벨 그대로 클라/API/DB에 저장한다** (영문 ID 매핑 없음). 다태/다자녀에서도 1회만 묻고 모든 태아·아이에 동일하게 복제 저장. 칩 옵션 표는 PRD-006 AC-006-02·04 참조 | PRD-006, AC-006-02, AC-006-04 |
 | OAuth 계정 연결 | — (DB only) | — | `oauth_accounts` / `provider`, `provider_user_id` | 사용자와 외부 OAuth 제공자(Google, Apple)의 연결 | `backend/internal/migrations/0001_users.up.sql` |
 | 리프레시 토큰 저장소 | `RefreshStore` | `refreshStore` | `refresh_tokens` | 서버에 영속되는 리프레시 토큰 레코드 | `backend/internal/auth/store.go` |
 

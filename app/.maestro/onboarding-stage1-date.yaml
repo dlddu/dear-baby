@@ -2,9 +2,9 @@ appId: com.dlddu.dearbaby
 ---
 # Onboarding Case A – select-date path.
 #
-# Verifies the full Case A flow (Q1 → Q2 → A1 → A2) with a 예정일 입력
-# and the [시작하기] CTA that stamps onboarded_at + due_date and lands
-# on home.
+# Verifies the full Case A flow (Q1 → Q2 → A1 → A2 → A3) with a 예정일 입력
+# and the [시작하기 ✨] CTA on a3 that stamps onboarded_at + due_date,
+# persists fetuses + 기록 목적, and lands on home.
 #
 # CI must reset the seeded test user's onboarding state via
 # `backend/reset-onboarding $TEST_USER_EMAIL` before running this flow.

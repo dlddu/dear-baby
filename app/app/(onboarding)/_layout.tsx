@@ -24,8 +24,10 @@ export default function OnboardingLayout() {
         <Stack.Screen name="q2" />
         <Stack.Screen name="a1" />
         <Stack.Screen name="a2" />
+        <Stack.Screen name="a3" />
         <Stack.Screen name="c1" />
         <Stack.Screen name="c2" />
+        <Stack.Screen name="c3" />
         <Stack.Screen name="not-ready" />
       </Stack>
     </OnboardingProvider>

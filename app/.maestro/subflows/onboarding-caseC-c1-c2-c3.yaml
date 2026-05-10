@@ -1,0 +1,49 @@
+appId: com.dlddu.dearbaby
+---
+# Reusable Case C c1·c2·c3 subflow — single-child happy path.
+#
+# Caller must be on the c1 screen (id "onboarding-c1") — typically reached
+# via subflows/onboarding-q1-q2-caseC.yaml. This subflow:
+#
+#   1. Selects 1명 on c1 and taps [다음]
+#   2. Inputs 이름 = 민준
+#   3. Selects 성별 = 아직 몰라요
+#   4. Taps [다음] → c3 (기록 목적)
+#   5. Keeps the default 칩 selection and taps [시작하기 ✨] → home
+#
+# After this subflow runs the user is on the home tab with onboarded_at
+# stamped, due_date == null, and one child row + 기본 purposes persisted.
+
+- assertVisible:
+    id: "onboarding-c1"
+
+# 1명 선택 → c2 진입
+- tapOn:
+    id: "onboarding-c1-count-1"
+- tapOn:
+    id: "onboarding-c1-next"
+- assertVisible:
+    id: "onboarding-c2"
+
+# 이름 = 민준
+- tapOn:
+    id: "onboarding-c2-name"
+- inputText: "민준"
+- tapOn:
+    text: "기록 가이드를 맞춰드릴게요"
+
+# 성별 = 아직 몰라요
+- tapOn:
+    id: "onboarding-c2-gender-unknown"
+
+# [다음] → c3 (기록 목적)
+- tapOn:
+    id: "onboarding-c2-next"
+- assertVisible:
+    id: "onboarding-c3"
+
+# 기본 선택(일상의 발견·말과 행동의 성장) 그대로 [시작하기 ✨] → 홈
+- tapOn:
+    id: "onboarding-c3-cta"
+- assertVisible:
+    id: "home-tab"

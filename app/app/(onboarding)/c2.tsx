@@ -4,8 +4,8 @@
 // PRD-006 AC-006-04 의 두 번째 입력. 4개 필드(이름·생년월일·성별·한줄소개)를
 // `OnboardingContext.children[currentChildIndex]` 에 저장한다. 다자녀인 경우
 // [다음] 으로 인덱스를 증가시켜 같은 화면을 반복 렌더하고, 마지막 아이의
-// [시작하기] 에서 `completeAsC()` 를 호출한다. (c3 기록 목적 화면은 본
-// 단계에 포함되지 않음 — Case A 의 a3 누락 패턴과 동일.)
+// [다음] 에서 c3 (기록 목적) 화면으로 진입한다. 백엔드 영속화는 c3 의
+// [시작하기] 에서 `completeAsC()` 한 번에 일어난다.
 
 import DateTimePicker, {
   type DateTimePickerEvent,
@@ -73,7 +73,6 @@ export default function OnboardingC2() {
     currentChildIndex,
     updateChild,
     setCurrentChildIndex,
-    completeAsC,
   } = useOnboarding();
 
   const total = childCount ?? 1;
@@ -81,8 +80,6 @@ export default function OnboardingC2() {
   const birthDate = parseBirthDate(child.birthDate);
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [hasError, setHasError] = useState(false);
 
   const handlePickerChange = (
     event: DateTimePickerEvent,
@@ -115,22 +112,13 @@ export default function OnboardingC2() {
   const nameTrimmed = (child.name ?? '').trim();
   const canProceed = nameTrimmed.length > 0;
 
-  const onNext = async () => {
-    if (submitting || !canProceed) return;
+  const onNext = () => {
+    if (!canProceed) return;
     if (currentChildIndex < total - 1) {
       setCurrentChildIndex(currentChildIndex + 1);
       return;
     }
-    setHasError(false);
-    setSubmitting(true);
-    try {
-      await completeAsC();
-      // AuthGate reroutes to /(tabs) automatically once status flips.
-    } catch (e) {
-      console.warn('[onboarding] completeAsC failed', e);
-      setHasError(true);
-      setSubmitting(false);
-    }
+    router.push('/(onboarding)/c3');
   };
 
   const onBack = () => {
@@ -141,8 +129,7 @@ export default function OnboardingC2() {
     router.back();
   };
 
-  const isLast = currentChildIndex === total - 1;
-  const ctaTitle = submitting ? '저장 중…' : isLast ? '시작하기' : '다음';
+  const ctaTitle = '다음';
 
   return (
     <SafeAreaView
@@ -277,20 +264,10 @@ export default function OnboardingC2() {
           title={ctaTitle}
           variant="primary"
           fullWidth
-          disabled={submitting || !canProceed}
+          disabled={!canProceed}
           onPress={onNext}
           testID="onboarding-c2-next"
         />
-        {hasError && (
-          <Text
-            variant="caption"
-            color="coral"
-            style={styles.error}
-            testID="onboarding-c2-error"
-          >
-            지금은 저장이 잘 안 되네요. 잠시 후 다시 시도해 주세요.
-          </Text>
-        )}
       </View>
 
       {pickerOpen && (
@@ -377,7 +354,6 @@ const styles = StyleSheet.create({
   },
   backText: { textDecorationLine: 'underline' },
   pressed: { opacity: 0.85 },
-  error: { textAlign: 'center' },
   pickerDone: {
     alignSelf: 'center',
     paddingVertical: spacing[3],

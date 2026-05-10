@@ -1,0 +1,30 @@
+appId: com.dlddu.dearbaby
+---
+# Onboarding Case C — 양육자(임신 X · 양육 O) full flow.
+#
+# Verifies the Case C entry flow (Q1 → Q2 → C1 → C2 → C3) and the
+# [시작하기 ✨] CTA on c3 that stamps onboarded_at, persists children
+# rows + 기록 목적, and lands on home.
+#
+# CI must reset the seeded test user's onboarding state via
+# `backend/reset-onboarding $TEST_USER_EMAIL` before running this flow.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1·Q2 (Case C: 임신 X · 양육 O) → c1
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseC.yaml
+
+# c1 → c2 → c3 → 홈
+- runFlow:
+    file: subflows/onboarding-caseC-c1-c2-c3.yaml

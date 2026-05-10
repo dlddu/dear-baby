@@ -29,6 +29,7 @@ const DRAFT_CURRENT_FETUS_INDEX_KEY = 'db_draft_current_fetus_index';
 const DRAFT_CHILD_COUNT_KEY = 'db_draft_child_count';
 const DRAFT_CHILDREN_KEY = 'db_draft_children';
 const DRAFT_CURRENT_CHILD_INDEX_KEY = 'db_draft_current_child_index';
+const DRAFT_PURPOSES_KEY = 'db_draft_purposes';
 
 export async function getCachedOnboardedAt(): Promise<string | null> {
   return SecureStore.getItemAsync(ONBOARDED_AT_KEY);
@@ -111,6 +112,11 @@ export type OnboardingDraft = {
   childCount: ChildCount | null;
   children: ChildDraft[];
   currentChildIndex: number;
+  /**
+   * A3/C3 의 기록 목적 칩 선택. 한국어 라벨 그대로 저장 — PRD-006
+   * AC-006-02·04 의 단일 SoT.
+   */
+  purposes: string[];
 };
 
 const EMPTY_DRAFT: OnboardingDraft = {
@@ -122,6 +128,7 @@ const EMPTY_DRAFT: OnboardingDraft = {
   childCount: null,
   children: [],
   currentChildIndex: 0,
+  purposes: [],
 };
 
 function parseBool(raw: string | null): boolean | null {
@@ -164,8 +171,20 @@ function parseChildren(raw: string | null): ChildDraft[] {
   }
 }
 
+function parsePurposes(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? (parsed.filter((v) => typeof v === 'string') as string[])
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
-  const [q1, q2, count, fetuses, idx, childCount, children, childIdx] =
+  const [q1, q2, count, fetuses, idx, childCount, children, childIdx, purposes] =
     await Promise.all([
       SecureStore.getItemAsync(DRAFT_Q1_KEY),
       SecureStore.getItemAsync(DRAFT_Q2_KEY),
@@ -175,6 +194,7 @@ export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
       SecureStore.getItemAsync(DRAFT_CHILD_COUNT_KEY),
       SecureStore.getItemAsync(DRAFT_CHILDREN_KEY),
       SecureStore.getItemAsync(DRAFT_CURRENT_CHILD_INDEX_KEY),
+      SecureStore.getItemAsync(DRAFT_PURPOSES_KEY),
     ]);
   const parsedIdx = idx ? Number.parseInt(idx, 10) : 0;
   const parsedChildIdx = childIdx ? Number.parseInt(childIdx, 10) : 0;
@@ -187,6 +207,7 @@ export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
     childCount: parseChildCount(childCount),
     children: parseChildren(children),
     currentChildIndex: Number.isFinite(parsedChildIdx) ? parsedChildIdx : 0,
+    purposes: parsePurposes(purposes),
   };
 }
 
@@ -263,6 +284,14 @@ export async function saveOnboardingDraft(
       ),
     );
   }
+  if ('purposes' in partial) {
+    writes.push(
+      SecureStore.setItemAsync(
+        DRAFT_PURPOSES_KEY,
+        JSON.stringify(partial.purposes ?? []),
+      ),
+    );
+  }
   await Promise.all(writes);
 }
 
@@ -276,6 +305,7 @@ export async function clearOnboardingDraft(): Promise<void> {
     SecureStore.deleteItemAsync(DRAFT_CHILD_COUNT_KEY),
     SecureStore.deleteItemAsync(DRAFT_CHILDREN_KEY),
     SecureStore.deleteItemAsync(DRAFT_CURRENT_CHILD_INDEX_KEY),
+    SecureStore.deleteItemAsync(DRAFT_PURPOSES_KEY),
   ]);
 }
 

@@ -36,3 +36,34 @@ export type ChildDraft = {
   /** 한줄소개 — 선택 입력 */
   bio?: string;
 };
+
+// 기록 목적(Purpose) 칩 옵션. 라벨은 한국어 그대로 클라/API/DB 의 SoT 로 사용된다.
+// PRD-006 AC-006-02·04 와 docs/glossary.md 의 `기록 목적` 행을 참조.
+export type PurposeOption = {
+  label: string;
+  defaultSelected?: boolean;
+};
+
+/** Case A · A3 화면의 기록 목적 칩 8 가지. mockup `M06_A3_Purpose` 와 1:1 일치. */
+export const CASE_A_PURPOSES: PurposeOption[] = [
+  { label: '매일의 마음', defaultSelected: true },
+  { label: '몸의 변화', defaultSelected: true },
+  { label: '아이에게 편지' },
+  { label: '꿈·예감' },
+  { label: '가족 이야기' },
+  { label: '병원 기록' },
+  { label: '준비물 정리' },
+  { label: '나만의 작명' },
+];
+
+/** Case C · C3 화면의 기록 목적 칩 8 가지. mockup `M16_C3_Purpose` 와 1:1 일치. */
+export const CASE_C_PURPOSES: PurposeOption[] = [
+  { label: '일상의 발견', defaultSelected: true },
+  { label: '말과 행동의 성장', defaultSelected: true },
+  { label: '웃긴 순간' },
+  { label: '음식·취향' },
+  { label: '친구와의 시간' },
+  { label: '가족 이벤트' },
+  { label: '병원·건강' },
+  { label: '마음의 변화' },
+];

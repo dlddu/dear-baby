@@ -23,3 +23,63 @@ export async function patchMe(body: PatchMeBody): Promise<User> {
   }
   return (await res.json()) as User;
 }
+
+// CaseAFetusPayload mirrors the wire shape — purposes are Korean chip
+// labels copied verbatim from `OnboardingContext.purposes`. The client
+// replicates the same purposes array to every fetus before sending.
+export type CaseAFetusPayload = {
+  nickname?: string | null;
+  gender?: string | null;
+  pregnancy_week?: number | null;
+  due_date?: string | null;
+  purposes: string[];
+};
+
+export type CaseAPayload = {
+  due_date: string | null;
+  fetuses: CaseAFetusPayload[];
+};
+
+export type CaseCChildPayload = {
+  name?: string | null;
+  gender?: string | null;
+  birth_date?: string | null;
+  bio?: string | null;
+  purposes: string[];
+};
+
+export type CaseCPayload = {
+  children: CaseCChildPayload[];
+};
+
+// submitOnboardingCaseA finalizes Case A onboarding — persists the
+// fetuses + due_date, stamps onboarded_at, and returns the refreshed
+// /me Profile. Called from `OnboardingContext.completeAsA`.
+export async function submitOnboardingCaseA(
+  payload: CaseAPayload,
+): Promise<User> {
+  const res = await apiFetch('/me/onboarding/case-a', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(`submitOnboardingCaseA failed: ${res.status}`);
+  }
+  return (await res.json()) as User;
+}
+
+// submitOnboardingCaseC finalizes Case C onboarding — persists children
+// rows, stamps onboarded_at with due_date null, and returns the
+// refreshed /me Profile.
+export async function submitOnboardingCaseC(
+  payload: CaseCPayload,
+): Promise<User> {
+  const res = await apiFetch('/me/onboarding/case-c', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(`submitOnboardingCaseC failed: ${res.status}`);
+  }
+  return (await res.json()) as User;
+}
