@@ -54,7 +54,8 @@ type AuthContextValue = {
   /**
    * Case B 결말 — 양육 아이 + 태아 양쪽 행을 한 번의 트랜잭션으로 영속화하고,
    * 첫 태아의 dueDate 를 onboarding.due_date 로 복사한 뒤 onboarded_at 을
-   * 스탬프한다. child·fetus 의 purposes 는 슬롯별로 다를 수 있다.
+   * 스탬프한다. 양육 아이의 purposes 는 슬롯별로 다르게, 태아의 purposes 는
+   * 모든 행에 동일하게 복제되어 있다 (클라이언트가 보낸 그대로 저장).
    */
   completeOnboardingCaseB: (payload: CaseBPayload) => Promise<void>;
   /**

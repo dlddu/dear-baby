@@ -53,9 +53,9 @@ export type CaseCPayload = {
 };
 
 // Case B 의 child·fetus payload — A·C 와 wire shape 가 같다.
-// purposes 는 Case B 에서 child·fetus 별로 다르게 선택될 수 있다 (B2-purpose
-// 1:1, B6 일괄). 클라이언트에서 OnboardingContext.children[i].purposes /
-// fetuses[i].purposes 를 그대로 보낸다.
+// 양육 아이는 B2-Purpose 1:1 화면에서 받은 child.purposes 를 그대로 보내고,
+// 태아는 B6 단일 칩 그리드의 결과를 모든 fetus 행에 복제해서 보낸다 (Case A
+// 와 같은 모델). 서버는 받은 그대로 저장 — 복제 책임은 클라이언트.
 export type CaseBChildPayload = CaseCChildPayload;
 export type CaseBFetusPayload = CaseAFetusPayload;
 

@@ -132,17 +132,12 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b5-next"
 
-# ── b6 일괄 기록 목적 ──
+# ── b6 태아 기록 목적 (다태에서도 1회만, 단일 칩 그리드) ──
 - assertVisible:
     id: "onboarding-b6"
-- assertVisible:
-    id: "onboarding-b6-fetus-card-0"
-- assertVisible:
-    id: "onboarding-b6-fetus-card-1"
-# 첫째 태아: 기본(매일의 마음·몸의 변화) 외 "아이에게 편지" 추가.
+# 기본 칩(매일의 마음·몸의 변화) 외 "아이에게 편지" 추가 선택.
 - tapOn:
-    id: "onboarding-b6-fetus-0-chip-2"
-# 둘째 태아: 기본 그대로 유지.
+    id: "onboarding-b6-purpose-2"
 
 # [시작하기 ✨] → completeAsB() → 홈
 - tapOn:

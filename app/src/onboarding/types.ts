@@ -20,11 +20,6 @@ export type FetusDraft = {
   pregnancyWeek?: number;
   /** 출산 예정일 — ISO 8601 date (YYYY-MM-DD) 또는 미입력 */
   dueDate?: string;
-  /**
-   * 기록 목적 — Case B 전용 (B6 일괄 화면). Case A·C 는 미사용 —
-   * 단일 `OnboardingContext.purposes` 슬롯을 모든 태아 행에 복제한다.
-   */
-  purposes?: string[];
 };
 
 /** 양육 아이 수. Case B/C 의 양육 아이 입력 슬롯 카운트. 1·2·3+ 로 표기되지만 코드에서는 3+를 3 으로 다룬다. */
