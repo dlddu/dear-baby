@@ -45,8 +45,9 @@ export type User = {
   // notifies when this flips from null → string.
   ai_preview: string | null;
   // Per-태아 / per-아이 onboarding rows. Empty array until Case A/C
-  // completion. Each row carries the chip-selected purposes the client
-  // replicated to every entry on A3/C3.
+  // completion. Case A 의 fetuses 는 A3 의 단일 purposes 가 모든 행에
+  // 복제되고, Case C 의 children 은 C3 에서 자녀별로 따로 입력된 purposes
+  // 가 그대로 실린다.
   fetuses: FetusProfile[];
   children: ChildProfile[];
   created_at: string;

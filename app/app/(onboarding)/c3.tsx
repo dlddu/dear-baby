@@ -1,17 +1,19 @@
-// Onboarding M-16 — C3 기록 목적
+// Onboarding M-16 — C3 기록 목적 (자녀별)
 // docs/mockups/source/src/screens/Onboarding.tsx:631-661 (M16_C3_Purpose)
 //
 // PRD-006 AC-006-04 의 마지막 입력. 사용자가 칩 8개에서 다중 선택한
-// 한국어 라벨을 `OnboardingContext.purposes` 에 저장하고, [시작하기 ✨] 시
-// 모든 양육 아이 행에 동일 purposes 를 복제해 백엔드에 영속화한다.
-// 다자녀에서도 1회만 노출 — 마지막 아이의 [다음] 에서 c2 → c3 로 진입한다.
+// 한국어 라벨을 자녀별 `children[currentChildIndex].purposes` 에 저장한다.
+// 다자녀인 경우 [다음] 으로 인덱스를 증가시켜 같은 화면을 반복 렌더하고,
+// 마지막 아이의 [시작하기 ✨] 에서 `completeAsC()` 한 번에 백엔드에
+// 영속화한다. c2 의 인덱스 뱃지 패턴과 동일하다.
 
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Pill } from '../../src/components/Pill';
 import { ProgressDots } from '../../src/components/ProgressDots';
@@ -29,13 +31,36 @@ function purposeTestID(label: string): string {
 
 export default function OnboardingC3() {
   const router = useRouter();
-  const { purposes, togglePurpose, completeAsC } = useOnboarding();
+  const {
+    childCount,
+    children,
+    currentChildIndex,
+    setCurrentChildIndex,
+    togglePurposeForChild,
+    ensureChildPurposesDefault,
+    completeAsC,
+  } = useOnboarding();
+
+  const total = childCount ?? 1;
+  const child = children[currentChildIndex] ?? {};
+  const childPurposes = child.purposes ?? [];
+  const isLastChild = currentChildIndex >= total - 1;
+
+  // 첫 진입 시 자녀별 purposes 가 아직 비어있다면(=undefined) 기본 칩 두 개를
+  // 미리 채운다. 사용자가 명시적으로 모두 해제한 빈 배열은 그대로 보존된다.
+  useEffect(() => {
+    ensureChildPurposesDefault(currentChildIndex);
+  }, [ensureChildPurposesDefault, currentChildIndex]);
 
   const [submitting, setSubmitting] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  const onStart = async () => {
+  const onNext = async () => {
     if (submitting) return;
+    if (!isLastChild) {
+      setCurrentChildIndex(currentChildIndex + 1);
+      return;
+    }
     setHasError(false);
     setSubmitting(true);
     try {
@@ -48,13 +73,37 @@ export default function OnboardingC3() {
     }
   };
 
+  const onBack = () => {
+    if (currentChildIndex > 0) {
+      setCurrentChildIndex(currentChildIndex - 1);
+      return;
+    }
+    router.back();
+  };
+
+  const ctaTitle = submitting
+    ? '저장 중…'
+    : isLastChild
+      ? '시작하기 ✨'
+      : '다음';
+
   return (
     <SafeAreaView
       style={styles.safe}
       edges={['top', 'bottom']}
       testID="onboarding-c3"
     >
-      <ProgressDots total={4} current={3} style={styles.progress} />
+      <View style={styles.topRow}>
+        <ProgressDots total={4} current={3} style={styles.progress} />
+        {total > 1 && (
+          <Badge
+            label={`${currentChildIndex + 1}/${total}`}
+            variant="category"
+            testID={`onboarding-c3-child-index-${currentChildIndex}`}
+            style={styles.indexBadge}
+          />
+        )}
+      </View>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -70,8 +119,8 @@ export default function OnboardingC3() {
               <Pill
                 key={p.label}
                 label={p.label}
-                selected={purposes.includes(p.label)}
-                onPress={() => togglePurpose(p.label)}
+                selected={childPurposes.includes(p.label)}
+                onPress={() => togglePurposeForChild(currentChildIndex, p.label)}
                 testID={purposeTestID(p.label)}
               />
             ))}
@@ -84,21 +133,21 @@ export default function OnboardingC3() {
 
       <View style={styles.actions}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={onBack}
           accessibilityRole="button"
           testID="onboarding-c3-back"
           style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}
         >
           <Text variant="caption" color="secondary" style={styles.backText}>
-            ← 이전으로
+            {currentChildIndex > 0 ? '← 이전 아이로' : '← 이전으로'}
           </Text>
         </Pressable>
         <Button
-          title={submitting ? '저장 중…' : '시작하기 ✨'}
+          title={ctaTitle}
           variant="primary"
           fullWidth
           disabled={submitting}
-          onPress={onStart}
+          onPress={onNext}
           testID="onboarding-c3-cta"
         />
         {hasError && (
@@ -120,7 +169,15 @@ export default function OnboardingC3() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.cream },
-  progress: { flex: 0 },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  progress: { flex: 1 },
+  indexBadge: {
+    marginRight: spacing[6],
+    marginTop: spacing[3],
+  },
   scroll: { flex: 1 },
   content: { paddingBottom: spacing[8] },
   body: {

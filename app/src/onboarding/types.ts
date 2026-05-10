@@ -35,6 +35,12 @@ export type ChildDraft = {
   birthDate?: string;
   /** 한줄소개 — 선택 입력 */
   bio?: string;
+  /**
+   * Case C · C3 기록 목적 — 자녀별 다중 선택. 한국어 라벨 그대로 (PRD-006
+   * AC-006-04 SoT). undefined 는 "아직 화면에 도달 전" 의미이며, c3 첫
+   * 진입 시 `defaultSelected` 두 개로 초기화된다.
+   */
+  purposes?: string[];
 };
 
 // 기록 목적(Purpose) 칩 옵션. 라벨은 한국어 그대로 클라/API/DB 의 SoT 로 사용된다.

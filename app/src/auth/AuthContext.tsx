@@ -50,7 +50,7 @@ type AuthContextValue = {
    */
   completeOnboardingCaseA: (payload: CaseAPayload) => Promise<void>;
   /**
-   * Case C 결말 — 모든 아이 행(각 행에 동일 purposes 복제)을 백엔드에 영속화하고
+   * Case C 결말 — 모든 아이 행(자녀별 자체 purposes 포함)을 백엔드에 영속화하고
    * due_date 는 null 로, onboarded_at 만 스탬프한다.
    */
   completeOnboardingCaseC: (payload: CaseCPayload) => Promise<void>;

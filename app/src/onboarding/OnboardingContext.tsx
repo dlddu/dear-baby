@@ -63,7 +63,11 @@ type OnboardingContextValue = {
   childCount: ChildCount | null;
   children: ChildDraft[];
   currentChildIndex: number;
-  /** A3/C3 기록 목적 칩 선택. 한국어 라벨 그대로 (PRD-006 AC-006-02·04 SoT). */
+  /**
+   * Case A · A3 기록 목적 칩 선택. 한국어 라벨 그대로 (PRD-006 AC-006-02 SoT).
+   * Case C 는 자녀별 자체 `children[i].purposes` 를 사용하므로 이 필드는
+   * Case A 전용이다.
+   */
   purposes: string[];
   setQ1: (value: boolean) => void;
   setQ2: (value: boolean) => void;
@@ -73,8 +77,16 @@ type OnboardingContextValue = {
   setChildCount: (value: ChildCount) => void;
   updateChild: (index: number, patch: Partial<ChildDraft>) => void;
   setCurrentChildIndex: (index: number) => void;
-  /** A3/C3 칩 토글. 다중 선택 가능. */
+  /** Case A · A3 칩 토글. 다중 선택 가능. */
   togglePurpose: (label: string) => void;
+  /** Case C · C3 자녀별 칩 토글. 다중 선택 가능. */
+  togglePurposeForChild: (index: number, label: string) => void;
+  /**
+   * Case C · C3 첫 진입 시 해당 자녀의 `purposes` 가 아직 정의되지 않았다면
+   * `defaultSelected` 두 개로 초기화한다. 사용자가 명시적으로 모두 해제한
+   * 상태(빈 배열)는 보존된다.
+   */
+  ensureChildPurposesDefault: (index: number) => void;
   /** 현재 답변 조합으로 결정된 Case. 둘 다 입력되지 않았으면 null. */
   caseDecision: () => OnboardingCase | null;
   /** Case B/C 결말에서 "홈으로 시작하기" 처리 — onboarded_at 만 스탬프, due_date 는 null. */
@@ -85,8 +97,9 @@ type OnboardingContextValue = {
    */
   completeAsA: () => Promise<void>;
   /**
-   * Case C 결말 — 모든 양육 아이 행(각 행에 동일 purposes 복제)을 백엔드에
-   * 영속화하고 due_date 는 null 로, onboarded_at 만 스탬프한다.
+   * Case C 결말 — 각 양육 아이 행에 자녀별 자체 purposes 를 실어 백엔드에
+   * 영속화한다. due_date 는 null, onboarded_at 만 스탬프된다. 자녀별
+   * purposes 가 미정의(=c3 도달 전)인 슬롯은 default 로 채워 보낸다.
    */
   completeAsC: () => Promise<void>;
   /** 진행 중 입력 초기화. 비상 상황·디버그 용도. */
@@ -137,14 +150,34 @@ export function OnboardingProvider({
         setFetuses(draft.fetuses);
         setCurrentFetusIndexState(draft.currentFetusIndex);
         setChildCountState(draft.childCount);
-        setChildren(draft.children);
         setCurrentChildIndexState(draft.currentChildIndex);
-        // 진행 중 입력에 purposes 가 비어 있으면(=A3/C3 도달 전) 화면 진입 시
+
+        // 마이그레이션: 이전 버전은 Case C 도 단일 `draft.purposes` 만 저장했다.
+        // 자녀별 입력으로 바뀌었으므로, Case C 사용자가 미완료 상태로 복귀했을 때
+        // 단일 값을 자녀별 슬롯에 한 번만 옮겨 데이터 손실을 막는다. 이미
+        // 자녀별 purposes 가 정의된 슬롯은 그대로 둔다.
+        const draftCase = decide(draft.q1Pregnant, draft.q2HasChildren);
+        let migratedChildren = draft.children;
+        if (draftCase === 'C' && draft.purposes.length > 0) {
+          let mutated = false;
+          migratedChildren = draft.children.map((c) => {
+            if (c.purposes !== undefined) return c;
+            mutated = true;
+            return { ...c, purposes: draft.purposes };
+          });
+          if (mutated) {
+            void saveOnboardingDraft({ children: migratedChildren });
+          }
+        }
+        setChildren(migratedChildren);
+
+        // 진행 중 입력에 purposes 가 비어 있으면(=A3 도달 전) 화면 진입 시
         // 기본 칩 두 개를 미리 채워둔다. 사용자가 명시적으로 모두 해제했더라도
         // 다시 진입할 때 기본값이 부활하지 않도록, 이미 한 번이라도 저장된
-        // 배열은 그대로 사용한다.
+        // 배열은 그대로 사용한다. (Case C 는 자녀별 슬롯이 SoT — 이 단일
+        // 필드는 Case A 만 사용한다.)
         if (draft.purposes.length === 0) {
-          setPurposes(defaultPurposesForCase(decide(draft.q1Pregnant, draft.q2HasChildren)));
+          setPurposes(defaultPurposesForCase(draftCase));
         } else {
           setPurposes(draft.purposes);
         }
@@ -251,6 +284,38 @@ export function OnboardingProvider({
     });
   }, []);
 
+  const togglePurposeForChild = useCallback(
+    (index: number, label: string) => {
+      setChildren((prev) => {
+        const next = prev.slice();
+        while (next.length <= index) next.push({});
+        const cur = next[index].purposes ?? [];
+        const has = cur.includes(label);
+        const updated = has
+          ? cur.filter((p) => p !== label)
+          : [...cur, label];
+        next[index] = { ...next[index], purposes: updated };
+        void saveOnboardingDraft({ children: next });
+        return next;
+      });
+    },
+    [],
+  );
+
+  const ensureChildPurposesDefault = useCallback((index: number) => {
+    setChildren((prev) => {
+      if (prev[index]?.purposes !== undefined) return prev;
+      const next = prev.slice();
+      while (next.length <= index) next.push({});
+      next[index] = {
+        ...next[index],
+        purposes: defaultPurposesForCase('C'),
+      };
+      void saveOnboardingDraft({ children: next });
+      return next;
+    });
+  }, []);
+
   const caseDecision = useCallback(
     () => decide(q1Pregnant, q2HasChildren),
     [q1Pregnant, q2HasChildren],
@@ -295,11 +360,11 @@ export function OnboardingProvider({
         gender: c.gender ?? null,
         birth_date: c.birthDate ?? null,
         bio: c.bio ?? null,
-        purposes,
+        purposes: c.purposes ?? defaultPurposesForCase('C'),
       })),
     });
     await clearOnboardingDraft();
-  }, [completeOnboardingCaseC, childCount, children, purposes]);
+  }, [completeOnboardingCaseC, childCount, children]);
 
   const resetOnboardingDraft = useCallback(async () => {
     setQ1Pregnant(null);
@@ -335,6 +400,8 @@ export function OnboardingProvider({
       updateChild,
       setCurrentChildIndex,
       togglePurpose,
+      togglePurposeForChild,
+      ensureChildPurposesDefault,
       caseDecision,
       completeAsBC,
       completeAsA,
@@ -361,6 +428,8 @@ export function OnboardingProvider({
       updateChild,
       setCurrentChildIndex,
       togglePurpose,
+      togglePurposeForChild,
+      ensureChildPurposesDefault,
       caseDecision,
       completeAsBC,
       completeAsA,
