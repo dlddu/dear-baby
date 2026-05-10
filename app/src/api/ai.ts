@@ -1,6 +1,6 @@
 import EventSource from 'react-native-sse';
 
-import { posthogHeaders } from '../analytics/client';
+import { posthogClient, posthogHeaders } from '../analytics/client';
 import { API_URL } from '../config/env';
 import { getAccessToken } from '../auth/tokens';
 import { apiFetch } from './client';
@@ -13,6 +13,7 @@ export async function requestAiPreview(): Promise<void> {
   if (!res.ok) {
     throw new Error(`requestAiPreview failed: ${res.status}`);
   }
+  posthogClient?.capture('ai_preview_requested');
 }
 
 // AiPreviewEvent is the union of SSE events the home screen cares about.
