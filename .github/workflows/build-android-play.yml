@@ -25,8 +25,7 @@ on:
         description: Git ref to check out. Empty checks out the workflow's default ref.
       lane:
         type: string
-        required: false
-        default: "play_internal"
+        required: true
         description: Fastlane Android lane to invoke (e.g. play_internal, play_closed).
     outputs:
       version-code:
