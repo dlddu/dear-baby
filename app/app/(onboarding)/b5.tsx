@@ -2,14 +2,20 @@
 // docs/mockups/source/src/screens/Onboarding.tsx:527-539 (M12_B5_FetusInfo)
 //
 // PRD-006 AC-006-03 ② 의 두 번째 입력. 4개 필드(예정일·태명·성별·임신 주차)를
-// `OnboardingContext.fetuses[currentFetusIndex]` 에 저장한다. a2 와 동일한
-// 화면 구조 — 다태인 경우 [다음] 으로 인덱스를 증가시켜 같은 화면을 반복
-// 렌더하고, 마지막 태아의 [다음] 에서 b6 (기록 목적 일괄)로 진입한다.
+// `OnboardingContext.fetuses[fetusIndex]` 에 저장한다. 다태인 경우 [다음] 으로
+// 인덱스를 증가시켜 **같은 경로를 새로 push** 한다 — 화면 인스턴스가 stack 에
+// 쌓이므로 push 애니메이션이 재생되어 양육 아이의 b2 ↔ b2-purpose 반복과
+// 시각적으로 일관된다.
+//
+// 각 인스턴스는 라우트 매개변수 `index` 로 자기 태아 인덱스를 받아 stack 의
+// 다른 인스턴스와 독립적으로 데이터를 그린다. context 의 currentFetusIndex
+// 는 영속화·복원 용도로만 갱신된다 (drafts cache).
+// 마지막 태아의 [다음] 에서 b6 (기록 목적)로 진입한다.
 
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import {
@@ -61,16 +67,20 @@ const GENDERS: { value: Gender; label: string; suffix: string }[] = [
 
 export default function OnboardingB5() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ index?: string }>();
+  // 라우트 매개변수가 없거나 파싱이 실패하면 0 으로 fallback (b4 → b5 첫 진입).
+  const parsed = Number.parseInt(params.index ?? '0', 10);
+  const fetusIndex = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+
   const {
     fetusCount,
     fetuses,
-    currentFetusIndex,
     updateFetus,
     setCurrentFetusIndex,
   } = useOnboarding();
 
   const total = fetusCount ?? 1;
-  const fetus = fetuses[currentFetusIndex] ?? {};
+  const fetus = fetuses[fetusIndex] ?? {};
   const dueDate = parseDueDate(fetus.dueDate);
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -82,51 +92,61 @@ export default function OnboardingB5() {
     if (Platform.OS === 'android') {
       setPickerOpen(false);
       if (event.type === 'set' && selected) {
-        updateFetus(currentFetusIndex, { dueDate: toIsoDate(selected) });
+        updateFetus(fetusIndex, { dueDate: toIsoDate(selected) });
       }
       return;
     }
     if (selected) {
-      updateFetus(currentFetusIndex, { dueDate: toIsoDate(selected) });
+      updateFetus(fetusIndex, { dueDate: toIsoDate(selected) });
     }
   };
 
   const onSkipDate = () => {
-    updateFetus(currentFetusIndex, { dueDate: undefined });
+    updateFetus(fetusIndex, { dueDate: undefined });
   };
 
   const onChangeNickname = (value: string) => {
-    updateFetus(currentFetusIndex, { nickname: value });
+    updateFetus(fetusIndex, { nickname: value });
   };
 
   const onSelectGender = (value: Gender) => {
-    updateFetus(currentFetusIndex, { gender: value });
+    updateFetus(fetusIndex, { gender: value });
   };
 
   const onChangeWeek = (raw: string) => {
     const cleaned = raw.replace(/[^0-9]/g, '');
     if (cleaned === '') {
-      updateFetus(currentFetusIndex, { pregnancyWeek: undefined });
+      updateFetus(fetusIndex, { pregnancyWeek: undefined });
       return;
     }
     const n = Number.parseInt(cleaned, 10);
     if (Number.isFinite(n) && n >= 0 && n <= 45) {
-      updateFetus(currentFetusIndex, { pregnancyWeek: n });
+      updateFetus(fetusIndex, { pregnancyWeek: n });
     }
   };
 
   const onNext = () => {
-    if (currentFetusIndex < total - 1) {
-      setCurrentFetusIndex(currentFetusIndex + 1);
+    if (fetusIndex < total - 1) {
+      const nextIndex = fetusIndex + 1;
+      // 영속화·복원용 인덱스만 갱신하고, push 로 새 인스턴스를 stack 에 올린다.
+      // 새 인스턴스는 라우트 매개변수의 index 를 보고 동작하므로 stack 의
+      // 이전 인스턴스 데이터에 영향을 주지 않는다.
+      setCurrentFetusIndex(nextIndex);
+      router.push({
+        pathname: '/(onboarding)/b5',
+        params: { index: String(nextIndex) },
+      });
       return;
     }
     router.push('/(onboarding)/b6');
   };
 
   const onBack = () => {
-    if (currentFetusIndex > 0) {
-      setCurrentFetusIndex(currentFetusIndex - 1);
-      return;
+    // 이전 인스턴스가 마운트돼 있으므로 router.back() 으로 자연스럽게 복귀.
+    // 영속화용 인덱스도 줄여 두면 앱 강제 종료 후 재진입 시 정확한 위치로
+    // 복원된다.
+    if (fetusIndex > 0) {
+      setCurrentFetusIndex(fetusIndex - 1);
     }
     router.back();
   };
@@ -141,9 +161,9 @@ export default function OnboardingB5() {
         <ProgressDots total={8} current={7} style={styles.progress} />
         {total > 1 && (
           <Badge
-            label={`${currentFetusIndex + 1}/${total}`}
+            label={`${fetusIndex + 1}/${total}`}
             variant="category"
-            testID={`onboarding-b5-fetus-index-${currentFetusIndex}`}
+            testID={`onboarding-b5-fetus-index-${fetusIndex}`}
             style={styles.indexBadge}
           />
         )}
@@ -166,7 +186,7 @@ export default function OnboardingB5() {
             <Pressable
               onPress={() => setPickerOpen(true)}
               accessibilityRole="button"
-              testID={`onboarding-b5-due-date-field-${currentFetusIndex}`}
+              testID={`onboarding-b5-due-date-field-${fetusIndex}`}
               style={({ pressed }) => [
                 styles.dateField,
                 pressed && styles.pressed,
@@ -183,7 +203,7 @@ export default function OnboardingB5() {
             <Pressable
               onPress={onSkipDate}
               accessibilityRole="button"
-              testID={`onboarding-b5-due-date-skip-${currentFetusIndex}`}
+              testID={`onboarding-b5-due-date-skip-${fetusIndex}`}
               style={({ pressed }) => [
                 styles.skip,
                 pressed && styles.pressed,
@@ -209,7 +229,7 @@ export default function OnboardingB5() {
               placeholder="콩이"
               placeholderTextColor={colors.text.muted}
               style={styles.input}
-              testID={`onboarding-b5-nickname-${currentFetusIndex}`}
+              testID={`onboarding-b5-nickname-${fetusIndex}`}
               maxLength={20}
             />
           </View>
@@ -253,7 +273,7 @@ export default function OnboardingB5() {
                 placeholderTextColor={colors.text.muted}
                 keyboardType="number-pad"
                 style={[styles.input, styles.weekInput]}
-                testID={`onboarding-b5-week-${currentFetusIndex}`}
+                testID={`onboarding-b5-week-${fetusIndex}`}
                 maxLength={2}
               />
               <Text variant="caption" color="secondary" style={styles.weekSuffix}>
@@ -265,7 +285,7 @@ export default function OnboardingB5() {
       </ScrollView>
 
       <View style={styles.actions}>
-        {currentFetusIndex > 0 && (
+        {fetusIndex > 0 && (
           <Pressable
             onPress={onBack}
             accessibilityRole="button"

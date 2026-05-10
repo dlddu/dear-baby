@@ -31,10 +31,13 @@ export default function OnboardingB4() {
 
   const onNext = () => {
     if (!fetusCount) return;
-    // b5 진입 시 인덱스를 0 으로 정규화 — 다태에서 b5 가 인덱스를 증가시키며
-    // 같은 화면을 반복 렌더한다.
+    // b5 진입 시 인덱스를 0 으로 정규화 — 다태에서 b5 는 매 [다음] 마다
+    // index 매개변수를 증가시키며 새 인스턴스를 stack 에 push 한다.
     setCurrentFetusIndex(0);
-    router.push('/(onboarding)/b5');
+    router.push({
+      pathname: '/(onboarding)/b5',
+      params: { index: '0' },
+    });
   };
 
   return (
