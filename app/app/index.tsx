@@ -1,8 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import * as Google from 'expo-auth-session/providers/google';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as WebBrowser from 'expo-web-browser';
+import {
+  GoogleSignin,
+  isErrorWithCode,
+  isSuccessResponse,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 
@@ -16,7 +20,6 @@ import { TesterLoginModal } from '../src/auth/TesterLoginModal';
 import { useTesterLoginGesture } from '../src/auth/useTesterLoginGesture';
 import {
   API_URL,
-  GOOGLE_ANDROID_CLIENT_ID,
   GOOGLE_IOS_CLIENT_ID,
   GOOGLE_WEB_CLIENT_ID,
 } from '../src/config/env';
@@ -26,54 +29,58 @@ import { radius } from '../src/theme/radius';
 import { shadows } from '../src/theme/shadows';
 import { spacing } from '../src/theme/spacing';
 
-// Dismisses the in-app browser when the OAuth redirect returns.
-WebBrowser.maybeCompleteAuthSession();
+// @react-native-google-signin/google-signin uses the web OAuth client ID as
+// the audience for the ID token (so the backend can verify it against a
+// single audience). The Android OAuth client is selected automatically by
+// Google Play Services from the package name + signing certificate, so
+// EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID is not passed at runtime — its
+// presence in Cloud Console is what makes Android sign-in work.
+//
+// Skip configure() when there is no web client ID — this happens in CI,
+// where the landing screen must still render for the Maestro health flow.
+const hasGoogleConfig = Boolean(GOOGLE_WEB_CLIENT_ID);
+if (hasGoogleConfig) {
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+  });
+}
 
-// Only mount the Google sign-in button when a client ID is configured for
-// the current platform. Without this guard, Google.useAuthRequest throws on
-// Android when only iOS/web IDs are set, which blocks the landing screen
-// from rendering and breaks the Maestro health flow.
-const hasGoogleConfig =
-  (Platform.OS === 'ios' && Boolean(GOOGLE_IOS_CLIENT_ID)) ||
-  (Platform.OS === 'android' && Boolean(GOOGLE_ANDROID_CLIENT_ID)) ||
-  (Platform.OS === 'web' && Boolean(GOOGLE_WEB_CLIENT_ID));
+// The native Google sign-in module is not available on web; gate the button
+// to native platforms so a web build (Expo dev tools, Storybook) doesn't
+// throw at import time.
+const isGoogleSignInSupported =
+  Platform.OS === 'ios' || Platform.OS === 'android';
 
-// GoogleSignInButton is split into its own component so that
-// Google.useAuthRequest — which throws when invoked with no client IDs —
-// is only ever called when at least one client ID is configured. CI does
-// not set the EXPO_PUBLIC_GOOGLE_*_CLIENT_ID vars, so in CI this component
-// is not mounted at all and the landing screen still renders for Maestro.
 function GoogleSignInButton() {
   const { setSession } = useAuth();
-  const [, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
-    webClientId: GOOGLE_WEB_CLIENT_ID || undefined,
-  });
 
-  useEffect(() => {
-    if (response?.type !== 'success') return;
-    const idToken =
-      response.authentication?.idToken ?? response.params?.id_token;
-    if (!idToken) return;
-    (async () => {
-      try {
-        const session = await exchangeGoogleIdToken(idToken);
-        await setSession(session);
-      } catch (e) {
-        console.error('google sign-in failed', e);
+  const onPress = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices();
       }
-    })();
-  }, [response, setSession]);
+      const response = await GoogleSignin.signIn();
+      if (!isSuccessResponse(response)) return;
+      const idToken = response.data.idToken;
+      if (!idToken) {
+        console.error('google sign-in: missing idToken');
+        return;
+      }
+      const session = await exchangeGoogleIdToken(idToken);
+      await setSession(session);
+    } catch (e) {
+      if (isErrorWithCode(e) && e.code === statusCodes.SIGN_IN_CANCELLED) {
+        return;
+      }
+      console.error('google sign-in failed', e);
+    }
+  };
 
   return (
     <Pressable
       testID="google-signin-button"
-      onPress={() => {
-        promptAsync().catch((e) => {
-          console.error('google prompt failed', e);
-        });
-      }}
+      onPress={onPress}
       style={({ pressed }) => [styles.googleButton, pressed && styles.pressed]}
     >
       <Text style={styles.googleGlyph}>G</Text>
@@ -262,7 +269,7 @@ export default function Landing() {
 
       <View style={styles.actions}>
         {Platform.OS === 'ios' && <AppleSignInButton />}
-        {hasGoogleConfig && <GoogleSignInButton />}
+        {hasGoogleConfig && isGoogleSignInSupported && <GoogleSignInButton />}
       </View>
 
       <View style={styles.footer}>
