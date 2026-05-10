@@ -126,19 +126,44 @@ platform :android do
     release_notes = pr_number.empty? \
       ? "Build #{short_sha}" \
       : "PR ##{pr_number} · #{short_sha}"
+    # Play Console UI에서 release를 식별하기 쉽게 PR 번호를 표시명으로
+    # 박는다. 미설정 시 supply가 `versionName (versionCode)` 자동 생성.
+    release_name = pr_number.empty? \
+      ? "#{APP_JSON.fetch('version')} (#{short_sha})" \
+      : "PR ##{pr_number} (#{short_sha})"
+
+    # build-android-play-internal.yml 에서 next_play_version_code 결과를
+    # ANDROID_VERSION_CODE 로 export — supply가 어떤 release에 changelog
+    # 를 매달지 결정할 때 동일한 값이 필요하다.
+    version_code = ENV["ANDROID_VERSION_CODE"].to_i
+    UI.user_error!("ANDROID_VERSION_CODE must be set so supply can target the right release") if version_code.zero?
+
+    # supply는 `<metadata_path>/<locale>/changelogs/<versionCode>.txt` 에서
+    # release notes를 읽어 "What's new" 로 업로드한다. locale은 Play Console
+    # store listing 에 활성화된 언어와 정확히 일치해야 한다 — 한국어 앱이라
+    # 기본 언어가 ko-KR. 동적으로 versionCode마다 파일을 만들어두므로
+    # 저장소에 커밋되지 않는다(.gitignore 처리됨).
+    metadata_path = File.expand_path("../fastlane/metadata/android", __dir__)
+    changelog_dir = File.join(metadata_path, "ko-KR", "changelogs")
+    FileUtils.mkdir_p(changelog_dir)
+    File.write(File.join(changelog_dir, "#{version_code}.txt"), release_notes)
 
     upload_to_play_store(
       package_name: ANDROID_PACKAGE_NAME,
       json_key: json_key_path,
       track: "internal",
       aab: aab_path,
-      # `draft`는 internal track에 빌드를 저장만 하고 roll-out은 안 함 —
-      # Play Console에서 수동 "Start rollout to Internal testing" 1회
-      # 필요. 앱이 "Draft app" 상태(Production 트랙에 release가 한 번도
-      # 등록된 적 없음)인 동안 Play API는 `completed`를 거절하므로
-      # 그 기간 동안 사용. Production launch 이후 `completed`로 승격해
-      # hands-off rollout으로 전환 가능.
-      release_status: "draft",
+      version_code: version_code,
+      release_name: release_name,
+      metadata_path: metadata_path,
+      # `completed`는 업로드와 동시에 internal 테스터에게 게재 — Play
+      # Console에서 별도 "Start rollout to Internal testing" 단계 필요 없음.
+      # 단, 앱이 "Draft app" 상태가 아니어야 함(필수 store listing + content
+      # rating + production track 최초 release 등록까지 완료). 미완료 상태에서
+      # 호출하면 supply가 `Only releases with status draft may be created on
+      # draft app`으로 거절하므로, 그 경우 `draft`로 임시 전환 후 console에서
+      # 수동 roll-out.
+      release_status: "completed",
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_changelogs: false,
@@ -148,7 +173,7 @@ platform :android do
       validate_only: false,
     )
 
-    UI.success("Uploaded #{aab_path} to Play Store internal track (#{release_notes})")
+    UI.success("Uploaded #{aab_path} to Play Store internal track as #{release_name} (#{release_notes})")
   end
 
   desc "Write the next Play Store versionCode (latest+1) to BUILD_NUMBER_FILE"
