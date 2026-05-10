@@ -16,6 +16,17 @@ const parseVersionCode = (value: string | undefined): number => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 };
 
+// Without the Android client ID the Google sign-in button silently
+// vanishes on Android (see app/index.tsx — `hasGoogleConfig` gates the
+// button on a per-platform ID). Fail the build here rather than ship an
+// APK whose only login affordance is missing.
+if (!process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID) {
+  throw new Error(
+    "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID is not set. Set it in app/.env " +
+      "or your CI/EAS build environment before building.",
+  );
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   // `config.name` / `config.slug` are guaranteed by app.json, but
