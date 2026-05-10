@@ -1,0 +1,36 @@
+name: Submit Android to Play Store (Closed)
+
+# Triggered when a PR is labeled `testflight-beta` (same trigger as the
+# iOS external-beta path). Builds a fresh Release AAB against the
+# production backend and uploads it to the Play Store closed (alpha)
+# track for external closed testers.
+#
+# The PR-preview build that ci.yml's deploy-play-internal job uploaded
+# is bound to the staging API URL; closed testers need the production
+# URL, so we rebuild from the same commit instead of promoting the
+# staging-flavored AAB. versionCodes are computed per-run from the Play
+# Developer API to stay globally monotonic.
+#
+# A future production-track promotion should use a separate label (and
+# workflow), so this label-name guard keeps the two paths from
+# colliding.
+on:
+  pull_request:
+    types: [labeled]
+
+# Per-SHA so different commits don't block each other; a re-label of
+# the same SHA queues behind any in-flight submission.
+concurrency:
+  group: play-closed-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build with production API URL
+    if: github.event.label.name == 'testflight-beta'
+    uses: ./.github/workflows/build-android-play.yml
+    with:
+      expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_PRODUCTION }}
+      ref: ${{ github.event.pull_request.head.sha }}
+      lane: play_closed
+    secrets: inherit

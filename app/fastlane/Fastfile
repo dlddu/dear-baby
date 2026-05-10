@@ -152,6 +152,39 @@ platform :android do
     UI.success("Uploaded #{aab_path} to Play Store internal track (#{release_notes})")
   end
 
+  desc "Build the Android AAB and upload it to Google Play (closed/alpha track)"
+  lane :play_closed do
+    aab_path = build_release_aab
+    json_key_path = write_play_store_json_key
+
+    short_sha = ENV["GIT_SHA"].to_s[0, 7]
+    pr_number = ENV["PR_NUMBER"].to_s
+    release_notes = pr_number.empty? \
+      ? "Build #{short_sha}" \
+      : "PR ##{pr_number} · #{short_sha}"
+
+    upload_to_play_store(
+      package_name: ANDROID_PACKAGE_NAME,
+      json_key: json_key_path,
+      track: "alpha",
+      aab: aab_path,
+      # `:play_internal` 와 동일한 이유로 `draft` 사용 — 앱이 "Draft app"
+      # 상태(Production 트랙에 release 미등록)인 동안 Play API는
+      # `completed` 를 거절. Production launch 이후 `completed` 로
+      # 승격해 hands-off rollout 으로 전환 가능.
+      release_status: "draft",
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: false,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      changes_not_sent_for_review: true,
+      validate_only: false,
+    )
+
+    UI.success("Uploaded #{aab_path} to Play Store closed (alpha) track (#{release_notes})")
+  end
+
   desc "Write the next Play Store versionCode (latest+1) to BUILD_NUMBER_FILE"
   lane :next_play_version_code do
     output_path = ENV["BUILD_NUMBER_FILE"]

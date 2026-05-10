@@ -22,9 +22,9 @@ on:
 jobs:
   deploy-play-internal:
     name: Deploy Android to Play Store (Internal)
-    uses: ./.github/workflows/build-android-play-internal.yml
+    uses: ./.github/workflows/build-android-play.yml
     with:
       expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
       ref: ${{ inputs.ref }}
-      track: internal
+      lane: play_internal
     secrets: inherit
