@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -239,7 +240,124 @@ func getProfile(ctx context.Context, q rowScanner, id string) (*Profile, error) 
 	}
 	p.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
 	p.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
+
+	fetuses, err := loadProfileFetuses(ctx, q, id)
+	if err != nil {
+		return nil, err
+	}
+	p.Fetuses = fetuses
+	children, err := loadProfileChildren(ctx, q, id)
+	if err != nil {
+		return nil, err
+	}
+	p.Children = children
 	return p, nil
+}
+
+// rowQuerier matches both *sql.DB and *sql.Tx for QueryContext.
+type rowQuerier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+func loadProfileFetuses(ctx context.Context, q rowScanner, userID string) ([]FetusProfile, error) {
+	qu, ok := q.(rowQuerier)
+	if !ok {
+		return []FetusProfile{}, nil
+	}
+	rows, err := qu.QueryContext(ctx, `
+		SELECT ordinal, nickname, gender, pregnancy_week, due_date, purposes_json
+		FROM fetuses WHERE user_id = ? ORDER BY ordinal ASC
+	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("select fetuses: %w", err)
+	}
+	defer rows.Close()
+	out := []FetusProfile{}
+	for rows.Next() {
+		var f FetusProfile
+		var nickname, gender, dd sql.NullString
+		var week sql.NullInt64
+		var purposesJSON string
+		if err := rows.Scan(&f.Ordinal, &nickname, &gender, &week, &dd, &purposesJSON); err != nil {
+			return nil, fmt.Errorf("scan fetus: %w", err)
+		}
+		if nickname.Valid {
+			v := nickname.String
+			f.Nickname = &v
+		}
+		if gender.Valid {
+			v := gender.String
+			f.Gender = &v
+		}
+		if week.Valid {
+			v := int(week.Int64)
+			f.PregnancyWeek = &v
+		}
+		if dd.Valid {
+			v := dd.String
+			f.DueDate = &v
+		}
+		f.Purposes = parseProfilePurposes(purposesJSON)
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+func loadProfileChildren(ctx context.Context, q rowScanner, userID string) ([]ChildProfile, error) {
+	qu, ok := q.(rowQuerier)
+	if !ok {
+		return []ChildProfile{}, nil
+	}
+	rows, err := qu.QueryContext(ctx, `
+		SELECT ordinal, name, gender, birth_date, bio, purposes_json
+		FROM children WHERE user_id = ? ORDER BY ordinal ASC
+	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("select children: %w", err)
+	}
+	defer rows.Close()
+	out := []ChildProfile{}
+	for rows.Next() {
+		var c ChildProfile
+		var nm, gender, bd, bio sql.NullString
+		var purposesJSON string
+		if err := rows.Scan(&c.Ordinal, &nm, &gender, &bd, &bio, &purposesJSON); err != nil {
+			return nil, fmt.Errorf("scan child: %w", err)
+		}
+		if nm.Valid {
+			v := nm.String
+			c.Name = &v
+		}
+		if gender.Valid {
+			v := gender.String
+			c.Gender = &v
+		}
+		if bd.Valid {
+			v := bd.String
+			c.BirthDate = &v
+		}
+		if bio.Valid {
+			v := bio.String
+			c.Bio = &v
+		}
+		c.Purposes = parseProfilePurposes(purposesJSON)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func parseProfilePurposes(raw string) []string {
+	if raw == "" {
+		return []string{}
+	}
+	var out []string
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return []string{}
+	}
+	if out == nil {
+		return []string{}
+	}
+	return out
 }
 
 func getByIDTx(ctx context.Context, tx *sql.Tx, id string) (*User, error) {

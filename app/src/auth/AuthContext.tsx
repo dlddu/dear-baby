@@ -13,7 +13,13 @@ import {
   createVoiceRecord as apiCreateVoiceRecord,
 } from '../api/records';
 import type { Record, Session, User } from '../api/types';
-import { patchMe } from '../api/users';
+import {
+  patchMe,
+  submitOnboardingCaseA as apiSubmitCaseA,
+  submitOnboardingCaseC as apiSubmitCaseC,
+  type CaseAPayload,
+  type CaseCPayload,
+} from '../api/users';
 import {
   clearOnboardingCache,
   clearOnboardingDraft,
@@ -38,6 +44,16 @@ type AuthContextValue = {
   user: User | null;
   setSession: (session: Session) => Promise<void>;
   completeOnboarding: (dueDate: string | null) => Promise<void>;
+  /**
+   * Case A 결말 — 첫 태아 dueDate + 모든 태아 행(각 행에 동일 purposes 복제)을
+   * 백엔드에 영속화하고 onboarded_at 을 스탬프한다.
+   */
+  completeOnboardingCaseA: (payload: CaseAPayload) => Promise<void>;
+  /**
+   * Case C 결말 — 모든 아이 행(각 행에 동일 purposes 복제)을 백엔드에 영속화하고
+   * due_date 는 null 로, onboarded_at 만 스탬프한다.
+   */
+  completeOnboardingCaseC: (payload: CaseCPayload) => Promise<void>;
   dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string, questionText?: string) => Promise<void>;
   // createVoiceRecord saves the transcript with source="voice". The
@@ -130,6 +146,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearOnboardingDraft();
   }, []);
 
+  const completeOnboardingCaseA = useCallback(async (payload: CaseAPayload) => {
+    const updated = await apiSubmitCaseA(payload);
+    setUser(updated);
+    setStatus(statusForUser(updated));
+    await cacheFromUser(updated);
+    await clearOnboardingDraft();
+  }, []);
+
+  const completeOnboardingCaseC = useCallback(async (payload: CaseCPayload) => {
+    const updated = await apiSubmitCaseC(payload);
+    setUser(updated);
+    setStatus(statusForUser(updated));
+    await cacheFromUser(updated);
+    await clearOnboardingDraft();
+  }, []);
+
   // dismissVoiceCoachmark is called when the user taps the close button on
   // the home-screen voice-record coachmark. The backend stamps a timestamp
   // that persists across devices; we also optimistically update local state
@@ -199,6 +231,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       setSession,
       completeOnboarding,
+      completeOnboardingCaseA,
+      completeOnboardingCaseC,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
@@ -210,6 +244,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       setSession,
       completeOnboarding,
+      completeOnboardingCaseA,
+      completeOnboardingCaseC,
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,

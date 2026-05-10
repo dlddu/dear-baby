@@ -4,7 +4,8 @@
 // PRD-006 AC-006-02 의 두 번째 입력. 4개 필드(예정일·태명·성별·임신 주차)를
 // `OnboardingContext.fetuses[currentFetusIndex]` 에 저장한다. 다태인 경우
 // [다음] 으로 인덱스를 증가시켜 같은 화면을 반복 렌더하고, 마지막 태아의
-// [다음] 에서 첫 태아 dueDate 를 들고 `completeAsA()` 를 호출한다.
+// [다음] 에서 a3 (기록 목적) 화면으로 진입한다. 백엔드 영속화는 a3 의
+// [시작하기] 에서 `completeAsA()` 한 번에 일어난다.
 
 import DateTimePicker, {
   type DateTimePickerEvent,
@@ -69,7 +70,6 @@ export default function OnboardingA2() {
     currentFetusIndex,
     updateFetus,
     setCurrentFetusIndex,
-    completeAsA,
   } = useOnboarding();
 
   const total = fetusCount ?? 1;
@@ -77,8 +77,6 @@ export default function OnboardingA2() {
   const dueDate = parseDueDate(fetus.dueDate);
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [hasError, setHasError] = useState(false);
 
   const handlePickerChange = (
     event: DateTimePickerEvent,
@@ -122,22 +120,12 @@ export default function OnboardingA2() {
     }
   };
 
-  const onNext = async () => {
-    if (submitting) return;
+  const onNext = () => {
     if (currentFetusIndex < total - 1) {
       setCurrentFetusIndex(currentFetusIndex + 1);
       return;
     }
-    setHasError(false);
-    setSubmitting(true);
-    try {
-      await completeAsA();
-      // AuthGate reroutes to /(tabs) automatically once status flips.
-    } catch (e) {
-      console.warn('[onboarding] completeAsA failed', e);
-      setHasError(true);
-      setSubmitting(false);
-    }
+    router.push('/(onboarding)/a3');
   };
 
   const onBack = () => {
@@ -148,12 +136,7 @@ export default function OnboardingA2() {
     router.back();
   };
 
-  const isLast = currentFetusIndex === total - 1;
-  const ctaTitle = submitting
-    ? '저장 중…'
-    : isLast
-      ? '시작하기'
-      : '다음';
+  const ctaTitle = '다음';
 
   return (
     <SafeAreaView
@@ -308,20 +291,9 @@ export default function OnboardingA2() {
           title={ctaTitle}
           variant="primary"
           fullWidth
-          disabled={submitting}
           onPress={onNext}
           testID="onboarding-a2-next"
         />
-        {hasError && (
-          <Text
-            variant="caption"
-            color="coral"
-            style={styles.error}
-            testID="onboarding-a2-error"
-          >
-            지금은 저장이 잘 안 되네요. 잠시 후 다시 시도해 주세요.
-          </Text>
-        )}
       </View>
 
       {pickerOpen && (
@@ -424,7 +396,6 @@ const styles = StyleSheet.create({
   },
   backText: { textDecorationLine: 'underline' },
   pressed: { opacity: 0.85 },
-  error: { textAlign: 'center' },
   pickerDone: {
     alignSelf: 'center',
     paddingVertical: spacing[3],

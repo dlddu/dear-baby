@@ -1,6 +1,6 @@
 appId: com.dlddu.dearbaby
 ---
-# Reusable Case A a1·a2 subflow — date skip path.
+# Reusable Case A a1·a2·a3 subflow — date skip path.
 #
 # Caller must be on the a1 screen (id "onboarding-a1") — typically reached
 # via subflows/onboarding-q1-q2-caseA.yaml. This subflow:
@@ -9,10 +9,12 @@ appId: com.dlddu.dearbaby
 #   2. Skips the 예정일 with [아직 정해지지 않았어요]
 #   3. Selects 성별 = 아직 몰라요
 #   4. Inputs 임신 주차 = 12
-#   5. Taps [시작하기] → home
+#   5. Taps [다음] → a3 (기록 목적)
+#   6. Keeps the default 칩 selection and taps [시작하기 ✨] → home
 #
 # After this subflow runs the user is on the home tab with onboarded_at
-# stamped and due_date == null (Stage 2 undecided variant).
+# stamped and due_date == null, plus one fetus row + 기본 purposes
+# persisted.
 
 - assertVisible:
     id: "onboarding-a1"
@@ -42,8 +44,14 @@ appId: com.dlddu.dearbaby
 - tapOn:
     text: "기록 가이드를 맞춰 보여드릴게요"
 
-# [시작하기] → 홈
+# [다음] → a3 (기록 목적)
 - tapOn:
     id: "onboarding-a2-next"
+- assertVisible:
+    id: "onboarding-a3"
+
+# 기본 선택(매일의 마음·몸의 변화) 그대로 [시작하기 ✨] → 홈
+- tapOn:
+    id: "onboarding-a3-cta"
 - assertVisible:
     id: "home-tab"
