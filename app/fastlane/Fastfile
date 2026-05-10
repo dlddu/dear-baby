@@ -1,5 +1,6 @@
 require "json"
 require "base64"
+require "google/apis/androidpublisher_v3"
 
 default_platform(:ios)
 
@@ -157,10 +158,18 @@ platform :android do
     UI.user_error!("BUILD_NUMBER_FILE env not set") if output_path.to_s.empty?
 
     json_key_path = write_play_store_json_key
-    # Inspect every track so a higher versionCode previously promoted to
-    # alpha/beta/production doesn't get rewound by an internal upload.
-    tracks = %w[internal alpha beta production]
-    latest = tracks.flat_map do |track|
+
+    # Cross-check two sources:
+    # 1. Track releases — covers versionCodes promoted to internal/
+    #    alpha/beta/production (incl. higher codes already promoted to
+    #    a "later" track that an internal upload must not rewind).
+    # 2. Edit's bundle/APK list — covers versionCodes uploaded to the
+    #    artifact library but not yet assigned to any release (e.g.
+    #    when a previous CI run uploaded the AAB then failed before
+    #    creating the release). google_play_track_version_codes misses
+    #    these, so we'd otherwise hit "Version code N has already been
+    #    used" on the next upload.
+    track_codes = %w[internal alpha beta production].flat_map do |track|
       begin
         google_play_track_version_codes(
           package_name: ANDROID_PACKAGE_NAME,
@@ -170,10 +179,13 @@ platform :android do
       rescue StandardError
         []
       end
-    end.map(&:to_i).max || 0
+    end.map(&:to_i)
 
+    artifact_codes = play_store_artifact_version_codes(json_key_path, ANDROID_PACKAGE_NAME)
+
+    latest = (track_codes + artifact_codes).max || 0
     next_vc = latest + 1
-    UI.success("Next Play Store versionCode: #{next_vc}")
+    UI.success("Play Store versionCodes — tracks: #{track_codes.sort.uniq}, artifacts: #{artifact_codes.sort.uniq}; next: #{next_vc}")
     File.write(output_path, next_vc.to_s)
   end
 
@@ -422,4 +434,38 @@ end
 def cleanup_android_signing_artifacts
   json_dir = File.expand_path("~/private_keys")
   FileUtils.rm_rf(json_dir) if Dir.exist?(json_dir)
+end
+
+# Returns every versionCode currently uploaded to the app's Edit
+# artifact library — both AAB bundles and APKs, regardless of whether
+# they've been assigned to a track release yet. Lets
+# `:next_play_version_code` avoid collisions with orphan artifacts
+# that a previous failed CI run left behind.
+def play_store_artifact_version_codes(json_key_path, package_name)
+  service = Google::Apis::AndroidpublisherV3::AndroidPublisherService.new
+  service.authorization = Google::Auth::ServiceAccountCredentials.make_creds(
+    json_key_io: File.open(json_key_path),
+    scope: "https://www.googleapis.com/auth/androidpublisher",
+  )
+
+  edit = service.insert_edit(package_name)
+  bundles = []
+  apks = []
+  begin
+    bundles = (service.list_edit_bundles(package_name, edit.id).bundles || [])
+      .map { |b| b.version_code.to_i }
+    apks = (service.list_edit_apks(package_name, edit.id).apks || [])
+      .map { |a| a.version_code.to_i }
+  ensure
+    # Edits expire automatically, but explicit cleanup keeps the app's
+    # edit history tidy. Best-effort — a stale edit doesn't block
+    # subsequent uploads.
+    begin
+      service.delete_edit(package_name, edit.id)
+    rescue StandardError
+      nil
+    end
+  end
+
+  (bundles + apks).uniq
 end
