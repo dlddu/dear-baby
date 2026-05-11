@@ -21,3 +21,5 @@ export { NumberPicker } from './NumberPicker';
 export type { NumberPickerProps, NumberPickerValue } from './NumberPicker';
 export { Pill } from './Pill';
 export type { PillProps } from './Pill';
+export { StepCard } from './StepCard';
+export type { StepCardItem, StepCardProps } from './StepCard';

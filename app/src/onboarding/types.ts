@@ -35,6 +35,11 @@ export type ChildDraft = {
   birthDate?: string;
   /** 한줄소개 — 선택 입력 */
   bio?: string;
+  /**
+   * 기록 목적 — Case B 전용 (B2-purpose 1:1 화면). Case A·C 는 미사용 —
+   * 단일 `OnboardingContext.purposes` 슬롯을 모든 양육 아이 행에 복제한다.
+   */
+  purposes?: string[];
 };
 
 // 기록 목적(Purpose) 칩 옵션. 라벨은 한국어 그대로 클라/API/DB 의 SoT 로 사용된다.

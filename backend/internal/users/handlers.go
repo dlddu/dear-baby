@@ -20,6 +20,7 @@ type OnboardingUpdater interface {
 	UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error
 	DismissVoiceCoachmark(ctx context.Context, userID string) error
 	UpsertCaseA(ctx context.Context, userID string, dueDate *string, fetuses []OnboardingFetus) error
+	UpsertCaseB(ctx context.Context, userID string, dueDate *string, children []OnboardingChild, fetuses []OnboardingFetus) error
 	UpsertCaseC(ctx context.Context, userID string, children []OnboardingChild) error
 }
 
@@ -200,6 +201,18 @@ type caseCBody struct {
 	Children []caseCChildBody `json:"children"`
 }
 
+// caseBChildBody / caseBFetusBody — wire shapes for POST
+// /me/onboarding/case-b. Same JSON layout as Case A·C 의 child·fetus,
+// but the purposes array differs per row (B2-purpose 1:1, B6 일괄).
+type caseBChildBody = caseCChildBody
+type caseBFetusBody = caseAFetusBody
+
+type caseBBody struct {
+	DueDate  *string          `json:"due_date"`
+	Children []caseBChildBody `json:"children"`
+	Fetuses  []caseBFetusBody `json:"fetuses"`
+}
+
 // PostOnboardingCaseA persists the Case A onboarding payload — the
 // chosen due date plus one row per fetus — and stamps onboarded_at. The
 // client is expected to replicate the chosen purposes to every fetus
@@ -257,6 +270,104 @@ func (h *Handlers) PostOnboardingCaseA(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if err := h.Onboarding.UpsertCaseA(r.Context(), id, body.DueDate, fetuses); err != nil {
+		if isOnboardingNotFound(err, h.OnboardingErrNotFound) {
+			httpx.WriteError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		httpx.WriteError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+
+	p, err := h.Store.GetProfile(r.Context(), id)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, p)
+}
+
+// PostOnboardingCaseB persists the Case B onboarding payload — children
+// + fetuses + due_date — and stamps onboarded_at, all in a single
+// transaction at the store layer. Each child / fetus carries its own
+// purposes selection (B2-purpose 1:1, B6 일괄); the server stores what
+// it receives.
+func (h *Handlers) PostOnboardingCaseB(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.UserIDFromCtxFn(r)
+	if !ok {
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var body caseBBody
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if len(body.Children) == 0 {
+		httpx.WriteError(w, http.StatusBadRequest, "children required")
+		return
+	}
+	if len(body.Fetuses) == 0 {
+		httpx.WriteError(w, http.StatusBadRequest, "fetuses required")
+		return
+	}
+	if body.DueDate != nil && !validDate(*body.DueDate) {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid date")
+		return
+	}
+	for _, c := range body.Children {
+		if c.BirthDate != nil && !validDate(*c.BirthDate) {
+			httpx.WriteError(w, http.StatusBadRequest, "invalid date")
+			return
+		}
+		if !validPurposes(c.Purposes) {
+			httpx.WriteError(w, http.StatusBadRequest, "invalid purpose")
+			return
+		}
+	}
+	for _, f := range body.Fetuses {
+		if f.DueDate != nil && !validDate(*f.DueDate) {
+			httpx.WriteError(w, http.StatusBadRequest, "invalid date")
+			return
+		}
+		if !validPurposes(f.Purposes) {
+			httpx.WriteError(w, http.StatusBadRequest, "invalid purpose")
+			return
+		}
+	}
+
+	if _, err := h.Store.GetByID(r.Context(), id); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			httpx.WriteError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		httpx.WriteError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+
+	children := make([]OnboardingChild, 0, len(body.Children))
+	for _, c := range body.Children {
+		children = append(children, OnboardingChild{
+			Name:      c.Name,
+			Gender:    c.Gender,
+			BirthDate: c.BirthDate,
+			Bio:       c.Bio,
+			Purposes:  ensureStringSlice(c.Purposes),
+		})
+	}
+	fetuses := make([]OnboardingFetus, 0, len(body.Fetuses))
+	for _, f := range body.Fetuses {
+		fetuses = append(fetuses, OnboardingFetus{
+			Nickname:      f.Nickname,
+			Gender:        f.Gender,
+			PregnancyWeek: f.PregnancyWeek,
+			DueDate:       f.DueDate,
+			Purposes:      ensureStringSlice(f.Purposes),
+		})
+	}
+	if err := h.Onboarding.UpsertCaseB(r.Context(), id, body.DueDate, children, fetuses); err != nil {
 		if isOnboardingNotFound(err, h.OnboardingErrNotFound) {
 			httpx.WriteError(w, http.StatusNotFound, "user not found")
 			return

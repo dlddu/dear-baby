@@ -138,6 +138,7 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 			pr.Get("/me", usersHandlers.Me)
 			pr.Patch("/me", usersHandlers.PatchMe)
 			pr.Post("/me/onboarding/case-a", usersHandlers.PostOnboardingCaseA)
+			pr.Post("/me/onboarding/case-b", usersHandlers.PostOnboardingCaseB)
 			pr.Post("/me/onboarding/case-c", usersHandlers.PostOnboardingCaseC)
 			pr.Post("/records", recordsHandlers.Create)
 			// Audio attachment routes are only meaningful when S3
@@ -192,6 +193,30 @@ func (a *onboardingAdapter) UpsertCaseA(ctx context.Context, userID string, dueD
 		}
 	}
 	return a.store.UpsertCaseA(ctx, userID, dueDate, out)
+}
+
+func (a *onboardingAdapter) UpsertCaseB(ctx context.Context, userID string, dueDate *string, children []users.OnboardingChild, fetuses []users.OnboardingFetus) error {
+	outChildren := make([]onboarding.Child, len(children))
+	for i, c := range children {
+		outChildren[i] = onboarding.Child{
+			Name:      c.Name,
+			Gender:    c.Gender,
+			BirthDate: c.BirthDate,
+			Bio:       c.Bio,
+			Purposes:  c.Purposes,
+		}
+	}
+	outFetuses := make([]onboarding.Fetus, len(fetuses))
+	for i, f := range fetuses {
+		outFetuses[i] = onboarding.Fetus{
+			Nickname:      f.Nickname,
+			Gender:        f.Gender,
+			PregnancyWeek: f.PregnancyWeek,
+			DueDate:       f.DueDate,
+			Purposes:      f.Purposes,
+		}
+	}
+	return a.store.UpsertCaseB(ctx, userID, dueDate, outChildren, outFetuses)
 }
 
 func (a *onboardingAdapter) UpsertCaseC(ctx context.Context, userID string, children []users.OnboardingChild) error {

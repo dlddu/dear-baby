@@ -1,0 +1,146 @@
+appId: com.dlddu.dearbaby
+---
+# Reusable Case B b0 → b6 subflow — 양육 2명 + 다태 2명 풀 시나리오.
+#
+# Caller must be on the b0 screen (id "onboarding-b0") — typically reached
+# via subflows/onboarding-q1-q2-caseB.yaml. This subflow exercises the
+# whole Case B funnel including the b2 ↔ b2-purpose 인덱스 순환과 b6 의
+# 일괄 칩 토글, ending with [시작하기 ✨] → home.
+#
+# After this subflow runs the user is on the home tab with onboarded_at
+# stamped, due_date set (from first fetus), 2 child rows + 2 fetus rows
+# + per-row purposes persisted via POST /me/onboarding/case-b.
+
+# ── b0 안내 ① ──
+- assertVisible:
+    id: "onboarding-b0"
+- tapOn:
+    id: "onboarding-b0-next"
+
+# ── b1 양육 아이 수 = 2 ──
+- assertVisible:
+    id: "onboarding-b1"
+- tapOn:
+    id: "onboarding-b1-count-2"
+- tapOn:
+    id: "onboarding-b1-next"
+
+# ── b2 첫째 아이 (서연) ──
+- assertVisible:
+    id: "onboarding-b2"
+- assertVisible:
+    id: "onboarding-b2-child-index-0"
+- tapOn:
+    id: "onboarding-b2-name-0"
+- inputText: "서연"
+- tapOn:
+    text: "기록 가이드를 맞춰드릴게요"
+- tapOn:
+    id: "onboarding-b2-gender-female"
+- tapOn:
+    id: "onboarding-b2-next"
+
+# ── b2-purpose 첫째 아이 ──
+- assertVisible:
+    id: "onboarding-b2-purpose"
+- assertVisible:
+    id: "onboarding-b2-purpose-child-index-0"
+# 기본 칩(일상의 발견·말과 행동의 성장) 외 "웃긴 순간" 추가 선택.
+- tapOn:
+    id: "onboarding-b2-purpose-chip-2"
+- tapOn:
+    id: "onboarding-b2-purpose-next"
+
+# ── b2 둘째 아이 (이서) — 인덱스 1 로 진입 ──
+- assertVisible:
+    id: "onboarding-b2"
+- assertVisible:
+    id: "onboarding-b2-child-index-1"
+- tapOn:
+    id: "onboarding-b2-name-1"
+- inputText: "이서"
+- tapOn:
+    text: "기록 가이드를 맞춰드릴게요"
+- tapOn:
+    id: "onboarding-b2-gender-male"
+- tapOn:
+    id: "onboarding-b2-next"
+
+# ── b2-purpose 둘째 아이 ──
+- assertVisible:
+    id: "onboarding-b2-purpose"
+- assertVisible:
+    id: "onboarding-b2-purpose-child-index-1"
+- tapOn:
+    id: "onboarding-b2-purpose-next"
+
+# ── b3 안내 ② ──
+- assertVisible:
+    id: "onboarding-b3"
+- tapOn:
+    id: "onboarding-b3-next"
+
+# ── b4 임신 아이 수 = 2 ──
+- assertVisible:
+    id: "onboarding-b4"
+- tapOn:
+    id: "onboarding-b4-count-2"
+- tapOn:
+    id: "onboarding-b4-next"
+
+# ── b5 첫째 태아 (콩이) ──
+- assertVisible:
+    id: "onboarding-b5"
+- assertVisible:
+    id: "onboarding-b5-fetus-index-0"
+- tapOn:
+    id: "onboarding-b5-due-date-skip-0"
+- tapOn:
+    id: "onboarding-b5-nickname-0"
+- inputText: "콩이"
+- tapOn:
+    text: "이전 아이들과 따로 기록해드려요"
+- tapOn:
+    id: "onboarding-b5-gender-unknown"
+- tapOn:
+    id: "onboarding-b5-week-0"
+- inputText: "17"
+- tapOn:
+    text: "이전 아이들과 따로 기록해드려요"
+- tapOn:
+    id: "onboarding-b5-next"
+
+# ── b5 둘째 태아 (샛별) — 인덱스 1 로 진입 ──
+- assertVisible:
+    id: "onboarding-b5"
+- assertVisible:
+    id: "onboarding-b5-fetus-index-1"
+- tapOn:
+    id: "onboarding-b5-due-date-skip-1"
+- tapOn:
+    id: "onboarding-b5-nickname-1"
+- inputText: "샛별"
+- tapOn:
+    text: "이전 아이들과 따로 기록해드려요"
+- tapOn:
+    id: "onboarding-b5-gender-unknown"
+- tapOn:
+    id: "onboarding-b5-week-1"
+- inputText: "17"
+- tapOn:
+    text: "이전 아이들과 따로 기록해드려요"
+- tapOn:
+    id: "onboarding-b5-next"
+
+# ── b6 태아 기록 목적 (다태에서도 1회만, 단일 칩 그리드) ──
+- assertVisible:
+    id: "onboarding-b6"
+# 기본 칩(매일의 마음·몸의 변화) 외 "아이에게 편지" 추가 선택.
+- tapOn:
+    id: "onboarding-b6-purpose-2"
+
+# [시작하기 ✨] → completeAsB() → 홈
+- tapOn:
+    id: "onboarding-b6-cta"
+- assertVisible:
+    id: "home-tab"

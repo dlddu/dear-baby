@@ -25,6 +25,14 @@ export default function OnboardingLayout() {
         <Stack.Screen name="a1" />
         <Stack.Screen name="a2" />
         <Stack.Screen name="a3" />
+        <Stack.Screen name="b0" />
+        <Stack.Screen name="b1" />
+        <Stack.Screen name="b2" />
+        <Stack.Screen name="b2-purpose" />
+        <Stack.Screen name="b3" />
+        <Stack.Screen name="b4" />
+        <Stack.Screen name="b5" />
+        <Stack.Screen name="b6" />
         <Stack.Screen name="c1" />
         <Stack.Screen name="c2" />
         <Stack.Screen name="c3" />

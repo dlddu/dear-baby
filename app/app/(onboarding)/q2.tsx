@@ -2,10 +2,10 @@
 // docs/mockups/source/src/screens/Onboarding.tsx:134-159
 //
 // PRD-006 AC-006-01 의 두 독립 체크 중 두 번째. Q1 답변과 조합해 Case A/B/C
-// (또는 fallback-A) 로 분기한다. 분기 결과가 'A' 혹은 'fallback-A' 이면
-// Case A 입력 흐름의 시작인 a1(임신 아이 수)으로, 'C' 이면 Case C 의 시작인
-// c1(양육 아이 수)으로 push 한다. 'B' 는 Case B 화면이 아직 준비되지
-// 않았으므로 not-ready placeholder 로 push.
+// (또는 fallback-A) 로 분기한다.
+//   'A' / 'fallback-A' → a1 (임신 아이 수)
+//   'C'                → c1 (양육 아이 수)
+//   'B'                → b0 (Case B 안내 ①, 양육 → 임신 순서)
 
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -39,8 +39,8 @@ export default function OnboardingQ2() {
       // fallback-A
       router.push('/(onboarding)/a1');
     } else {
-      // Case B (q1=Y, q2=Y) — 아직 화면이 준비되지 않음
-      router.push('/(onboarding)/not-ready');
+      // Case B (q1=Y, q2=Y) — 양육 → 임신 순서로 안내하는 b0 진입.
+      router.push('/(onboarding)/b0');
     }
   };
 

@@ -41,13 +41,23 @@ import {
   type FetusDraft,
 } from './types';
 
+function toggleLabel(prev: string[], label: string): string[] {
+  return prev.includes(label) ? prev.filter((p) => p !== label) : [...prev, label];
+}
+
 function defaultPurposesForCase(c: OnboardingCase | null): string[] {
   if (c === 'C') {
     return CASE_C_PURPOSES.filter((p) => p.defaultSelected).map((p) => p.label);
   }
   // Case A 가 기본값 — fallback-A 와 아직 결정되지 않은 시점도 Case A 기본을
-  // 보여 주는 게 자연스럽다.
+  // 보여 주는 게 자연스럽다. Case B 는 단일 슬롯을 쓰지 않고 child·fetus 별
+  // 슬롯에 따로 채우므로 여기서는 다루지 않는다.
   return CASE_A_PURPOSES.filter((p) => p.defaultSelected).map((p) => p.label);
+}
+
+/** Case B 양육 아이의 기본 칩 — C 와 동일한 8 종 (양육 톤). */
+export function defaultChildPurposes(): string[] {
+  return CASE_C_PURPOSES.filter((p) => p.defaultSelected).map((p) => p.label);
 }
 
 export type OnboardingCase = 'A' | 'B' | 'C' | 'fallback-A';
@@ -75,6 +85,11 @@ type OnboardingContextValue = {
   setCurrentChildIndex: (index: number) => void;
   /** A3/C3 칩 토글. 다중 선택 가능. */
   togglePurpose: (label: string) => void;
+  /**
+   * Case B B2-purpose 칩 토글 — 지정한 양육 아이 슬롯의 purposes 만 갱신.
+   * 슬롯이 비어 있으면 양육 톤의 기본 칩으로 초기화 후 토글한다.
+   */
+  togglePurposeForChild: (index: number, label: string) => void;
   /** 현재 답변 조합으로 결정된 Case. 둘 다 입력되지 않았으면 null. */
   caseDecision: () => OnboardingCase | null;
   /** Case B/C 결말에서 "홈으로 시작하기" 처리 — onboarded_at 만 스탬프, due_date 는 null. */
@@ -84,6 +99,13 @@ type OnboardingContextValue = {
    * 백엔드에 영속화하고 onboarded_at 을 스탬프한다.
    */
   completeAsA: () => Promise<void>;
+  /**
+   * Case B 결말 — 양육 아이는 B2-purpose 에서 1:1 로 채운 child.purposes 를
+   * 그대로, 태아는 B6 에서 단일 슬롯에 받은 purposes 를 모든 태아 행에
+   * 복제하여 영속화한다 (Case A 와 같은 모델). 첫 태아의 dueDate 가
+   * onboarding.due_date 로도 복사된다.
+   */
+  completeAsB: () => Promise<void>;
   /**
    * Case C 결말 — 모든 양육 아이 행(각 행에 동일 purposes 복제)을 백엔드에
    * 영속화하고 due_date 는 null 로, onboarded_at 만 스탬프한다.
@@ -111,8 +133,12 @@ export function OnboardingProvider({
 }: {
   children: ReactNode;
 }) {
-  const { completeOnboarding, completeOnboardingCaseA, completeOnboardingCaseC } =
-    useAuth();
+  const {
+    completeOnboarding,
+    completeOnboardingCaseA,
+    completeOnboardingCaseB,
+    completeOnboardingCaseC,
+  } = useAuth();
   const [hydrating, setHydrating] = useState(true);
   const [q1Pregnant, setQ1Pregnant] = useState<boolean | null>(null);
   const [q2HasChildren, setQ2HasChildren] = useState<boolean | null>(null);
@@ -251,6 +277,20 @@ export function OnboardingProvider({
     });
   }, []);
 
+  const togglePurposeForChild = useCallback(
+    (index: number, label: string) => {
+      setChildren((prev) => {
+        const next = prev.slice();
+        while (next.length <= index) next.push({});
+        const current = next[index].purposes ?? defaultChildPurposes();
+        next[index] = { ...next[index], purposes: toggleLabel(current, label) };
+        void saveOnboardingDraft({ children: next });
+        return next;
+      });
+    },
+    [],
+  );
+
   const caseDecision = useCallback(
     () => decide(q1Pregnant, q2HasChildren),
     [q1Pregnant, q2HasChildren],
@@ -301,6 +341,42 @@ export function OnboardingProvider({
     await clearOnboardingDraft();
   }, [completeOnboardingCaseC, childCount, children, purposes]);
 
+  const completeAsB = useCallback(async () => {
+    // 양육 아이는 b2-purpose 에서 1:1 로 채운 child.purposes 를 그대로 보낸다.
+    // 태아는 다태에서도 1회만 묻는 UX (b6 단일 칩 그리드) 이므로 단일
+    // `purposes` 슬롯을 모든 fetus 행에 복제한다 — Case A 와 같은 모델.
+    // 빈 양육 슬롯에는 양육 톤 기본 칩을 채워 보낸다.
+    const childTotal = childCount ?? Math.max(children.length, 1);
+    const childSlots: ChildDraft[] = [];
+    for (let i = 0; i < childTotal; i += 1) {
+      childSlots.push(children[i] ?? {});
+    }
+    const fetusTotal = fetusCount ?? Math.max(fetuses.length, 1);
+    const fetusSlots: FetusDraft[] = [];
+    for (let i = 0; i < fetusTotal; i += 1) {
+      fetusSlots.push(fetuses[i] ?? {});
+    }
+    const firstDueDate = fetusSlots[0]?.dueDate ?? null;
+    await completeOnboardingCaseB({
+      due_date: firstDueDate,
+      children: childSlots.map((c) => ({
+        name: c.name ?? null,
+        gender: c.gender ?? null,
+        birth_date: c.birthDate ?? null,
+        bio: c.bio ?? null,
+        purposes: c.purposes ?? defaultChildPurposes(),
+      })),
+      fetuses: fetusSlots.map((f) => ({
+        nickname: f.nickname ?? null,
+        gender: f.gender ?? null,
+        pregnancy_week: f.pregnancyWeek ?? null,
+        due_date: f.dueDate ?? null,
+        purposes,
+      })),
+    });
+    await clearOnboardingDraft();
+  }, [completeOnboardingCaseB, childCount, children, fetusCount, fetuses, purposes]);
+
   const resetOnboardingDraft = useCallback(async () => {
     setQ1Pregnant(null);
     setQ2HasChildren(null);
@@ -335,9 +411,11 @@ export function OnboardingProvider({
       updateChild,
       setCurrentChildIndex,
       togglePurpose,
+      togglePurposeForChild,
       caseDecision,
       completeAsBC,
       completeAsA,
+      completeAsB,
       completeAsC,
       resetOnboardingDraft,
     }),
@@ -361,9 +439,11 @@ export function OnboardingProvider({
       updateChild,
       setCurrentChildIndex,
       togglePurpose,
+      togglePurposeForChild,
       caseDecision,
       completeAsBC,
       completeAsA,
+      completeAsB,
       completeAsC,
       resetOnboardingDraft,
     ],
