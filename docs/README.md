@@ -43,6 +43,7 @@
 - [PRD-004: 실물 책 제작](prd/PRD-004-book-production.md)
 - [PRD-005: 기록 미디어 통합](prd/PRD-005-media-records.md)
 - [PRD-006: 케이스 분기 온보딩 및 아이 컨텍스트 관리](prd/PRD-006-onboarding-cases.md)
+- [PRD-007: 홈 화면 구성](prd/PRD-007-home-screen.md)
 
 ### 플로우
 - [Onboarding Flow — 케이스 분기 온보딩 전체 흐름도](flows/onboarding-flow.md)
@@ -67,6 +68,7 @@
 - [TEST-004: 실물 책 제작 테스트](tests/TEST-004-book-production.md)
 - [TEST-005: 기록 미디어 통합 테스트](tests/TEST-005-media-records.md)
 - [TEST-006: 케이스 분기 온보딩 및 아이 컨텍스트 관리 테스트](tests/TEST-006-onboarding-cases.md)
+- [TEST-007: 홈 화면 구성 테스트](tests/TEST-007-home-screen.md)
 
 ### 용어집
 - [용어집 — 코드/문서 용어 사전](glossary.md) (GLOSSARY-001)
