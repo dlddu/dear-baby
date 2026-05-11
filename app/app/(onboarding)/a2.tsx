@@ -2,15 +2,19 @@
 // docs/mockups/source/src/screens/Onboarding.tsx:263-278 (헤더 + FetusInfoForm)
 //
 // PRD-006 AC-006-02 의 두 번째 입력. 4개 필드(예정일·태명·성별·임신 주차)를
-// `OnboardingContext.fetuses[currentFetusIndex]` 에 저장한다. 다태인 경우
-// [다음] 으로 인덱스를 증가시켜 같은 화면을 반복 렌더하고, 마지막 태아의
-// [다음] 에서 a3 (기록 목적) 화면으로 진입한다. 백엔드 영속화는 a3 의
-// [시작하기] 에서 `completeAsA()` 한 번에 일어난다.
+// `OnboardingContext.fetuses[fetusIndex]` 에 저장한다. 다태인 경우 [다음] 으로
+// 인덱스를 증가시켜 **같은 경로를 새로 push** 한다 — 화면 인스턴스가 stack 에
+// 쌓이므로 push 애니메이션이 재생되고, b5 의 다태 흐름과 시각적으로 일관된다.
+// 마지막 태아의 [다음] 에서 a3 (기록 목적) 화면으로 진입한다.
+//
+// 각 인스턴스는 라우트 매개변수 `index` 로 자기 태아 인덱스를 받아 stack 의
+// 다른 인스턴스와 독립적으로 데이터를 그린다. context 의 currentFetusIndex
+// 는 영속화·복원 용도로만 갱신된다 (drafts cache).
 
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import {
@@ -64,16 +68,20 @@ const GENDERS: { value: Gender; label: string; suffix: string }[] = [
 
 export default function OnboardingA2() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ index?: string }>();
+  // 라우트 매개변수가 없거나 파싱이 실패하면 0 으로 fallback (a1 → a2 첫 진입).
+  const parsed = Number.parseInt(params.index ?? '0', 10);
+  const fetusIndex = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+
   const {
     fetusCount,
     fetuses,
-    currentFetusIndex,
     updateFetus,
     setCurrentFetusIndex,
   } = useOnboarding();
 
   const total = fetusCount ?? 1;
-  const fetus = fetuses[currentFetusIndex] ?? {};
+  const fetus = fetuses[fetusIndex] ?? {};
   const dueDate = parseDueDate(fetus.dueDate);
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -87,51 +95,59 @@ export default function OnboardingA2() {
     if (Platform.OS === 'android') {
       setPickerOpen(false);
       if (event.type === 'set' && selected) {
-        updateFetus(currentFetusIndex, { dueDate: toIsoDate(selected) });
+        updateFetus(fetusIndex, { dueDate: toIsoDate(selected) });
       }
       return;
     }
     if (selected) {
-      updateFetus(currentFetusIndex, { dueDate: toIsoDate(selected) });
+      updateFetus(fetusIndex, { dueDate: toIsoDate(selected) });
     }
   };
 
   const onSkipDate = () => {
-    updateFetus(currentFetusIndex, { dueDate: undefined });
+    updateFetus(fetusIndex, { dueDate: undefined });
   };
 
   const onChangeNickname = (value: string) => {
-    updateFetus(currentFetusIndex, { nickname: value });
+    updateFetus(fetusIndex, { nickname: value });
   };
 
   const onSelectGender = (value: Gender) => {
-    updateFetus(currentFetusIndex, { gender: value });
+    updateFetus(fetusIndex, { gender: value });
   };
 
   const onChangeWeek = (raw: string) => {
     const cleaned = raw.replace(/[^0-9]/g, '');
     if (cleaned === '') {
-      updateFetus(currentFetusIndex, { pregnancyWeek: undefined });
+      updateFetus(fetusIndex, { pregnancyWeek: undefined });
       return;
     }
     const n = Number.parseInt(cleaned, 10);
     if (Number.isFinite(n) && n >= 0 && n <= 45) {
-      updateFetus(currentFetusIndex, { pregnancyWeek: n });
+      updateFetus(fetusIndex, { pregnancyWeek: n });
     }
   };
 
   const onNext = () => {
-    if (currentFetusIndex < total - 1) {
-      setCurrentFetusIndex(currentFetusIndex + 1);
+    if (fetusIndex < total - 1) {
+      const nextIndex = fetusIndex + 1;
+      // 영속화·복원용 인덱스만 갱신하고, push 로 새 인스턴스를 stack 에 올린다.
+      // 새 인스턴스는 라우트 매개변수의 index 를 보고 동작하므로 stack 의
+      // 이전 인스턴스 데이터에 영향을 주지 않는다.
+      setCurrentFetusIndex(nextIndex);
+      router.push({
+        pathname: '/(onboarding)/a2',
+        params: { index: String(nextIndex) },
+      });
       return;
     }
     router.push('/(onboarding)/a3');
   };
 
   const onBack = () => {
-    if (currentFetusIndex > 0) {
-      setCurrentFetusIndex(currentFetusIndex - 1);
-      return;
+    // 이전 인스턴스가 마운트돼 있으므로 router.back() 으로 자연스럽게 복귀.
+    if (fetusIndex > 0) {
+      setCurrentFetusIndex(fetusIndex - 1);
     }
     router.back();
   };
@@ -148,9 +164,9 @@ export default function OnboardingA2() {
         <ProgressDots total={5} current={3} style={styles.progress} />
         {total > 1 && (
           <Badge
-            label={`${currentFetusIndex + 1}/${total}`}
+            label={`${fetusIndex + 1}/${total}`}
             variant="category"
-            testID={`onboarding-a2-fetus-index-${currentFetusIndex}`}
+            testID={`onboarding-a2-fetus-index-${fetusIndex}`}
             style={styles.indexBadge}
           />
         )}
@@ -272,7 +288,7 @@ export default function OnboardingA2() {
       </ScrollView>
 
       <View style={styles.actions}>
-        {currentFetusIndex > 0 && (
+        {fetusIndex > 0 && (
           <Pressable
             onPress={onBack}
             accessibilityRole="button"

@@ -107,8 +107,9 @@ type OnboardingContextValue = {
    */
   completeAsB: () => Promise<void>;
   /**
-   * Case C 결말 — 모든 양육 아이 행(각 행에 동일 purposes 복제)을 백엔드에
-   * 영속화하고 due_date 는 null 로, onboarded_at 만 스탬프한다.
+   * Case C 결말 — 양육 아이는 c3 에서 1:1 로 채운 child.purposes 를 그대로
+   * 영속화하고 due_date 는 null 로, onboarded_at 만 스탬프한다. 빈 슬롯에는
+   * 양육 톤 기본 칩을 채워 보낸다 (Case B 와 같은 모델).
    */
   completeAsC: () => Promise<void>;
   /** 진행 중 입력 초기화. 비상 상황·디버그 용도. */
@@ -324,6 +325,8 @@ export function OnboardingProvider({
   }, [completeOnboardingCaseA, fetusCount, fetuses, purposes]);
 
   const completeAsC = useCallback(async () => {
+    // 양육 아이는 c3 에서 1:1 로 채운 child.purposes 를 그대로 보낸다 — Case B
+    // 와 같은 모델. 빈 슬롯에는 양육 톤 기본 칩을 채워 보낸다.
     const total = childCount ?? Math.max(children.length, 1);
     const slots: ChildDraft[] = [];
     for (let i = 0; i < total; i += 1) {
@@ -335,11 +338,11 @@ export function OnboardingProvider({
         gender: c.gender ?? null,
         birth_date: c.birthDate ?? null,
         bio: c.bio ?? null,
-        purposes,
+        purposes: c.purposes ?? defaultChildPurposes(),
       })),
     });
     await clearOnboardingDraft();
-  }, [completeOnboardingCaseC, childCount, children, purposes]);
+  }, [completeOnboardingCaseC, childCount, children]);
 
   const completeAsB = useCallback(async () => {
     // 양육 아이는 b2-purpose 에서 1:1 로 채운 child.purposes 를 그대로 보낸다.

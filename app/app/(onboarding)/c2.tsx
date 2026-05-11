@@ -2,15 +2,19 @@
 // docs/mockups/source/src/screens/Onboarding.tsx:613-629 (헤더 + ChildInfoForm)
 //
 // PRD-006 AC-006-04 의 두 번째 입력. 4개 필드(이름·생년월일·성별·한줄소개)를
-// `OnboardingContext.children[currentChildIndex]` 에 저장한다. 다자녀인 경우
-// [다음] 으로 인덱스를 증가시켜 같은 화면을 반복 렌더하고, 마지막 아이의
-// [다음] 에서 c3 (기록 목적) 화면으로 진입한다. 백엔드 영속화는 c3 의
-// [시작하기] 에서 `completeAsC()` 한 번에 일어난다.
+// `OnboardingContext.children[childIndex]` 에 저장한다. c3 와 1:1 짝을 이뤄
+// 양육 아이마다 정보 → 목적 → 정보 → 목적 … 흐름을 만든다 (Case B 의
+// b2 ↔ b2-purpose 패턴과 동일). c2 의 [다음] 은 항상 c3 로 push 하고,
+// 인덱스 증가 / 다음 화면 결정은 c3 의 [다음] 이 담당한다.
+//
+// 각 인스턴스는 라우트 매개변수 `index` 로 자기 양육 아이 인덱스를 받아
+// stack 의 다른 인스턴스와 독립적으로 데이터를 그린다. context 의
+// currentChildIndex 는 영속화·복원 용도로만 갱신된다 (drafts cache).
 
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import {
@@ -67,16 +71,20 @@ const GENDERS: { value: Gender; label: string; suffix: string }[] = [
 
 export default function OnboardingC2() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ index?: string }>();
+  // 라우트 매개변수가 없거나 파싱이 실패하면 0 으로 fallback (c1 → c2 첫 진입).
+  const parsed = Number.parseInt(params.index ?? '0', 10);
+  const childIndex = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+
   const {
     childCount,
     children,
-    currentChildIndex,
     updateChild,
     setCurrentChildIndex,
   } = useOnboarding();
 
   const total = childCount ?? 1;
-  const child = children[currentChildIndex] ?? {};
+  const child = children[childIndex] ?? {};
   const birthDate = parseBirthDate(child.birthDate);
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -88,25 +96,25 @@ export default function OnboardingC2() {
     if (Platform.OS === 'android') {
       setPickerOpen(false);
       if (event.type === 'set' && selected) {
-        updateChild(currentChildIndex, { birthDate: toIsoDate(selected) });
+        updateChild(childIndex, { birthDate: toIsoDate(selected) });
       }
       return;
     }
     if (selected) {
-      updateChild(currentChildIndex, { birthDate: toIsoDate(selected) });
+      updateChild(childIndex, { birthDate: toIsoDate(selected) });
     }
   };
 
   const onChangeName = (value: string) => {
-    updateChild(currentChildIndex, { name: value });
+    updateChild(childIndex, { name: value });
   };
 
   const onSelectGender = (value: Gender) => {
-    updateChild(currentChildIndex, { gender: value });
+    updateChild(childIndex, { gender: value });
   };
 
   const onChangeBio = (value: string) => {
-    updateChild(currentChildIndex, { bio: value });
+    updateChild(childIndex, { bio: value });
   };
 
   const nameTrimmed = (child.name ?? '').trim();
@@ -114,17 +122,19 @@ export default function OnboardingC2() {
 
   const onNext = () => {
     if (!canProceed) return;
-    if (currentChildIndex < total - 1) {
-      setCurrentChildIndex(currentChildIndex + 1);
-      return;
-    }
-    router.push('/(onboarding)/c3');
+    // c2 의 [다음] 은 항상 c3 로 push — 인덱스 진행 / 마지막 처리(시작하기) 는
+    // c3 의 [다음] 이 담당한다 (b2 → b2-purpose 와 같은 패턴).
+    router.push({
+      pathname: '/(onboarding)/c3',
+      params: { index: String(childIndex) },
+    });
   };
 
   const onBack = () => {
-    if (currentChildIndex > 0) {
-      setCurrentChildIndex(currentChildIndex - 1);
-      return;
+    // 이전 인스턴스(c3 또는 c1)가 stack 에 마운트돼 있으므로 router.back()
+    // 으로 자연스럽게 복귀한다.
+    if (childIndex > 0) {
+      setCurrentChildIndex(childIndex - 1);
     }
     router.back();
   };
@@ -141,9 +151,9 @@ export default function OnboardingC2() {
         <ProgressDots total={4} current={2} style={styles.progress} />
         {total > 1 && (
           <Badge
-            label={`${currentChildIndex + 1}/${total}`}
+            label={`${childIndex + 1}/${total}`}
             variant="category"
-            testID={`onboarding-c2-child-index-${currentChildIndex}`}
+            testID={`onboarding-c2-child-index-${childIndex}`}
             style={styles.indexBadge}
           />
         )}
@@ -245,7 +255,7 @@ export default function OnboardingC2() {
       </ScrollView>
 
       <View style={styles.actions}>
-        {currentChildIndex > 0 && (
+        {childIndex > 0 && (
           <Pressable
             onPress={onBack}
             accessibilityRole="button"
