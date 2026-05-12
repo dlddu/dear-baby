@@ -29,3 +29,9 @@ appId: com.dlddu.dearbaby
 # b0 → b1 → [b2 → b2-purpose]×2 → b3 → b4 → [b5]×2 → b6 → 홈
 - runFlow:
     file: subflows/onboarding-caseB-full.yaml
+
+# PRD-007 AC-007-01·03 — 홈 도착 후 새 헤더가 보여야 한다.
+- assertVisible:
+    id: "home-header"
+- assertVisible:
+    id: "home-header-bell"

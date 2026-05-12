@@ -7,6 +7,7 @@ import { AnalyticsProvider } from '../src/analytics/AnalyticsProvider';
 import { useAnalyticsIdentity } from '../src/analytics/useAnalyticsIdentity';
 import { useScreenTracking } from '../src/analytics/useScreenTracking';
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
+import { ActiveChildProvider } from '../src/context/ActiveChildContext';
 import { colors } from '../src/theme/colors';
 import { useAppFonts } from '../src/theme/fonts';
 
@@ -82,34 +83,36 @@ export default function RootLayout() {
     <View style={{ flex: 1, backgroundColor: colors.bg.cream }} onLayout={onLayoutRootView}>
       <AnalyticsProvider>
         <AuthProvider>
-          <AuthGate>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.bg.cream },
-              }}
-            >
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(onboarding)" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen
-                name="record-text"
-                options={{ presentation: 'modal', headerShown: false }}
-              />
-              <Stack.Screen
-                name="record-audio"
-                options={{ presentation: 'modal', headerShown: false }}
-              />
-              <Stack.Screen
-                name="record-audio-review"
-                options={{ presentation: 'modal', headerShown: false }}
-              />
-              <Stack.Screen
-                name="drafts"
-                options={{ presentation: 'modal', headerShown: false }}
-              />
-            </Stack>
-          </AuthGate>
+          <ActiveChildProvider>
+            <AuthGate>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.bg.cream },
+                }}
+              >
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(onboarding)" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen
+                  name="record-text"
+                  options={{ presentation: 'modal', headerShown: false }}
+                />
+                <Stack.Screen
+                  name="record-audio"
+                  options={{ presentation: 'modal', headerShown: false }}
+                />
+                <Stack.Screen
+                  name="record-audio-review"
+                  options={{ presentation: 'modal', headerShown: false }}
+                />
+                <Stack.Screen
+                  name="drafts"
+                  options={{ presentation: 'modal', headerShown: false }}
+                />
+              </Stack>
+            </AuthGate>
+          </ActiveChildProvider>
         </AuthProvider>
       </AnalyticsProvider>
     </View>
