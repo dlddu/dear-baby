@@ -11,7 +11,8 @@
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getUnreadCount } from '../../src/api/notifications';
 import { HomeHeader } from '../../src/components/HomeHeader';
@@ -97,7 +98,7 @@ export default function HomeTab() {
   const displayName = activeChild?.displayName ?? user?.name ?? '우리 아이';
 
   return (
-    <View style={styles.screen} testID="home-tab">
+    <SafeAreaView style={styles.screen} edges={['top']} testID="home-tab">
       <HomeHeader
         displayName={displayName}
         canNavigate={canNavigate}
@@ -121,7 +122,7 @@ export default function HomeTab() {
           onPressText={handleTextPress}
         />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

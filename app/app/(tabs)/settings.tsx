@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../../src/components/Button';
 import { Text } from '../../src/components/Text';
@@ -9,7 +10,7 @@ import { spacing } from '../../src/theme/spacing';
 export default function SettingsTab() {
   const { user, signOut } = useAuth();
   return (
-    <View style={styles.container} testID="settings-tab">
+    <SafeAreaView style={styles.container} edges={['top']} testID="settings-tab">
       <Text variant="h2" color="primary">
         설정
       </Text>
@@ -25,7 +26,7 @@ export default function SettingsTab() {
         testID="sign-out-button"
         fullWidth
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

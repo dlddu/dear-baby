@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Text } from '../../src/components/Text';
 import { colors } from '../../src/theme/colors';
@@ -6,14 +7,14 @@ import { spacing } from '../../src/theme/spacing';
 
 export default function DiaryTab() {
   return (
-    <View style={styles.container} testID="diary-tab">
+    <SafeAreaView style={styles.container} edges={['top']} testID="diary-tab">
       <Text variant="h2" color="primary">
         일기
       </Text>
       <Text variant="caption" color="muted">
         곧 추가됩니다
       </Text>
-    </View>
+    </SafeAreaView>
   );
 }
 
