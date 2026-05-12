@@ -6,21 +6,26 @@
 // 정보 입력 직후(b2 직후) 1:1 화면으로 분리한다. 시각 명세는 b2/b6 의 카드
 // 패턴을 그대로 모방 — 추가 mockup 화면이 필요 없다는 결정.
 //
+// 각 인스턴스는 라우트 매개변수 `index` 로 자기 양육 아이 인덱스를 받아
+// stack 의 다른 인스턴스와 독립적으로 데이터를 그린다 (c2 / c3 / b2 와 같은
+// 패턴). 컨텍스트의 currentChildIndex 는 영속화·복원 용도로만 갱신된다
+// (drafts cache). iOS 네이티브 스와이프 백이 우리 onBack 핸들러를
+// 호출하지 않더라도 각 인스턴스가 자기 인덱스로 안정적으로 렌더된다.
+//
 // 흐름:
-//   currentChildIndex < childCount - 1 → 다음 아이의 b2 로 push (인덱스 ++)
-//   마지막 아이                          → b3 (인트로 ②) 로 push
+//   childIndex < childCount - 1 → 다음 아이의 b2 로 push (인덱스 ++)
+//   마지막 아이                   → b3 (인트로 ②) 로 push
 
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackLink } from '../../src/components/BackLink';
-import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
+import { OnboardingTopRow } from '../../src/components/OnboardingTopRow';
 import { Pill } from '../../src/components/Pill';
-import { ProgressDots } from '../../src/components/ProgressDots';
 import { QuestionHeader } from '../../src/components/QuestionHeader';
 import { Text } from '../../src/components/Text';
 import {
@@ -38,29 +43,41 @@ function purposeTestID(label: string): string {
 
 export default function OnboardingB2Purpose() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ index?: string }>();
+  // 라우트 매개변수가 없거나 파싱이 실패하면 0 으로 fallback.
+  const parsed = Number.parseInt(params.index ?? '0', 10);
+  const childIndex = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+
   const {
     childCount,
     children,
-    currentChildIndex,
     setCurrentChildIndex,
     togglePurposeForChild,
   } = useOnboarding();
 
   const total = childCount ?? Math.max(children.length, 1);
-  const child = children[currentChildIndex] ?? {};
+  const child = children[childIndex] ?? {};
   // 빈 슬롯에서는 양육 톤의 기본 칩을 보여 준다 — togglePurposeForChild 가
   // 첫 토글 시 default 셋을 슬롯에 한 번 채운 뒤 토글 결과를 반영한다.
   const selected = child.purposes ?? defaultChildPurposes();
 
   const headerLabel = (() => {
     const name = (child.name ?? '').trim();
-    return name.length > 0 ? `${name}` : `${currentChildIndex + 1}째 아이`;
+    return name.length > 0 ? `${name}` : `${childIndex + 1}째 아이`;
   })();
 
   const onNext = () => {
-    if (currentChildIndex < total - 1) {
-      setCurrentChildIndex(currentChildIndex + 1);
-      router.push('/(onboarding)/b2');
+    if (childIndex < total - 1) {
+      const nextIndex = childIndex + 1;
+      // c2 / c3 와 같은 패턴: 같은 경로를 인덱스 매개변수와 함께 push 한다.
+      // 새 b2 인스턴스가 stack 에 쌓여 forward 와 backward 가 대칭이 된다.
+      // setCurrentChildIndex 는 영속화·복원용으로만 갱신 — UI 식별은
+      // params.index 가 단일 소스.
+      setCurrentChildIndex(nextIndex);
+      router.push({
+        pathname: '/(onboarding)/b2',
+        params: { index: String(nextIndex) },
+      });
       return;
     }
     router.push('/(onboarding)/b3');
@@ -72,17 +89,13 @@ export default function OnboardingB2Purpose() {
       edges={['top', 'bottom']}
       testID="onboarding-b2-purpose"
     >
-      <View style={styles.topRow}>
-        <ProgressDots total={8} current={4} style={styles.progress} />
-        {total > 1 && (
-          <Badge
-            label={`${currentChildIndex + 1}/${total}`}
-            variant="category"
-            testID={`onboarding-b2-purpose-child-index-${currentChildIndex}`}
-            style={styles.indexBadge}
-          />
-        )}
-      </View>
+      <OnboardingTopRow
+        total={8}
+        current={4}
+        index={childIndex}
+        count={total}
+        testIDPrefix="onboarding-b2-purpose-child-index"
+      />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -100,7 +113,7 @@ export default function OnboardingB2Purpose() {
                   key={p.label}
                   label={p.label}
                   selected={selected.includes(p.label)}
-                  onPress={() => togglePurposeForChild(currentChildIndex, p.label)}
+                  onPress={() => togglePurposeForChild(childIndex, p.label)}
                   testID={purposeTestID(p.label)}
                 />
               ))}
@@ -133,15 +146,6 @@ export default function OnboardingB2Purpose() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.cream },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progress: { flex: 1 },
-  indexBadge: {
-    marginRight: spacing[6],
-    marginTop: spacing[3],
-  },
   scroll: { flex: 1 },
   content: { paddingBottom: spacing[8] },
   body: {

@@ -3,7 +3,7 @@
 //
 // PRD-006 AC-006-03 ② 의 첫 입력. 단태/다태 중 하나를 선택해
 // `OnboardingContext.fetusCount` 에 저장하고 b5 (태아 정보)로 push 한다.
-// a1 과 동일한 패턴 — ProgressDots 만 Case B 의 8 단계에 맞춰 갱신.
+// a1 과 동일한 패턴 — OnboardingTopRow 의 total/current 만 Case B 8 단계에 맞춰 갱신.
 
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../../src/components/Button';
 import { NumberPicker } from '../../src/components/NumberPicker';
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingTopRow } from '../../src/components/OnboardingTopRow';
 import { QuestionHeader } from '../../src/components/QuestionHeader';
 import { Text } from '../../src/components/Text';
 import { useOnboarding } from '../../src/onboarding/OnboardingContext';
@@ -47,7 +47,7 @@ export default function OnboardingB4() {
       edges={['top', 'bottom']}
       testID="onboarding-b4"
     >
-      <ProgressDots total={8} current={6} />
+      <OnboardingTopRow total={8} current={6} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}

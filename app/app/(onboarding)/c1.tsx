@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../../src/components/Button';
 import { NumberPicker } from '../../src/components/NumberPicker';
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingTopRow } from '../../src/components/OnboardingTopRow';
 import { QuestionHeader } from '../../src/components/QuestionHeader';
 import { Text } from '../../src/components/Text';
 import { useOnboarding } from '../../src/onboarding/OnboardingContext';
@@ -40,7 +40,7 @@ export default function OnboardingC1() {
       edges={['top', 'bottom']}
       testID="onboarding-c1"
     >
-      <ProgressDots total={4} current={1} />
+      <OnboardingTopRow total={4} current={1} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}

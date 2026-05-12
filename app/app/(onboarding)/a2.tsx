@@ -28,10 +28,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackLink } from '../../src/components/BackLink';
-import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
+import { OnboardingTopRow } from '../../src/components/OnboardingTopRow';
 import { Pill } from '../../src/components/Pill';
-import { ProgressDots } from '../../src/components/ProgressDots';
 import { QuestionHeader } from '../../src/components/QuestionHeader';
 import { Text } from '../../src/components/Text';
 import { useOnboarding } from '../../src/onboarding/OnboardingContext';
@@ -162,17 +161,13 @@ export default function OnboardingA2() {
       edges={['top', 'bottom']}
       testID="onboarding-a2"
     >
-      <View style={styles.topRow}>
-        <ProgressDots total={5} current={3} style={styles.progress} />
-        {total > 1 && (
-          <Badge
-            label={`${fetusIndex + 1}/${total}`}
-            variant="category"
-            testID={`onboarding-a2-fetus-index-${fetusIndex}`}
-            style={styles.indexBadge}
-          />
-        )}
-      </View>
+      <OnboardingTopRow
+        total={5}
+        current={3}
+        index={fetusIndex}
+        count={total}
+        testIDPrefix="onboarding-a2-fetus-index"
+      />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -336,15 +331,6 @@ export default function OnboardingA2() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.cream },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progress: { flex: 1 },
-  indexBadge: {
-    marginRight: spacing[6],
-    marginTop: spacing[3],
-  },
   scroll: { flex: 1 },
   content: { paddingBottom: spacing[8] },
   body: {
