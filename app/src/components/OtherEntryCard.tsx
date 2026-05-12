@@ -60,7 +60,7 @@ export function OtherEntryCard({
       <View style={styles.headerRow}>
         <View style={styles.identityRow}>
           <Text
-            variant="badge"
+            variant="aliasStrong"
             color="primary"
             style={styles.alias}
             numberOfLines={1}
@@ -69,7 +69,7 @@ export function OtherEntryCard({
             {entry.authorAlias}
           </Text>
           <Text
-            variant="caption"
+            variant="micro"
             color="muted"
             style={styles.context}
             numberOfLines={1}
@@ -79,11 +79,11 @@ export function OtherEntryCard({
           </Text>
         </View>
         <View style={styles.heartRow}>
-          <Text variant="caption" color="coral" style={styles.heartGlyph}>
+          <Text variant="micro" color="coral" style={styles.heartGlyph}>
             ♥
           </Text>
           <Text
-            variant="caption"
+            variant="micro"
             color="coral"
             style={styles.heartCount}
             testID={`${testID}-hearts`}
@@ -94,7 +94,7 @@ export function OtherEntryCard({
       </View>
 
       <Text
-        variant="h3"
+        variant="cardTitle"
         color="primary"
         style={styles.question}
         testID={`${testID}-question`}
@@ -103,14 +103,14 @@ export function OtherEntryCard({
       </Text>
 
       <Text
-        variant="caption"
+        variant="bodySmall"
         color="secondary"
         style={styles.answer}
         testID={`${testID}-answer`}
       >
         {answerBody}
         {hasEllipsis ? (
-          <Text variant="caption" color="muted">
+          <Text variant="bodySmall" color="muted">
             {ELLIPSIS_MARKER}
           </Text>
         ) : null}

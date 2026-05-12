@@ -147,7 +147,7 @@ export default function HomeTab() {
         {feedEntries.length > 0 ? (
           <View style={styles.feedSection} testID="home-feed-section">
             <View style={styles.feedHeader}>
-              <Text variant="h3" color="primary">
+              <Text variant="sectionTitle" color="primary">
                 다른 엄마들의 기록
               </Text>
               <Pressable
@@ -158,7 +158,7 @@ export default function HomeTab() {
                 style={styles.feedMore}
                 testID="home-feed-more"
               >
-                <Text variant="caption" color="secondary">
+                <Text variant="bodySmall" color="secondary">
                   더보기 ›
                 </Text>
               </Pressable>
