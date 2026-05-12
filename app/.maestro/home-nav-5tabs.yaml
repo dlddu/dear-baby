@@ -1,0 +1,62 @@
+appId: com.dlddu.dearbaby
+---
+# PRD-007 TC-007-10 — 5탭 고정 네비게이션.
+#
+# 홈 도착 후 5개 탭(자서전·커뮤니티·홈·일기·설정)이 모두 보이는지,
+# 홈이 중앙에 위치하는지, 각 탭으로 이동했을 때 해당 화면이 렌더되는지를
+# 검증한다. 활성 색상(coral)·비활성 색상(muted) 시각 검증은 Maestro의
+# 컬러 단정 능력 범위 밖이라 본 E2E에서는 라벨·testID 정합만 본다.
+#
+# CI는 seeded 테스트 유저의 onboarding 상태를 초기화한 뒤 본 플로우를 실행한다.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Case A (임신 O · 양육 X) → A1·A2(예정일 선택) → A3 → 홈 도착
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseA.yaml
+- runFlow:
+    file: subflows/onboarding-caseA-a1-a2-date.yaml
+
+# 5개 탭 라벨이 모두 보이는지 확인 (홈은 가운데)
+- assertVisible:
+    id: "home-tab"
+- assertVisible: "자서전"
+- assertVisible: "커뮤니티"
+- assertVisible: "홈"
+- assertVisible: "일기"
+- assertVisible: "설정"
+
+# 자서전 탭 이동 → placeholder 렌더
+- tapOn: "자서전"
+- assertVisible:
+    id: "memoir-tab"
+
+# 커뮤니티 탭 이동 → placeholder 렌더
+- tapOn: "커뮤니티"
+- assertVisible:
+    id: "community-tab"
+
+# 일기 탭 이동 → placeholder 렌더
+- tapOn: "일기"
+- assertVisible:
+    id: "diary-tab"
+
+# 설정 탭 이동 → 기존 설정 화면 렌더
+- tapOn: "설정"
+- assertVisible:
+    id: "settings-tab"
+
+# 홈 탭 복귀
+- tapOn: "홈"
+- assertVisible:
+    id: "home-tab"

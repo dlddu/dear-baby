@@ -57,10 +57,12 @@
 
 ### Bottom Tab Bar
 
-- 탭 4개: 홈 / 기록 / 질문 / 마이
+- 탭 5개: 자서전 / 커뮤니티 / 홈 / 일기 / 설정 (PRD-007 AC-007-10)
+- 홈이 가운데(3번 슬롯)에 위치하여 양손 엄지 접근성을 우선
 - 활성 탭: `#D4836B` (Warm Coral)
 - 비활성 탭: `#B5A898` (Muted)
-- FAB이 탭 바 위에 겹쳐 배치
+- 배경: `#FFFBF5` (Ivory), 상단 보더: `#F0E6D8` (Beige)
+- 라벨 typography: 12px / 600
 
 ## Badges & Tags
 
