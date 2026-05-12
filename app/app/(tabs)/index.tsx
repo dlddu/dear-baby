@@ -1,125 +1,66 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+// 홈 탭 — PRD-007 의 메인 화면.
+//
+// 본 작업(C) 범위:
+//   - 1인칭 질문 카드(HomeQuestionCard) + 일일 3개 회전(AC-007-04·05)
+//   - 음성/텍스트 모달 진입(AC-007-06) — 현재 회전 인덱스의 질문을 route
+//     param 으로 전달
+//
+// 회전 상태는 화면이 들고 있다 (당일 자정까지). 활성 아이가 바뀌면 자연스럽게
+// 0번 질문부터 다시 보여지도록 인덱스를 리셋한다.
+// 책 진행도(AC-007-07)·피드(AC-007-08) 는 후속 작업(D·E) 에서 추가된다.
 
-import { openAiPreviewStream, requestAiPreview } from '../../src/api/ai';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+
 import { getUnreadCount } from '../../src/api/notifications';
-import {
-  AiPreviewCard,
-  type AiPreviewStatus,
-} from '../../src/components/AiPreviewCard';
-import { Button } from '../../src/components/Button';
-import { Coachmark } from '../../src/components/Coachmark';
 import { HomeHeader } from '../../src/components/HomeHeader';
-import { QuestionCard } from '../../src/components/QuestionCard';
-import { Text } from '../../src/components/Text';
+import { HomeQuestionCard } from '../../src/components/HomeQuestionCard';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useActiveChild } from '../../src/context/ActiveChildContext';
-import { pickDailyQuestion } from '../../src/data/dailyQuestions';
-import * as draftStore from '../../src/drafts/draftStore';
+import { getDailyQuestionTriplet } from '../../src/data/dailyQuestions';
 import { colors } from '../../src/theme/colors';
-import { radius } from '../../src/theme/radius';
-import { shadows } from '../../src/theme/shadows';
 import { spacing } from '../../src/theme/spacing';
-import { calcPregnancy } from '../../src/utils/pregnancy';
-
-// HomeTab renders Stage 2 of onboarding — voice-record coachmark + daily
-// question card + dual CTAs + AI preview card. See docs/design-system/
-// onboarding.md for the spec. The voice CTA now routes to the dedicated
-// recording flow (record-audio → record-audio-review) instead of the
-// "곧 추가됩니다" alert. When the user has audio waiting in the local
-// archive, a banner above the CTAs surfaces the entry point to /drafts.
-//
-// AI preview flow: when `first_record_at` flips from null → set (first
-// save), the home kicks off a `requestAiPreview()` and opens an SSE
-// stream to listen for `ready` or `error`. The SSE stream is closed and
-// reopened automatically when the preview state changes.
-
-const COACHMARK_LABEL = '🎙 말하기만 해도 기록이 돼요!';
-const ENCOURAGEMENT = '첫 기록이 가장 소중해요 🌱';
+import { formatChildAgeLabel, formatPregnancyLabel } from '../../src/utils/childLabel';
 
 export default function HomeTab() {
   const router = useRouter();
-  const { user, dismissVoiceCoachmark, applyAiPreview } = useAuth();
-  const { activeChild, canNavigate, next, prev } = useActiveChild();
+  const { user } = useAuth();
+  const { activeChild, activeIndex, canNavigate, next, prev } = useActiveChild();
   // Unread notification count — backend is mocked (see api/notifications.ts).
   // Re-fetch on every focus so a future implementation can decrement when
   // the user returns from the notifications screen.
   const [unreadCount, setUnreadCount] = useState(0);
-  // Local flag hides the coachmark immediately on tap; the backend call is
-  // fire-and-forget so the UI never waits on the network. Persisted state
-  // comes from `user.voice_coachmark_dismissed_at` on next session load.
-  const [coachmarkHidden, setCoachmarkHidden] = useState(false);
-  // `aiPreviewFailed` flips when the SSE stream reports an error; reset
-  // whenever the user asks for a retry.
-  const [aiPreviewFailed, setAiPreviewFailed] = useState(false);
-  // `aiStreamOpen` tracks whether the SSE effect currently has a live
-  // subscription. Used to distinguish "loading" (stream open, waiting)
-  // from "failed" (stream errored or never opened).
-  const [aiStreamOpen, setAiStreamOpen] = useState(false);
-  // draftCount drives the "보관 중인 음성 원본 N개" banner. Refetched on
-  // every focus so returning from the review or drafts screen reflects
-  // the latest archive size without a manual refresh.
-  const [draftCount, setDraftCount] = useState(0);
+  const [rotationIndex, setRotationIndex] = useState(0);
 
-  const prevFirstRecordAtRef = useRef<string | null>(null);
+  const triplet = useMemo(() => getDailyQuestionTriplet(), []);
+  const activeQuestion = triplet[rotationIndex] ?? triplet[0] ?? '';
 
-  const pregnancy = useMemo(
-    () => calcPregnancy(user?.due_date ?? null),
-    [user?.due_date],
-  );
-  const question = useMemo(() => pickDailyQuestion(), []);
-
-  const showCoachmark =
-    !coachmarkHidden &&
-    !user?.voice_coachmark_dismissed_at &&
-    !user?.first_record_at;
-
-  // Detect null → non-null transition of first_record_at: the moment we
-  // should ask the backend to kick off AI preview generation. Runs only
-  // on the transition itself so repeated re-renders don't re-fire.
+  // 활성 아이가 바뀌면 회전 인덱스도 0번으로 리셋 — 다자녀 사용자가 새 아이의
+  // 첫 질문부터 보도록 한다.
   useEffect(() => {
-    const prev = prevFirstRecordAtRef.current;
-    const current = user?.first_record_at ?? null;
-    prevFirstRecordAtRef.current = current;
-    if (!prev && current && !user?.ai_preview) {
-      setAiPreviewFailed(false);
-      void requestAiPreview().catch(() => setAiPreviewFailed(true));
+    setRotationIndex(0);
+  }, [activeIndex]);
+
+  // 컨텍스트 라벨: 임신 모드는 D-day/주차, 양육 모드는 개월/나이 + 일째.
+  // 표시 이름은 활성 아이의 displayName 을 우선하고, 활성 아이가 아직 비어 있는
+  // 호환 경로에서는 user.name 으로 폴백한다.
+  const contextLabel = useMemo(() => {
+    if (!activeChild) return null;
+    if (activeChild.kind === 'fetus') {
+      return formatPregnancyLabel(activeChild.dueOrBirthDate);
     }
-  }, [user?.first_record_at, user?.ai_preview]);
+    return formatChildAgeLabel(activeChild.dueOrBirthDate);
+  }, [activeChild]);
 
-  // Subscribe to the SSE stream while the preview is pending. Automatic
-  // close on unmount, and on every input change (so status transitions
-  // clean up cleanly).
-  useEffect(() => {
-    if (!user?.first_record_at) return undefined;
-    if (user.ai_preview) return undefined;
-    setAiStreamOpen(true);
-    const close = openAiPreviewStream(
-      (evt) => {
-        if (evt.type === 'ready') {
-          setAiPreviewFailed(false);
-          void applyAiPreview(evt.preview);
-        } else {
-          setAiPreviewFailed(true);
-        }
-      },
-      () => {
-        setAiPreviewFailed(true);
-      },
-    );
-    return () => {
-      setAiStreamOpen(false);
-      close();
-    };
-  }, [user?.first_record_at, user?.ai_preview, applyAiPreview]);
+  const weekLabel = useMemo(() => {
+    if (!activeChild || activeChild.kind !== 'fetus') return '';
+    return formatPregnancyLabel(activeChild.dueOrBirthDate) ?? '';
+  }, [activeChild]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      void draftStore.count().then((n) => {
-        if (!cancelled) setDraftCount(n);
-      });
       void getUnreadCount().then((n) => {
         if (!cancelled) setUnreadCount(n);
       });
@@ -129,50 +70,36 @@ export default function HomeTab() {
     }, []),
   );
 
-  const handleRetry = useCallback(() => {
-    setAiPreviewFailed(false);
-    void requestAiPreview().catch(() => setAiPreviewFailed(true));
+  const handlePrevQuestion = useCallback(() => {
+    setRotationIndex((curr) => (curr > 0 ? curr - 1 : curr));
   }, []);
 
-  const aiPreviewStatus = useMemo<AiPreviewStatus>(() => {
-    if (user?.ai_preview) return 'ready';
-    if (!user?.first_record_at) return 'teaser';
-    if (aiPreviewFailed) return 'failed';
-    if (aiStreamOpen) return 'loading';
-    return 'loading';
-  }, [user?.ai_preview, user?.first_record_at, aiPreviewFailed, aiStreamOpen]);
-
-  const handleDismissCoachmark = useCallback(() => {
-    setCoachmarkHidden(true);
-    // Swallow errors: a transient failure just means the coachmark will
-    // appear again next cold boot, which is acceptable.
-    void dismissVoiceCoachmark().catch(() => {});
-  }, [dismissVoiceCoachmark]);
+  const handleNextQuestion = useCallback(() => {
+    setRotationIndex((curr) =>
+      curr < triplet.length - 1 ? curr + 1 : curr,
+    );
+  }, [triplet.length]);
 
   const handleVoicePress = useCallback(() => {
-    if (showCoachmark) handleDismissCoachmark();
     router.push({
       pathname: '/record-audio',
-      params: { question, week_label: pregnancy?.label ?? '' },
+      params: { question: activeQuestion, week_label: weekLabel },
     });
-  }, [router, showCoachmark, handleDismissCoachmark, question, pregnancy]);
+  }, [router, activeQuestion, weekLabel]);
 
   const handleTextPress = useCallback(() => {
-    if (showCoachmark) handleDismissCoachmark();
     router.push({
       pathname: '/record-text',
-      params: { question, week_label: pregnancy?.label ?? '' },
+      params: { question: activeQuestion, week_label: weekLabel },
     });
-  }, [router, showCoachmark, handleDismissCoachmark, question, pregnancy]);
+  }, [router, activeQuestion, weekLabel]);
 
-  const handleDraftsPress = useCallback(() => {
-    router.push('/drafts');
-  }, [router]);
+  const displayName = activeChild?.displayName ?? user?.name ?? '우리 아이';
 
   return (
     <View style={styles.screen} testID="home-tab">
       <HomeHeader
-        displayName={activeChild?.displayName ?? (user?.name ?? '우리 아이')}
+        displayName={displayName}
         canNavigate={canNavigate}
         hasUnreadNotification={unreadCount > 0}
         onPrev={prev}
@@ -182,67 +109,16 @@ export default function HomeTab() {
         style={styles.scroll}
         contentContainerStyle={styles.container}
       >
-        <QuestionCard
-          weekLabel={pregnancy?.label ?? null}
-          question={question}
-          encouragement={ENCOURAGEMENT}
-          testID="stage2-question-card"
-          badgeTestID="stage2-week-badge"
-        />
-
-        {showCoachmark ? (
-          <Coachmark
-            label={COACHMARK_LABEL}
-            arrowAlign="left"
-            onDismiss={handleDismissCoachmark}
-            testID="stage2-coachmark"
-            dismissTestID="stage2-coachmark-dismiss"
-          />
-        ) : null}
-
-        {draftCount > 0 ? (
-          <Pressable
-            onPress={handleDraftsPress}
-            style={styles.draftsBanner}
-            testID="drafts-banner"
-          >
-            <Text variant="caption" color="onPrimary">
-              🎙 보관 중인 음성 원본 {draftCount}개
-            </Text>
-            <Text variant="caption" color="onPrimary">
-              보관함 열기 →
-            </Text>
-          </Pressable>
-        ) : null}
-
-        <View style={styles.ctaRow}>
-          <View style={styles.ctaItem}>
-            <Button
-              title="음성 기록"
-              leading="🎙"
-              variant="primary"
-              fullWidth
-              onPress={handleVoicePress}
-              testID="stage2-voice-cta"
-            />
-          </View>
-          <View style={styles.ctaItem}>
-            <Button
-              title="텍스트"
-              leading="✏️"
-              variant="secondary"
-              fullWidth
-              onPress={handleTextPress}
-              testID="stage2-text-cta"
-            />
-          </View>
-        </View>
-
-        <AiPreviewCard
-          status={aiPreviewStatus}
-          content={user?.ai_preview}
-          onRetry={handleRetry}
-          testID="stage2-ai-preview"
+        <HomeQuestionCard
+          profileImageUrl={activeChild?.profileImageUrl ?? null}
+          displayName={displayName}
+          contextLabel={contextLabel}
+          questions={triplet}
+          currentIndex={rotationIndex}
+          onPrev={handlePrevQuestion}
+          onNext={handleNextQuestion}
+          onPressVoice={handleVoicePress}
+          onPressText={handleTextPress}
         />
       </ScrollView>
     </View>
@@ -262,20 +138,5 @@ const styles = StyleSheet.create({
     paddingTop: spacing[6],
     paddingBottom: spacing[8],
     gap: spacing[5],
-  },
-  ctaRow: {
-    flexDirection: 'row',
-    gap: spacing[3],
-  },
-  ctaItem: { flex: 1 },
-  draftsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.primary.coral,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing[4],
-    paddingVertical: spacing[3],
-    ...shadows.soft,
   },
 });

@@ -1,10 +1,9 @@
 appId: com.dlddu.dearbaby
 ---
-# Onboarding Stage 2 – undecided path.
+# Onboarding → Home (예정일 미정 경로) 확인.
 #
-# Verifies that skipping the due date still surfaces the Stage 2 home
-# (question card + coachmark + voice/text CTAs + AI preview) but
-# without the week badge, since week-of-pregnancy is undefined.
+# 예정일 스킵 사용자도 홈에 도착하면 1인칭 질문 카드 + 음성/텍스트 CTA 가
+# 동일하게 노출된다. 컨텍스트 라벨(D-day/주차) 만 비어 있다.
 #
 # CI must reset the seeded test user's onboarding state before running
 # this flow.
@@ -29,18 +28,17 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/onboarding-caseA-a1-a2-skip.yaml
 
-# PRD-007 AC-007-01·03 — 헤더(이름·종) 는 예정일 미정 경로에서도 보여야 한다.
+# PRD-007 AC-007-01·03 — 헤더(이름·종) + AC-007-04·06 1인칭 카드 + CTA.
 - assertVisible:
     id: "home-header"
 - assertVisible:
     id: "home-header-bell"
 - assertVisible:
-    id: "stage2-question-card"
+    id: "home-question-card"
 - assertVisible:
-    id: "stage2-voice-cta"
+    id: "home-voice-cta"
 - assertVisible:
-    id: "stage2-text-cta"
-- assertVisible:
-    id: "stage2-ai-preview"
+    id: "home-text-cta"
+# 예정일 미정 경로 — 카드의 컨텍스트 라벨(D-36 등) 은 없다.
 - assertNotVisible:
-    id: "stage2-week-badge"
+    id: "home-question-card-context"
