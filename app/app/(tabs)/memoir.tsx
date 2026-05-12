@@ -4,11 +4,11 @@ import { Text } from '../../src/components/Text';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 
-export default function RecordsTab() {
+export default function MemoirTab() {
   return (
-    <View style={styles.container} testID="records-tab">
+    <View style={styles.container} testID="memoir-tab">
       <Text variant="h2" color="primary">
-        기록
+        자서전
       </Text>
       <Text variant="caption" color="muted">
         곧 추가됩니다
