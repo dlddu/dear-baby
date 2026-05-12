@@ -1,7 +1,6 @@
 // RecordQuestionHeader — record entry screens (text/voice) reuse this to
-// echo the home-screen question above the input. Lighter weight than the
-// home QuestionCard: no encouragement copy, no Card surface, just a
-// small badge + h3 question. When `question` is empty/whitespace it
+// echo the home-screen question above the input. Lightweight: a small
+// week badge + h3 question. When `question` is empty/whitespace it
 // renders nothing so non-home entry points (deep links, future flows)
 // can mount the screen without an awkward blank header.
 

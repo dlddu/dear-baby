@@ -1,0 +1,55 @@
+appId: com.dlddu.dearbaby
+---
+# PRD-007 AC-007-06 — 홈 1인칭 카드 → 음성/텍스트 기록 모달 진입.
+#
+# TC-007-06-A (음성 CTA → record-audio), TC-007-06-B (텍스트 CTA → record-text)
+# 를 한 flow 로 묶어 확인한다. 모달 진입 후 취소로 빠져 나와 다시 홈에 돌아오는
+# 라운드트립이 가능해야 한다.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# 가장 짧은 경로 — Case A 예정일 선택 후 홈 도착.
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseA.yaml
+- runFlow:
+    file: subflows/onboarding-caseA-a1-a2-date.yaml
+
+# 홈 도착 — 카드와 CTA 두 개가 모두 보여야 한다.
+- assertVisible:
+    id: "home-tab"
+- assertVisible:
+    id: "home-question-card"
+- assertVisible:
+    id: "home-voice-cta"
+- assertVisible:
+    id: "home-text-cta"
+
+# TC-007-06-A — 음성 CTA → record-audio 모달
+- tapOn:
+    id: "home-voice-cta"
+- assertVisible:
+    id: "record-audio-screen"
+- tapOn:
+    id: "record-audio-cancel"
+- assertVisible:
+    id: "home-tab"
+
+# TC-007-06-B — 텍스트 CTA → record-text 모달
+- tapOn:
+    id: "home-text-cta"
+- assertVisible:
+    id: "record-text-screen"
+- tapOn:
+    id: "record-text-cancel"
+- assertVisible:
+    id: "home-tab"
