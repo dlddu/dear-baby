@@ -123,14 +123,21 @@ export default function OnboardingB2() {
     if (!canProceed) return;
     // b2 의 [다음] 은 항상 b2-purpose 로 push — 기록 목적 입력 후 다음 아이로
     // 넘어갈지 b3 로 갈지 b2-purpose 가 결정한다 (양육은 1:1 흐름이므로).
-    router.push('/(onboarding)/b2-purpose');
+    // b2-purpose 인스턴스가 자기 인덱스를 라우트 매개변수로 받아 stack 의
+    // 다른 인스턴스와 독립적으로 그릴 수 있게 index 를 함께 전달한다 —
+    // iOS 의 네이티브 스와이프 백 시 컨텍스트 동기화가 일어나지 않아도
+    // 각 인스턴스가 자기 데이터를 유지하도록.
+    router.push({
+      pathname: '/(onboarding)/b2-purpose',
+      params: { index: String(childIndex) },
+    });
   };
 
   const onBack = () => {
     // 이전 인스턴스(b2-purpose 또는 b1)가 stack 에 마운트돼 있으므로
-    // router.back() 으로 자연스럽게 복귀한다. 아래 setCurrentChildIndex 는
-    // b2-purpose 가 컨텍스트의 currentChildIndex 를 읽어 자기 인덱스를
-    // 결정하므로, 이전 인스턴스의 인덱스에 맞춰 동기화해 둔다.
+    // router.back() 으로 자연스럽게 복귀한다. setCurrentChildIndex 는
+    // 영속화·복원(drafts cache) 용도로만 갱신 — UI 식별은 라우트 매개변수
+    // 기반이므로 컨텍스트 값과 분리되어 있다.
     if (childIndex > 0) {
       setCurrentChildIndex(childIndex - 1);
     }
