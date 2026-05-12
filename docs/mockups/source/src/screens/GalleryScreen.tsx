@@ -4,6 +4,7 @@ export type ScreenId =
   | "birth"
   | "M01" | "M02" | "M03" | "M04" | "M05" | "M06" | "M07" | "M08"
   | "M09" | "M10" | "M11" | "M12" | "M13" | "M14" | "M15" | "M16"
+  | "M35"
   | "M18" | "M19" | "M20" | "M21" | "M22"
   | "M23" | "M25" | "M26"
   | "M27" | "M28" | "M29" | "M30"
@@ -31,6 +32,7 @@ const groups: { num: string; title: string; cards: MockupCard[] }[] = [
       { id: "M-07", name: "B0 — 안내 ①", meta: "기존 아이부터 안내", navigate: "M07", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-08", name: "B1 — 양육 아이 수", meta: "현재 양육 아이 인원", navigate: "M08", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-09", name: "B2 — 양육 아이 정보", meta: "생년월일 · 이름", navigate: "M09", tags: [{ kind: "case-b", label: "Case B" }] },
+      { id: "M-35", name: "B2-Purpose — 양육 기록 목적 (아이별 1:1)", meta: "양육 칩 8종 · 아이별 반복", navigate: "M35", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-10", name: "B3 — 안내 ②", meta: "임신 아이 정보 시작", navigate: "M10", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-11", name: "B4 — 임신 아이 수", meta: "단태아 · 쌍둥이", navigate: "M11", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-12", name: "B5 — 태아 정보", meta: "예정일 · 태명 · 성별", navigate: "M12", tags: [{ kind: "case-b", label: "Case B" }] },

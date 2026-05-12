@@ -17,7 +17,7 @@
 | 원칙 | 설명 |
 |------|------|
 | **🧩 플로우 단위 분할** | 각 문서는 하나의 자족적 사용자 플로우(온보딩 / 일상 기록 / 출산 전환 / AI 서사 / 책 제작)를 다룬다 |
-| **🔗 PRD 1:1 매핑** | 각 플로우 문서는 가능한 PRD-001~006 중 1~2개와 1:1 매핑된다 |
+| **🔗 PRD 1:1 매핑** | 각 플로우 문서는 가능한 PRD-001~007 중 1~2개와 1:1 매핑된다 |
 | **🌊 인계 명시** | 각 문서는 앞 플로우로부터 무엇을 인계받고, 다음 플로우로 무엇을 인계하는지 명시한다 |
 | **🧭 가치 추적** | 각 단계에서 어떤 제품 가치(V-001~V-007)가 작동하는지 명시한다 |
 
@@ -103,7 +103,7 @@ flowchart TD
 | # | 플로우 문서 | 다루는 단계 | 관련 PRD | 핵심 페르소나 |
 |:---:|---|---|---|:---:|
 | 1 | [Onboarding Journey](onboarding-journey.md) | 발견 · 가입 · 케이스 분기 · 케이스별 입력 | PRD-006 | 🌸🌼🌿 |
-| 2 | [Daily Recording Journey](daily-recording-journey.md) | 홈 첫 진입 · 일상 기록 루틴 | PRD-001, PRD-002, PRD-005 | 🌸🌼🌿 |
+| 2 | [Daily Recording Journey](daily-recording-journey.md) | 홈 첫 진입 · 일상 기록 루틴 | PRD-001, PRD-002, PRD-005, PRD-006, PRD-007 | 🌸🌼🌿 |
 | 3 | [Birth Conversion Journey](birth-conversion-journey.md) | 출산 전환 · 양육자 모드 시작 | PRD-006 | 🌸🌼 |
 | 4 | [AI Narrative Journey](ai-narrative-journey.md) | AI 서사 생성·편집 | PRD-003 | 🌸🌼🌿 |
 | 5 | [Book Production Journey](book-production-journey.md) | 책 주문 · 배송 · 선물 | PRD-004 | 🌸🌼🌿 |
@@ -187,7 +187,7 @@ flowchart TD
 
 ## 미해결 / 향후 검토
 
-본 여정 문서들은 PRD-006의 미해결 항목과 다음 항목들을 사용자 여정 관점에서 추가로 제기한다.
+본 여정 문서들은 PRD-006·007의 미해결 항목과 다음 항목들을 사용자 여정 관점에서 추가로 제기한다.
 
 - **발견(Discovery) 정량화**: 본 디렉토리는 인지·유입 채널의 사용자 감정만 정성적으로 다룬다. 채널별 유입 데이터 기반의 별도 funnel 분석 필요
 - **재참여 루프**: 책을 한 번 받은 사용자가 다시 일상 기록(플로우 2)으로 복귀하는 동기 부재 — Case B / 다자녀 양육자에 대한 후속 책 제작 유도 메커니즘 검토
@@ -201,5 +201,5 @@ flowchart TD
 - [`flows/onboarding-flow.md`](../flows/onboarding-flow.md) — 온보딩 시스템 흐름도
 - [`mockups/`](../mockups) — 페이지 단위 화면 mockup
 - [`values/product-values.md`](../values/product-values.md) — VDOC-001 제품 가치 정의서
-- [`prd/`](../prd) — PRD-001~006
+- [`prd/`](../prd) — PRD-001~007
 - [`glossary.md`](../glossary.md) — 도메인 용어

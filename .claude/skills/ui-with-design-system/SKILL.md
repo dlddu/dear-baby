@@ -1,5 +1,5 @@
 ---
-name: design-system
+name: ui-with-design-system
 description: UI 작업(컴포넌트 추가/수정, 화면 구현, 스타일 변경, 레이아웃 작업 등 React Native/Expo 프론트엔드 작업)을 할 때 반드시 실행. dear-baby의 디자인 시스템 문서와 theme 토큰, 공통 컴포넌트를 참고하도록 강제해 일관된 UI를 유지합니다. UI, 스타일, 컴포넌트, 색상, 폰트, 여백, 버튼, 카드 등 시각적 요소와 관련된 모든 작업에 사용하세요.
 ---
 
