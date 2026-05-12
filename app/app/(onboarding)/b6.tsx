@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackLink } from '../../src/components/BackLink';
 import { Button } from '../../src/components/Button';
 import { Pill } from '../../src/components/Pill';
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingTopRow } from '../../src/components/OnboardingTopRow';
 import { QuestionHeader } from '../../src/components/QuestionHeader';
 import { Text } from '../../src/components/Text';
 import { useOnboarding } from '../../src/onboarding/OnboardingContext';
@@ -60,7 +60,7 @@ export default function OnboardingB6() {
       edges={['top', 'bottom']}
       testID="onboarding-b6"
     >
-      <ProgressDots total={8} current={7} style={styles.progress} />
+      <OnboardingTopRow total={8} current={7} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -119,7 +119,6 @@ export default function OnboardingB6() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.cream },
-  progress: { flex: 0 },
   scroll: { flex: 1 },
   content: { paddingBottom: spacing[8] },
   body: {

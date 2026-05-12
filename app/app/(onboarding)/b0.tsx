@@ -11,7 +11,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../../src/components/Button';
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingTopRow } from '../../src/components/OnboardingTopRow';
 import { StepCard } from '../../src/components/StepCard';
 import { Text } from '../../src/components/Text';
 import { colors } from '../../src/theme/colors';
@@ -36,7 +36,7 @@ export default function OnboardingB0() {
       edges={['top', 'bottom']}
       testID="onboarding-b0"
     >
-      <ProgressDots total={8} current={2} />
+      <OnboardingTopRow total={8} current={2} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}

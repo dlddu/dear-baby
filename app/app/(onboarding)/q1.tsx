@@ -9,7 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingTopRow } from '../../src/components/OnboardingTopRow';
 import { QuestionHeader } from '../../src/components/QuestionHeader';
 import { Text } from '../../src/components/Text';
 import { useOnboarding } from '../../src/onboarding/OnboardingContext';
@@ -32,7 +32,7 @@ export default function OnboardingQ1() {
       edges={['top', 'bottom']}
       testID="onboarding-q1"
     >
-      <ProgressDots total={5} current={0} />
+      <OnboardingTopRow total={5} current={0} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}

@@ -3,7 +3,7 @@
 //
 // PRD-006 AC-006-03 ① 의 첫 입력. 1/2/3+ 중 하나를 선택해
 // `OnboardingContext.childCount` 에 저장하고 b2 (양육 아이 정보)로 push 한다.
-// c1 과 동일한 컴포넌트 패턴 — 다만 ProgressDots 의 total/current 가 다르다
+// c1 과 동일한 컴포넌트 패턴 — 다만 OnboardingTopRow 의 total/current 가 다르다
 // (Case B 는 8단계).
 
 import { useRouter } from 'expo-router';
@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../../src/components/Button';
 import { NumberPicker } from '../../src/components/NumberPicker';
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingTopRow } from '../../src/components/OnboardingTopRow';
 import { QuestionHeader } from '../../src/components/QuestionHeader';
 import { Text } from '../../src/components/Text';
 import { useOnboarding } from '../../src/onboarding/OnboardingContext';
@@ -44,7 +44,7 @@ export default function OnboardingB1() {
       edges={['top', 'bottom']}
       testID="onboarding-b1"
     >
-      <ProgressDots total={8} current={3} />
+      <OnboardingTopRow total={8} current={3} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}

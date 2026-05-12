@@ -16,11 +16,10 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackLink } from '../../src/components/BackLink';
-import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
+import { OnboardingTopRow } from '../../src/components/OnboardingTopRow';
 import { Pill } from '../../src/components/Pill';
-import { ProgressDots } from '../../src/components/ProgressDots';
 import { QuestionHeader } from '../../src/components/QuestionHeader';
 import { Text } from '../../src/components/Text';
 import {
@@ -59,8 +58,15 @@ export default function OnboardingB2Purpose() {
 
   const onNext = () => {
     if (currentChildIndex < total - 1) {
-      setCurrentChildIndex(currentChildIndex + 1);
-      router.push('/(onboarding)/b2');
+      const nextIndex = currentChildIndex + 1;
+      // a2 / b5 / c2 와 같은 패턴: 같은 경로를 인덱스 매개변수와 함께 push
+      // 한다. 새 b2 인스턴스가 stack 에 쌓여 forward 와 backward 가 대칭이
+      // 된다 (router.back() 만으로 자연 슬라이드, stack 잔여물 없음).
+      setCurrentChildIndex(nextIndex);
+      router.push({
+        pathname: '/(onboarding)/b2',
+        params: { index: String(nextIndex) },
+      });
       return;
     }
     router.push('/(onboarding)/b3');
@@ -72,17 +78,13 @@ export default function OnboardingB2Purpose() {
       edges={['top', 'bottom']}
       testID="onboarding-b2-purpose"
     >
-      <View style={styles.topRow}>
-        <ProgressDots total={8} current={4} style={styles.progress} />
-        {total > 1 && (
-          <Badge
-            label={`${currentChildIndex + 1}/${total}`}
-            variant="category"
-            testID={`onboarding-b2-purpose-child-index-${currentChildIndex}`}
-            style={styles.indexBadge}
-          />
-        )}
-      </View>
+      <OnboardingTopRow
+        total={8}
+        current={4}
+        index={currentChildIndex}
+        count={total}
+        testIDPrefix="onboarding-b2-purpose-child-index"
+      />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -133,15 +135,6 @@ export default function OnboardingB2Purpose() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg.cream },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progress: { flex: 1 },
-  indexBadge: {
-    marginRight: spacing[6],
-    marginTop: spacing[3],
-  },
   scroll: { flex: 1 },
   content: { paddingBottom: spacing[8] },
   body: {
