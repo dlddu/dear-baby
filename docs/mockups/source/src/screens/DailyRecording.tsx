@@ -16,87 +16,121 @@ import {
 } from "@/components/Common"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// M-18 · 홈 (다자녀 / 양육 모드, Case B)
+// M-18 · 홈 — 다자녀 양육 모드 (Case B)
+//   준수: PRD-007 (전 AC). 2명 이상 → 헤더 좌우 화살표 활성 (AC-02).
+//        활성 아이는 하준(생후 6개월). 좌 화살표로 서연(2세)으로 전환 가능.
 // ─────────────────────────────────────────────────────────────────────────────
 export function M18_HomeMultiChild({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex flex-col items-center w-full">
       <BackToGallery onClick={onBack} />
-      <PhoneFrame label="M-18 · Daily Recording · Stage 6-1 (다자녀)" screenClassName="bg-cream">
-        {/* date + greeting */}
-        <div className="px-5 pt-5 pb-2">
-          <div className="text-[13px] text-ink-sub">9월 16일 화요일 · 오전 9:41</div>
-          <div className="font-serif text-[22px] font-bold leading-[1.45] text-ink mt-1">
-            오늘 하준이는<br />어떤 표정이었나요?
+      <PhoneFrame label="M-18 · Daily Recording · Stage 6-1 · 다자녀" screenClassName="bg-cream">
+        {/* ─── Header (AC-007-01, 02, 03) — 다자녀, 화살표 활성 ───── */}
+        <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-beige/60">
+          <button className="w-8 h-8 flex items-center justify-center text-ink-sub">◀</button>
+          <div className="text-[15px] font-bold text-ink">하준</div>
+          <div className="flex items-center gap-2">
+            <button className="w-8 h-8 flex items-center justify-center text-ink-sub">▶</button>
+            <button className="relative w-8 h-8 flex items-center justify-center text-ink-sub">
+              <span className="text-[18px]">🔔</span>
+              {/* 안 읽은 알림 없음 → red dot 없음 (AC-03) */}
+            </button>
           </div>
         </div>
 
-        {/* child tabs */}
+        {/* ─── 오늘의 질문 카드 (AC-007-04, 05, 06, 07) ────────────── */}
         <div className="px-5 pt-4">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            <button className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full bg-ivory shadow-db-sm">
-              <div className="w-7 h-7 rounded-full bg-sage/40 flex items-center justify-center text-[14px]">
-                👧
+          <div className="bg-ivory rounded-db-md shadow-db-sm p-4">
+            <div className="flex gap-3 items-start">
+              {/* 좌측 프로필 — 양육 모드 (AC-04, AC-01 양육자 표시 규칙) */}
+              <div className="flex flex-col items-center w-[68px] flex-shrink-0">
+                <div className="w-[60px] h-[60px] rounded-full bg-gradient-to-br from-peach to-coral/40 flex items-center justify-center text-[28px] shadow-db-sm">
+                  👶
+                </div>
+                <div className="text-[12px] font-semibold text-ink mt-1.5">하준</div>
+                <div className="text-[11px] text-coral font-medium">6개월 (192일째)</div>
               </div>
-              <span className="text-[13px] font-medium text-ink-sub">서연 · 2세</span>
-            </button>
-            <button className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full bg-coral text-white shadow-db-md">
-              <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-[14px]">
-                👶
+
+              {/* 우측 말풍선 — 회전 중 (AC-05) */}
+              <div className="flex-1 relative">
+                <div className="absolute left-[-6px] top-4 w-3 h-3 bg-cream rotate-45" />
+                <div className="bg-cream rounded-db-md p-3.5">
+                  <div className="font-serif text-[15px] leading-[1.55] text-ink">
+                    엄마, 오늘은 제가<br />어떤 새로운 소리를 냈을까요?
+                  </div>
+                  <div className="flex items-center justify-end gap-1.5 mt-2.5 pt-2 border-t border-beige/60">
+                    <button className="text-ink-sub text-[14px]">◀</button>
+                    <span className="text-[11px] text-ink-sub font-mono">2/3</span>
+                    <button className="text-ink-sub text-[14px]">▶</button>
+                  </div>
+                </div>
               </div>
-              <span className="text-[13px] font-bold">하준 · 6개월</span>
-            </button>
-            <button className="flex-shrink-0 w-10 h-10 rounded-full bg-ivory shadow-db-sm flex items-center justify-center text-ink-muted">
-              +
-            </button>
+            </div>
+
+            {/* 기록 진입 버튼 (AC-06) */}
+            <div className="grid grid-cols-2 gap-2 mt-3.5">
+              <button className="flex items-center justify-center gap-1.5 py-3 rounded-db-sm bg-coral text-white text-[13px] font-bold shadow-db-sm">
+                <span>🎙️</span>
+                <span>목소리로 남기기</span>
+              </button>
+              <button className="flex items-center justify-center gap-1.5 py-3 rounded-db-sm bg-beige text-ink text-[13px] font-bold">
+                <span>✏️</span>
+                <span>글로 남기기</span>
+              </button>
+            </div>
+
+            {/* 책 진행도 — 활성 아이 기준 독립 카운트 (AC-07, PRD-006 원칙) */}
+            <div className="mt-3.5 pt-3 border-t border-beige/60">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[12px] text-ink-sub">
+                  <span>하준이에게 전해줄 책이 만들어지고 있어요</span>
+                  <button className="w-4 h-4 rounded-full bg-beige flex items-center justify-center text-[10px] text-ink-sub font-bold">?</button>
+                </div>
+                <div className="text-[12px] font-bold text-coral font-mono">38/50</div>
+              </div>
+              <div className="mt-1.5 h-1 bg-beige rounded-full overflow-hidden">
+                <div className="h-full bg-coral rounded-full" style={{ width: "76%" }} />
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* baby card */}
-        <div className="px-5 pt-3">
-          <Badge>생후 6개월 12일</Badge>
-          <div className="bg-ivory rounded-db-md p-[18px] shadow-db-sm mt-3">
-            <div className="flex items-center gap-3.5">
-              <div className="w-16 h-16 rounded-db-md flex items-center justify-center text-[30px] bg-gradient-to-br from-peach to-coral/40">
-                👶
-              </div>
-              <div className="flex-1">
-                <div className="text-[17px] font-bold text-ink">하준이</div>
-                <div className="text-[13px] text-ink-sub">2026.03.04 출생</div>
-                <div className="text-[13px] text-coral font-medium mt-0.5">하준이의 86번째 기록</div>
-              </div>
-            </div>
-            <div className="mt-3.5 pt-3.5 border-t border-beige">
-              <div className="font-serif text-[14px] leading-[1.65] text-ink-sub italic">
-                "처음으로 옹알이 비슷한 소리를 냈다. 콩, 콩 같은 발음이…"
-              </div>
-              <div className="text-[12px] text-ink-muted mt-1">— 그제 음성 기록</div>
-            </div>
+        {/* ─── 타인 기록 피드 (AC-007-08, 09) — 활성 아이와 무관 (AC-02) */}
+        <div className="px-5 pt-5 pb-32">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[14px] font-bold text-ink">다른 엄마들의 기록</div>
+            <button className="text-[12px] text-ink-sub flex items-center gap-0.5">
+              <span>더보기</span>
+              <span>›</span>
+            </button>
           </div>
-        </div>
 
-        {/* prompts */}
-        <div className="px-5 pt-3">
-          <div className="text-[13px] text-ink-sub mb-2">오늘의 기록 도움말 (하준)</div>
-          <div className="flex flex-wrap gap-2">
-            {["오늘의 옹알이", "새 표정", "잠자는 모습", "이유식 반응"].map((c) => (
-              <Chip key={c}>{c}</Chip>
+          <div className="space-y-2">
+            {[
+              { id: "min***7", ctx: "생후 6개월", q: "엄마, 제가 오늘 처음으로 잡은 물건이 뭐였어요?", a: "딸랑이를 한참 노려보더니 갑자기 손을 쭉 뻗어서 잡았어. 두 손으로", hearts: 124 },
+              { id: "jin***2", ctx: "임신 28주차", q: "엄마, 오늘 저랑 어떤 노래를 들으셨어요?", a: "퇴근길에 라디오에서 흘러나온 옛날 발라드. 가사가 어쩐지 너에게", hearts: 89 },
+              { id: "yoo***5", ctx: "3살", q: "엄마, 제가 오늘 어떤 그림을 그렸어요?", a: "도화지를 가득 채운 동그라미들. 모두 다 \"엄마 얼굴\"이래.", hearts: 201 },
+            ].map((c) => (
+              <div key={c.id} className="bg-ivory rounded-db-md p-3.5 shadow-db-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-baseline gap-2 flex-1 min-w-0">
+                    <span className="text-[12px] font-bold text-ink">{c.id}</span>
+                    <span className="text-[11px] text-ink-muted">{c.ctx}</span>
+                  </div>
+                  <span className="text-[11px] text-coral flex items-center gap-0.5 flex-shrink-0">
+                    <span>♥</span>
+                    <span className="font-mono">{c.hearts}</span>
+                  </span>
+                </div>
+                <div className="text-[13px] font-bold text-ink mt-1.5 leading-[1.5]">{c.q}</div>
+                <div className="text-[12px] text-ink-sub mt-1 leading-[1.55]">
+                  {c.a}<span className="text-ink-muted">...</span>
+                </div>
+              </div>
             ))}
           </div>
         </div>
 
-        <div className="px-5 pt-4 pb-32">
-          <div className="text-[13px] text-ink-muted uppercase tracking-wider mb-2 px-1">
-            최근 (하준)
-          </div>
-          <FrameCard className="overflow-hidden">
-            <Row icon="🎙️" iconBg="bg-cream" title="처음 옹알이" subtitle="그제 · 음성 0:42" border={false} />
-            <Row icon="📷" iconBg="bg-cream" title="새 친구 인형 받은 날" subtitle="9/14 · 사진 3장" />
-            <Row icon="✏️" iconBg="bg-cream" title="이유식 첫 시도" subtitle="9/12 · 텍스트" />
-          </FrameCard>
-        </div>
-
-        <FAB />
         <Tabbar active="home" />
       </PhoneFrame>
     </div>

@@ -3,12 +3,12 @@ doc_id: TRACKER-001
 doc_type: tracker
 product: dear_baby
 created: 2026-05-02
-updated: 2026-05-11
+updated: 2026-05-12
 ---
 
 # 디어베이비 문서 체계 상태 추적
 
-## 현재 상태 요약 (2026-05-11 기준)
+## 현재 상태 요약 (2026-05-12 기준)
 
 - 정의된 가치: **7개** (V-001 ~ V-007)
 - 가치 문서: **1개** (VDOC-001)
@@ -18,7 +18,7 @@ updated: 2026-05-11
 - 흐름도: **1개** (onboarding-flow.md)
 - Mockup: **35개 화면** (M-01 ~ M-34 + 갤러리), 단일 React 번들 `mockups/index.html`. 모든 사용자 여정 stage 1:1 매핑
 - 용어집: **1개** (GLOSSARY-001)
-- **건강 상태**: ✅ 건강함
+- **건강 상태**: ✅ 건강함 (2026-05-12 홈 화면 정합성 회복)
 
 ## 연결 매트릭스
 
@@ -83,6 +83,7 @@ updated: 2026-05-11
 | 2026-05-06 | mockup 을 React + Vite + Tailwind + shadcn/ui 기반 단일 번들로 재작성. 정적 HTML 버전 폐기. 소스는 `mockups/source/`, 번들은 `mockups/index.html`. Tailwind config 에 dear-baby 디자인 토큰을 1:1 매핑하여 코드와 디자인 시스템 사이 정합성 강화. | 정적 HTML 35 | React 번들 35 |
 | 2026-05-11 | PRD-007 (홈 화면 구성) 추가 — 헤더·오늘의 질문 카드·타인 기록 피드·하단 네비게이션의 화면 구성과 상호작용을 통합 정의. PRD-001/002/004/006과 연결. AC 10개 | PRD 6, AC 35 | PRD 7, AC 45 |
 | 2026-05-11 | TEST-007 추가 (17 TC) — PRD-007의 모든 AC 커버 | TEST 6 | TEST 7 |
+| 2026-05-12 | **홈 화면 정합성 검증 → 🔴 위험 3건 발견 → 해소**: ① PRD-007 ↔ M-17/M-18/M-26 시각화 완전 불일치 (PRD 핵심 요소 5종이 mockup에 부재) — mockup 3개를 PRD-007 명세대로 재디자인 ② Tabbar 4탭→5탭 (자서전·커뮤니티·홈·일기·설정) 갱신 (AC-007-10 준수) ③ daily-recording-journey "관련 PRD"에 PRD-007 누락 → 추가. `mockups/index.html` 재빌드. | 🔴 위험 3건 | ✅ 해소 |
 
 ## 향후 검토 항목
 
