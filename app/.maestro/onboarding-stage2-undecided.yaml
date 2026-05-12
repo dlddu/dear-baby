@@ -29,6 +29,11 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/onboarding-caseA-a1-a2-skip.yaml
 
+# PRD-007 AC-007-01·03 — 헤더(이름·종) 는 예정일 미정 경로에서도 보여야 한다.
+- assertVisible:
+    id: "home-header"
+- assertVisible:
+    id: "home-header-bell"
 - assertVisible:
     id: "stage2-question-card"
 - assertVisible:

@@ -25,3 +25,5 @@ export { Pill } from './Pill';
 export type { PillProps } from './Pill';
 export { StepCard } from './StepCard';
 export type { StepCardItem, StepCardProps } from './StepCard';
+export { HomeHeader } from './HomeHeader';
+export type { HomeHeaderProps } from './HomeHeader';

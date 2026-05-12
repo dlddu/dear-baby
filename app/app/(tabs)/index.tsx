@@ -3,15 +3,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { openAiPreviewStream, requestAiPreview } from '../../src/api/ai';
+import { getUnreadCount } from '../../src/api/notifications';
 import {
   AiPreviewCard,
   type AiPreviewStatus,
 } from '../../src/components/AiPreviewCard';
 import { Button } from '../../src/components/Button';
 import { Coachmark } from '../../src/components/Coachmark';
+import { HomeHeader } from '../../src/components/HomeHeader';
 import { QuestionCard } from '../../src/components/QuestionCard';
 import { Text } from '../../src/components/Text';
 import { useAuth } from '../../src/auth/AuthContext';
+import { useActiveChild } from '../../src/context/ActiveChildContext';
 import { pickDailyQuestion } from '../../src/data/dailyQuestions';
 import * as draftStore from '../../src/drafts/draftStore';
 import { colors } from '../../src/theme/colors';
@@ -38,6 +41,11 @@ const ENCOURAGEMENT = '첫 기록이 가장 소중해요 🌱';
 export default function HomeTab() {
   const router = useRouter();
   const { user, dismissVoiceCoachmark, applyAiPreview } = useAuth();
+  const { activeChild, canNavigate, next, prev } = useActiveChild();
+  // Unread notification count — backend is mocked (see api/notifications.ts).
+  // Re-fetch on every focus so a future implementation can decrement when
+  // the user returns from the notifications screen.
+  const [unreadCount, setUnreadCount] = useState(0);
   // Local flag hides the coachmark immediately on tap; the backend call is
   // fire-and-forget so the UI never waits on the network. Persisted state
   // comes from `user.voice_coachmark_dismissed_at` on next session load.
@@ -112,6 +120,9 @@ export default function HomeTab() {
       void draftStore.count().then((n) => {
         if (!cancelled) setDraftCount(n);
       });
+      void getUnreadCount().then((n) => {
+        if (!cancelled) setUnreadCount(n);
+      });
       return () => {
         cancelled = true;
       };
@@ -159,87 +170,92 @@ export default function HomeTab() {
   }, [router]);
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.container}
-      testID="home-tab"
-    >
-      <QuestionCard
-        weekLabel={pregnancy?.label ?? null}
-        question={question}
-        encouragement={ENCOURAGEMENT}
-        testID="stage2-question-card"
-        badgeTestID="stage2-week-badge"
+    <View style={styles.screen} testID="home-tab">
+      <HomeHeader
+        displayName={activeChild?.displayName ?? (user?.name ?? '우리 아이')}
+        canNavigate={canNavigate}
+        hasUnreadNotification={unreadCount > 0}
+        onPrev={prev}
+        onNext={next}
       />
-
-      {showCoachmark ? (
-        <Coachmark
-          label={COACHMARK_LABEL}
-          arrowAlign="left"
-          onDismiss={handleDismissCoachmark}
-          testID="stage2-coachmark"
-          dismissTestID="stage2-coachmark-dismiss"
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+      >
+        <QuestionCard
+          weekLabel={pregnancy?.label ?? null}
+          question={question}
+          encouragement={ENCOURAGEMENT}
+          testID="stage2-question-card"
+          badgeTestID="stage2-week-badge"
         />
-      ) : null}
 
-      {draftCount > 0 ? (
-        <Pressable
-          onPress={handleDraftsPress}
-          style={styles.draftsBanner}
-          testID="drafts-banner"
-        >
-          <Text variant="caption" color="onPrimary">
-            🎙 보관 중인 음성 원본 {draftCount}개
-          </Text>
-          <Text variant="caption" color="onPrimary">
-            보관함 열기 →
-          </Text>
-        </Pressable>
-      ) : null}
-
-      <View style={styles.ctaRow}>
-        <View style={styles.ctaItem}>
-          <Button
-            title="음성 기록"
-            leading="🎙"
-            variant="primary"
-            fullWidth
-            onPress={handleVoicePress}
-            testID="stage2-voice-cta"
+        {showCoachmark ? (
+          <Coachmark
+            label={COACHMARK_LABEL}
+            arrowAlign="left"
+            onDismiss={handleDismissCoachmark}
+            testID="stage2-coachmark"
+            dismissTestID="stage2-coachmark-dismiss"
           />
-        </View>
-        <View style={styles.ctaItem}>
-          <Button
-            title="텍스트"
-            leading="✏️"
-            variant="secondary"
-            fullWidth
-            onPress={handleTextPress}
-            testID="stage2-text-cta"
-          />
-        </View>
-      </View>
+        ) : null}
 
-      <AiPreviewCard
-        status={aiPreviewStatus}
-        content={user?.ai_preview}
-        onRetry={handleRetry}
-        testID="stage2-ai-preview"
-      />
+        {draftCount > 0 ? (
+          <Pressable
+            onPress={handleDraftsPress}
+            style={styles.draftsBanner}
+            testID="drafts-banner"
+          >
+            <Text variant="caption" color="onPrimary">
+              🎙 보관 중인 음성 원본 {draftCount}개
+            </Text>
+            <Text variant="caption" color="onPrimary">
+              보관함 열기 →
+            </Text>
+          </Pressable>
+        ) : null}
 
-      {user ? (
-        <Text variant="caption" color="muted" style={styles.identity}>
-          {user.name || user.email}
-        </Text>
-      ) : null}
-    </ScrollView>
+        <View style={styles.ctaRow}>
+          <View style={styles.ctaItem}>
+            <Button
+              title="음성 기록"
+              leading="🎙"
+              variant="primary"
+              fullWidth
+              onPress={handleVoicePress}
+              testID="stage2-voice-cta"
+            />
+          </View>
+          <View style={styles.ctaItem}>
+            <Button
+              title="텍스트"
+              leading="✏️"
+              variant="secondary"
+              fullWidth
+              onPress={handleTextPress}
+              testID="stage2-text-cta"
+            />
+          </View>
+        </View>
+
+        <AiPreviewCard
+          status={aiPreviewStatus}
+          content={user?.ai_preview}
+          onRetry={handleRetry}
+          testID="stage2-ai-preview"
+        />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
+  screen: {
     flex: 1,
     backgroundColor: colors.bg.cream,
+  },
+  scroll: {
+    flex: 1,
   },
   container: {
     paddingHorizontal: spacing[5],
@@ -252,7 +268,6 @@ const styles = StyleSheet.create({
     gap: spacing[3],
   },
   ctaItem: { flex: 1 },
-  identity: { textAlign: 'center', marginTop: spacing[2] },
   draftsBanner: {
     flexDirection: 'row',
     alignItems: 'center',

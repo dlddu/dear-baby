@@ -33,7 +33,11 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/onboarding-caseA-a1-a2-date.yaml
 
-# Stage 2 UI
+# Stage 2 UI — PRD-007 AC-007-01·03: 새 헤더(이름·종)가 홈 진입과 동시에 보여야 한다.
+- assertVisible:
+    id: "home-header"
+- assertVisible:
+    id: "home-header-bell"
 - assertVisible:
     id: "stage2-question-card"
 - assertVisible: "첫 기록이 가장 소중해요 🌱"

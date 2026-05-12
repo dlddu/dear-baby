@@ -1,0 +1,32 @@
+appId: com.dlddu.dearbaby
+---
+# PRD-007 TC-007-03 — 알림 종 아이콘 red dot.
+#
+# notifications.ts 의 stub 이 결정적으로 1 을 반환하므로, 홈 도착 시
+# 종 아이콘 우상단의 red dot 이 항상 노출되어야 한다. 백엔드 알림 API 가
+# 도착하면 본 E2E 는 0/1 케이스를 모두 다루도록 확장한다.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# 가장 짧은 경로 — Case A 예정일 선택 후 홈 도착.
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseA.yaml
+- runFlow:
+    file: subflows/onboarding-caseA-a1-a2-date.yaml
+
+- assertVisible:
+    id: "home-header"
+- assertVisible:
+    id: "home-header-bell"
+- assertVisible:
+    id: "home-header-unread-dot"
