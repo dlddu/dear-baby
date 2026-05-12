@@ -5,33 +5,27 @@
 
 ---
 
-## 온보딩 다인스턴스 화면 (다태아 / 다자녀) 패턴
+## 뒤로 가기 (BackLink) 를 추가할 때는 iOS 스와이프 백을 함께 고려한다
 
-다태아·다자녀 입력 화면처럼 **같은 라우트를 stack 에 여러 번 push** 하는 화면은
-**자기 인덱스를 `useLocalSearchParams` 로 받아야 한다.** context (`useOnboarding`) 의
-`currentFetusIndex` / `currentChildIndex` 를 직접 구독해서 화면을 그리면 안 된다.
-
-### 왜
-- `router.push({ pathname, params: { index } })` 로 새 인스턴스를 stack 에 쌓는
-  구조에서, **forward 시 context.currentIndex 가 증가** → stack 의 이전 인스턴스도
-  모두 그 컨텍스트 값으로 re-render 됨.
-- iOS 네이티브 스와이프 백 제스처는 우리 `onBack` 핸들러를 호출하지 않고
-  라우트만 pop 한다. 그래서 `setCurrent...Index(prev - 1)` 동기화가 일어나지
-  않음 → stack 의 모든 인스턴스가 마지막 인덱스 값으로 잘못 표시.
-- 라우트 매개변수는 push 시점에 고정되므로 인스턴스마다 독립적인 식별자가
-  유지된다.
+iOS 의 네이티브 좌→우 스와이프 백 제스처는 우리가 정의한 `onBack` /
+`router.back()` 핸들러를 **호출하지 않고** 라우트만 pop 한다. Android 하드웨어
+백 버튼·헤더 백 버튼·BackLink 컴포넌트는 우리 핸들러를 거치지만, iOS 스와이프
+백은 그렇지 않다.
 
 ### 규칙
-- a2 / b2 / b2-purpose / b5 / c2 / c3 같은 **다인스턴스 화면 한 쌍은 둘 다**
-  `params.index` 로 식별해야 한다 (한쪽만 params 쓰면 비대칭 버그 재발).
-- 이전 화면에서 push 할 때 항상 `params: { index: String(nextIndex) }` 를 함께
-  넘긴다. b2 → b2-purpose, b2-purpose → b2 양쪽 모두.
-- `setCurrent...Index(...)` 는 **영속화(drafts cache) 용으로만** 호출한다.
-  UI 식별의 단일 소스는 라우트 매개변수다.
-- `onBack` 의 setCurrent...Index 호출도 영속화 목적. 실제로 iOS 스와이프 백이
-  들어오면 핸들러가 안 돌아도 UI 는 params 기반이라 정상 동작해야 한다.
+- `onBack` 안에서만 상태 정리·인덱스 감소·context 동기화·로그 송신을 하면
+  iOS 스와이프 백 시 그 작업이 누락된다. 화면이 **자기 상태만으로도 올바르게
+  렌더되도록** 만들어 두고, 핸들러는 부수적인 영속화 정도만 담당한다.
+- 같은 라우트를 stack 에 여러 번 push 하는 화면(다태아·다자녀·반복 입력
+  등)은 자기 인덱스를 **라우트 매개변수(`useLocalSearchParams`) 로 받는다.**
+  컨텍스트 (`useOnboarding` 등) 의 단일 `current...Index` 를 직접 구독하면
+  forward 시 stack 의 이전 인스턴스들도 같이 re-render 되고, 스와이프 백 후
+  잘못된 인덱스가 노출된다.
+- 페어 화면은 양쪽 다 같은 식별 방식을 써야 한다 (한쪽은 params, 다른 쪽은
+  context — 같은 함정의 반쪽짜리 수정).
+- 새 화면을 만들 때 손가락 하나로 스와이프 백을 직접 해보고 동작 확인.
+  유닛 테스트로는 잡히지 않는다.
 
 ### 참고 커밋
-- `2ed464b` Case B 8화면 신규 (b2-purpose 가 context 구독으로 만들어진 버그의 시작)
-- `dd6047c` OnboardingTopRow 추출 (b2 만 params 로 옮긴 절반 통일)
-- `6e835ca` b2-purpose 도 params.index 로 옮겨 대칭 완성 + 스와이프 백 버그 수정
+- `6e835ca` Case B 양육 b2-purpose 가 context 구독이라 iOS 스와이프 백 시
+  잘못된 인덱스로 표시되던 버그 — 페어 양쪽을 params 기반으로 통일.
