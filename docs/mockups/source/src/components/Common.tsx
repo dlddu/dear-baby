@@ -30,15 +30,18 @@ export function TopBar({
 // ─────────────────────────────────────────────────────────────────────────────
 // Tabbar (sticky bottom)
 // ─────────────────────────────────────────────────────────────────────────────
+// PRD-007 AC-007-10 — 5탭 고정 네비게이션. 순서·라벨은 PRD에 명세됨.
+// 홈(3번)이 중앙에 위치하여 양손 엄지 접근성을 우선한다.
 export function Tabbar({
   active = "home",
 }: {
-  active?: "home" | "diary" | "book" | "settings"
+  active?: "memoir" | "community" | "home" | "diary" | "settings"
 }) {
   const items: { id: typeof active; ic: string; label: string }[] = [
+    { id: "memoir", ic: "📖", label: "자서전" },
+    { id: "community", ic: "💬", label: "커뮤니티" },
     { id: "home", ic: "🏠", label: "홈" },
-    { id: "diary", ic: "📓", label: "기록" },
-    { id: "book", ic: "📖", label: "책" },
+    { id: "diary", ic: "📓", label: "일기" },
     { id: "settings", ic: "⚙", label: "설정" },
   ]
   return (

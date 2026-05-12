@@ -67,8 +67,8 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-14 | C1 — 양육 아이 수 | Onboarding · 5-C1 (Case C) |
 | M-15 | C2 — 아이 정보 | Onboarding · 5-C2 (Case C) |
 | M-16 | C3 — 기록 목적 | Onboarding · 5-C3 (Case C) |
-| M-17 | 홈 — 임신 모드 (단일) | Daily Recording · 6-1 |
-| M-18 | 홈 — 다자녀 (Case B) | Daily Recording · 6-1 |
+| M-17 | 홈 — 임신 모드 (단일) — **PRD-007 준수** | Daily Recording · 6-1 |
+| M-18 | 홈 — 다자녀 (Case B) — **PRD-007 준수** | Daily Recording · 6-1 |
 | M-19 | 음성 녹음 | Daily Recording · 6-2 |
 | M-20 | AI STT 결과 편집 | Daily Recording · 6-3 |
 | M-21 | 사진·영상·음성 첨부 | Daily Recording · 6-4 |
@@ -76,7 +76,7 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-23 | 출산 확인 모달 | Birth Conversion · 7-2 |
 | **M-24 ★** | **출생일 입력** | **Birth Conversion · 7-3 (감정 봉우리)** |
 | M-25 | 설정 + D+14 배너 | Birth Conversion · 7-2 alt |
-| M-26 | 양육자 모드 첫 홈 | Birth Conversion · 7-4 |
+| M-26 | 양육자 모드 첫 홈 — **PRD-007 준수 + 환영 리본** | Birth Conversion · 7-4 |
 | M-27 | AI 서사 요청 | AI Narrative · 8-1 |
 | M-28 | AI 처리 로딩 | AI Narrative · 8-2 |
 | **M-29 ★** | **서사 미리보기** | **AI Narrative · 8-3 (감정 봉우리)** |

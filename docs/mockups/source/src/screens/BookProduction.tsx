@@ -520,7 +520,7 @@ export function M34_BookTracking({ onBack }: { onBack: () => void }) {
           </FrameCard>
         </div>
 
-        <Tabbar active="book" />
+        <Tabbar active="memoir" />
       </PhoneFrame>
     </div>
   )
