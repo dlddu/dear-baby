@@ -9,9 +9,10 @@
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BackLink } from '../../src/components/BackLink';
 import { Button } from '../../src/components/Button';
 import { Pill } from '../../src/components/Pill';
 import { ProgressDots } from '../../src/components/ProgressDots';
@@ -86,16 +87,7 @@ export default function OnboardingA3() {
       </ScrollView>
 
       <View style={styles.actions}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          testID="onboarding-a3-back"
-          style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}
-        >
-          <Text variant="caption" color="secondary" style={styles.backText}>
-            ← 이전으로
-          </Text>
-        </Pressable>
+        <BackLink onPress={() => router.back()} testID="onboarding-a3-back" />
         <Button
           title={submitting ? '저장 중…' : '시작하기 ✨'}
           variant="primary"
@@ -143,11 +135,5 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[3],
     gap: spacing[2],
   },
-  backLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing[2],
-  },
-  backText: { textDecorationLine: 'underline' },
-  pressed: { opacity: 0.85 },
   error: { textAlign: 'center' },
 });

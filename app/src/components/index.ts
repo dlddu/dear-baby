@@ -3,6 +3,8 @@ export { Text } from './Text';
 export type { AppTextProps } from './Text';
 export { Button } from './Button';
 export type { ButtonProps } from './Button';
+export { BackLink } from './BackLink';
+export type { BackLinkProps } from './BackLink';
 export { FAB } from './FAB';
 export type { FABProps } from './FAB';
 export { Card } from './Card';

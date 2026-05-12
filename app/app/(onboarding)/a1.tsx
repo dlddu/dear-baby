@@ -19,6 +19,7 @@ import type { FetusCount } from '../../src/onboarding/types';
 import { colors } from '../../src/theme/colors';
 import { radius } from '../../src/theme/radius';
 import { spacing } from '../../src/theme/spacing';
+import { typography } from '../../src/theme/typography';
 
 export default function OnboardingA1() {
   const router = useRouter();
@@ -56,9 +57,7 @@ export default function OnboardingA1() {
             testID="onboarding-a1-count"
           />
           <View style={styles.helperCard}>
-            <Text variant="body" style={styles.helperEmoji}>
-              💡
-            </Text>
+            <Text variant="emoji">💡</Text>
             <Text variant="caption" color="secondary" style={styles.helperText}>
               나중에 설정에서 변경하실 수 있어요
             </Text>
@@ -98,8 +97,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     backgroundColor: colors.bg.beige,
   },
-  helperEmoji: { fontSize: 16 },
-  helperText: { flex: 1, lineHeight: 20 },
+  helperText: { flex: 1, lineHeight: typography.emoji.lineHeight },
   actions: {
     paddingHorizontal: spacing[6],
     paddingTop: spacing[3],

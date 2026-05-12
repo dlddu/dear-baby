@@ -77,6 +77,27 @@ export const typography = {
     fontWeight: '400',
     lineHeight: 24,
   },
+  /** 인라인 도움말 이모지 — 16/20. Sans 본문과 함께 한 줄에 들어가는 단일 이모지 한 글자용. */
+  emoji: {
+    fontFamily: fontFamilies.sans,
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 20,
+  },
+  /** 도입부 히어로 이모지 — 48/64. 온보딩 b0·b3·not-ready 의 큰 이모지 한 글자용. */
+  iconHero: {
+    fontFamily: fontFamilies.emotion,
+    fontSize: 48,
+    fontWeight: '400',
+    lineHeight: 64,
+  },
+  /** 부드러운 안내문 — 15/22. body 보다 살짝 좁은 행간으로 멀티라인 태그라인용. */
+  tagline: {
+    fontFamily: fontFamilies.sans,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 22,
+  },
 } satisfies Record<string, TypographyStyle>;
 
 export type TypographyVariant = keyof typeof typography;

@@ -17,6 +17,7 @@ import { Text } from '../../src/components/Text';
 import { useOnboarding } from '../../src/onboarding/OnboardingContext';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
+import { typography } from '../../src/theme/typography';
 
 export default function OnboardingNotReady() {
   const { completeAsBC } = useOnboarding();
@@ -45,7 +46,7 @@ export default function OnboardingNotReady() {
     >
       <View style={styles.container}>
         <View style={styles.hero}>
-          <Text variant="emotion" color="coral" style={styles.icon}>
+          <Text variant="iconHero" color="coral">
             🌱
           </Text>
           <Text variant="h2Serif" color="primary" style={styles.title}>
@@ -103,11 +104,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[3],
   },
-  icon: { fontSize: 48, lineHeight: 56 },
   title: { textAlign: 'center' },
   tagline: { textAlign: 'center' },
   card: { gap: spacing[3] },
-  note: { lineHeight: 22 },
+  note: { lineHeight: typography.tagline.lineHeight },
   actions: { gap: spacing[3] },
   error: { textAlign: 'center' },
 });
