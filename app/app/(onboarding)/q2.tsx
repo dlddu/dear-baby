@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.ivory,
     borderWidth: 2,
     borderColor: 'transparent',
-    gap: 2,
+    gap: spacing[1],
   },
   optionPressed: {
     backgroundColor: colors.primary.coralTint,

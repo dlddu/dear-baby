@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BackLink } from '../../src/components/BackLink';
 import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Pill } from '../../src/components/Pill';
@@ -35,6 +36,7 @@ import type { Gender } from '../../src/onboarding/types';
 import { colors } from '../../src/theme/colors';
 import { radius } from '../../src/theme/radius';
 import { spacing } from '../../src/theme/spacing';
+import { typography } from '../../src/theme/typography';
 import { formatKoreanDate, toIsoDate } from '../../src/utils/date';
 
 const MAX_DATE = new Date();
@@ -240,19 +242,11 @@ export default function OnboardingB2() {
 
       <View style={styles.actions}>
         {currentChildIndex > 0 && (
-          <Pressable
+          <BackLink
             onPress={onBack}
-            accessibilityRole="button"
+            label="← 이전 아이로"
             testID="onboarding-b2-back"
-            style={({ pressed }) => [
-              styles.backLink,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text variant="caption" color="secondary" style={styles.backText}>
-              ← 이전 아이로
-            </Text>
-          </Pressable>
+          />
         )}
         <Button
           title="다음"
@@ -327,7 +321,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingVertical: spacing[3],
     paddingHorizontal: spacing[4],
-    fontSize: 15,
+    fontSize: typography.body.fontSize,
     color: colors.text.primary,
   },
   pillRow: {
@@ -342,11 +336,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[3],
     gap: spacing[2],
   },
-  backLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing[2],
-  },
-  backText: { textDecorationLine: 'underline' },
   pressed: { opacity: 0.85 },
   pickerDone: {
     alignSelf: 'center',

@@ -12,9 +12,10 @@
 
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BackLink } from '../../src/components/BackLink';
 import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
@@ -112,16 +113,10 @@ export default function OnboardingB2Purpose() {
       </ScrollView>
 
       <View style={styles.actions}>
-        <Pressable
+        <BackLink
           onPress={() => router.back()}
-          accessibilityRole="button"
           testID="onboarding-b2-purpose-back"
-          style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}
-        >
-          <Text variant="caption" color="secondary" style={styles.backText}>
-            ← 이전으로
-          </Text>
-        </Pressable>
+        />
         <Button
           title="다음"
           variant="primary"
@@ -169,10 +164,4 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[3],
     gap: spacing[2],
   },
-  backLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing[2],
-  },
-  backText: { textDecorationLine: 'underline' },
-  pressed: { opacity: 0.85 },
 });

@@ -43,13 +43,13 @@ export default function OnboardingB0() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.hero}>
-          <Text variant="emotion" color="coral" style={styles.icon}>
+          <Text variant="iconHero" color="coral">
             👶✨
           </Text>
           <Text variant="h2Serif" color="primary" style={styles.title}>
             먼저 키우고 계신{'\n'}아이부터 알려주세요
           </Text>
-          <Text variant="body" color="secondary" style={styles.tagline}>
+          <Text variant="tagline" color="secondary" style={styles.taglineAlign}>
             이미 만난 아이의 기록과{'\n'}새로 시작하는 임신 기록을{'\n'}따로따로
             정리해드릴게요
           </Text>
@@ -82,9 +82,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing[6],
     gap: spacing[3],
   },
-  icon: { fontSize: 48, lineHeight: 64 },
   title: { textAlign: 'center' },
-  tagline: { textAlign: 'center', lineHeight: 22 },
+  taglineAlign: { textAlign: 'center' },
   cardWrap: {
     paddingHorizontal: spacing[6],
     paddingTop: spacing[6],
