@@ -102,6 +102,23 @@ jobs:
     uses: ./.github/workflows/e2e-android.yml
     secrets: inherit
 
+  app-unit-tests:
+    name: App Unit Tests
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: ./.github/actions/setup-js
+      - name: Run Jest
+        working-directory: app
+        run: npm test -- --ci --colors=false
+
   build-image:
     name: Build & Push Backend Image
     needs: [integration, e2e-ios, e2e-android, changes]
@@ -134,12 +151,13 @@ jobs:
 
   deploy-testflight:
     name: Deploy iOS to TestFlight
-    needs: [integration, e2e-ios, e2e-android, changes]
+    needs: [integration, e2e-ios, e2e-android, app-unit-tests, changes]
     if: >-
       !failure() && !cancelled() &&
       needs.integration.result != 'cancelled' &&
       needs.e2e-ios.result != 'cancelled' &&
       needs.e2e-android.result != 'cancelled' &&
+      needs.app-unit-tests.result != 'cancelled' &&
       github.event_name == 'pull_request' &&
       (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/deploy-testflight.yml
@@ -149,12 +167,13 @@ jobs:
 
   deploy-play-internal:
     name: Deploy Android to Play Store (Internal)
-    needs: [integration, e2e-ios, e2e-android, changes]
+    needs: [integration, e2e-ios, e2e-android, app-unit-tests, changes]
     if: >-
       !failure() && !cancelled() &&
       needs.integration.result != 'cancelled' &&
       needs.e2e-ios.result != 'cancelled' &&
       needs.e2e-android.result != 'cancelled' &&
+      needs.app-unit-tests.result != 'cancelled' &&
       github.event_name == 'pull_request' &&
       (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/deploy-play-internal.yml
