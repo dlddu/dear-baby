@@ -19,6 +19,7 @@ import {
   M14_C1_Count,
   M15_C2_ChildInfo,
   M16_C3_Purpose,
+  M35_B2_Purpose,
 } from "@/screens/Onboarding"
 import {
   M18_HomeMultiChild,
@@ -77,6 +78,7 @@ export default function App() {
       {screen === "M14" && Phone(M14_C1_Count)}
       {screen === "M15" && Phone(M15_C2_ChildInfo)}
       {screen === "M16" && Phone(M16_C3_Purpose)}
+      {screen === "M35" && Phone(M35_B2_Purpose)}
 
       {screen === "M18" && Phone(M18_HomeMultiChild)}
       {screen === "M19" && Phone(M19_VoiceRecording)}

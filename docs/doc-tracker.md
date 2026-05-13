@@ -16,9 +16,9 @@ updated: 2026-05-12
 - Acceptance Criteria: **45개** (모두 가치 연결됨)
 - 테스트 문서: **7개** (TEST-001 ~ TEST-007), 모든 PRD 커버됨
 - 흐름도: **1개** (onboarding-flow.md)
-- Mockup: **35개 화면** (M-01 ~ M-34 + 갤러리), 단일 React 번들 `mockups/index.html`. 모든 사용자 여정 stage 1:1 매핑
+- Mockup: **36개 화면** (M-01 ~ M-35, B2-Purpose 포함) + 갤러리, 단일 React 번들 `mockups/index.html`. 모든 사용자 여정 stage 1:1 매핑
 - 용어집: **1개** (GLOSSARY-001)
-- **건강 상태**: ✅ 건강함 (2026-05-12 홈 화면 정합성 회복)
+- **건강 상태**: ✅ 건강함 (2026-05-12 재검증으로 frontend 사슬 위험 3건 해소, M-35 추가 후 번들 재빌드 완료)
 
 ## 연결 매트릭스
 
@@ -84,6 +84,7 @@ updated: 2026-05-12
 | 2026-05-11 | PRD-007 (홈 화면 구성) 추가 — 헤더·오늘의 질문 카드·타인 기록 피드·하단 네비게이션의 화면 구성과 상호작용을 통합 정의. PRD-001/002/004/006과 연결. AC 10개 | PRD 6, AC 35 | PRD 7, AC 45 |
 | 2026-05-11 | TEST-007 추가 (17 TC) — PRD-007의 모든 AC 커버 | TEST 6 | TEST 7 |
 | 2026-05-12 | **홈 화면 정합성 검증 → 🔴 위험 3건 발견 → 해소**: ① PRD-007 ↔ M-17/M-18/M-26 시각화 완전 불일치 (PRD 핵심 요소 5종이 mockup에 부재) — mockup 3개를 PRD-007 명세대로 재디자인 ② Tabbar 4탭→5탭 (자서전·커뮤니티·홈·일기·설정) 갱신 (AC-007-10 준수) ③ daily-recording-journey "관련 PRD"에 PRD-007 누락 → 추가. `mockups/index.html` 재빌드. | 🔴 위험 3건 | ✅ 해소 |
+| 2026-05-12 | **재검증으로 frontend 사슬 위험 3건 추가 발견 → 해소**: ① 🟡 B2-Purpose (AC-006-03) 시각화 누락 — M-35 mockup 신규 추가 (Onboarding.tsx, App.tsx, GalleryScreen.tsx, mockup README 갱신) + `mockups/index.html` 재빌드 완료 (parcel + html-inline, 348K) ② 🟢 `journeys/README.md` 의 "관련 PRD" 표·"PRD-001~006" 범위 표현이 PRD-007 추가를 반영 안 함 → 표/문구 갱신 ③ ⚪ `.claude/skills/design-system` 폴더 이름이 표준 `ui-with-design-system` 과 불일치 → 폴더+frontmatter `name:` 표준화, 내용(dear-baby 커스터마이즈) 보존 | mockup 35, 🟡 위험 1건 | mockup 36 ✅ 소스+번들 동기화 |
 
 ## 향후 검토 항목
 

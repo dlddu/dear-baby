@@ -19,3 +19,4 @@ bundle.html
 .vscode/
 .idea/
 *.swp
+pnpm-workspace.yaml

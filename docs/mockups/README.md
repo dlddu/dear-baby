@@ -1,6 +1,6 @@
 # DearBaby — Mockups
 
-페이지 단위 mockup 35개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
+페이지 단위 mockup 36개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
 
 ## 빠른 보기
 
@@ -8,7 +8,7 @@
 
 - **[`index.html`](index.html)** — 빌드된 단일 HTML (브라우저로 열기)
 
-이 파일 하나에 35개 화면 + 갤러리가 모두 인라인 번들되어 있다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
+이 파일 하나에 36개 화면 + 갤러리가 모두 인라인 번들된다 (현재 `index.html` 은 35개 빌드 — M-35 추가 후 재빌드 필요). CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
 
 ## 디렉토리 구조
 
@@ -46,7 +46,7 @@ pnpm install
 pnpm dev    # http://localhost:5173 에서 hot reload
 ```
 
-## 35개 페이지 일람
+## 36개 페이지 일람
 
 | ID | 화면 | 여정 / Stage |
 |----|------|--------------|
@@ -59,7 +59,7 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-07 | B0 — 안내 ① | Onboarding · 4-B0 (Case B) |
 | M-08 | B1 — 양육 아이 수 | Onboarding · 4-B1 (Case B) |
 | M-09 | B2 — 양육 아이 정보 | Onboarding · 4-B2 (Case B) |
-| _(없음)_ | B2-Purpose — 양육 아이 기록 목적 (1:1, mockup 외 신설) | Onboarding · 4-B2-Purpose (Case B) |
+| **M-35** | **B2-Purpose — 양육 아이 기록 목적 (1:1, AC-006-03 준수)** | **Onboarding · 4-B2-Purpose (Case B)** |
 | M-10 | B3 — 안내 ② | Onboarding · 4-B3 (Case B) |
 | M-11 | B4 — 임신 아이 수 | Onboarding · 4-B4 (Case B) |
 | M-12 | B5 — 태아 정보 | Onboarding · 4-B5 (Case B) |
@@ -100,7 +100,7 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | 가치 | 핵심 mockup |
 |------|-------------|
 | V-001 감정 보존 | M-01, M-22, M-24 ★, M-29 ★ |
-| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22 |
+| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22, M-35 |
 | V-003 서사적 의미 부여 | M-29 ★, M-30, M-32 |
 | V-004 음성-텍스트 자동 변환 | M-19, M-20, M-27 |
 | V-005 임신 주차별 맞춤 질문 | M-17, M-26 |

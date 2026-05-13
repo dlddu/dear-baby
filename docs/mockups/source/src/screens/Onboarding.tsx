@@ -659,3 +659,55 @@ export function M16_C3_Purpose({ onBack }: { onBack: () => void }) {
     </OnboardingLayout>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// M-35 · B2-Purpose 양육 아이 기록 목적 (아이별 1:1)
+// — PRD-006 AC-006-03 준수: 양육 아이는 정보 입력 직후 1:1 화면에서
+//   아이별로 다른 목적을 선택. CASE_C_PURPOSES 8가지 칩 (AC-006-04와 동일 SoT).
+//   B2 ↔ B2-Purpose 가 양육 아이 수만큼 반복 (예: 2명 → 4화면).
+// ─────────────────────────────────────────────────────────────────────────────
+export function M35_B2_Purpose({ onBack }: { onBack: () => void }) {
+  return (
+    <OnboardingLayout
+      label="M-35 · Case B · Stage 4-B2-Purpose"
+      progress={{ total: 8, current: 4 }}
+      cta={<PrimaryButton>다음</PrimaryButton>}
+      onBack={onBack}
+    >
+      <QuestionHeader
+        title={<>서연이에게는 어떤 이야기를<br />남기고 싶으세요?</>}
+        helper="아이마다 다른 톤의 가이드를 보내드려요"
+      />
+      <div className="px-6 space-y-3">
+        <div className="bg-sage/10 rounded-db-md p-4">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-10 h-10 rounded-full bg-sage/40 flex items-center justify-center text-[16px]">
+              👧
+            </div>
+            <div>
+              <div className="text-[14px] font-bold text-ink leading-tight">서연</div>
+              <div className="text-[12px] text-ink-sub leading-tight">2세 · 첫째 아이</div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Chip selected>일상의 발견</Chip>
+            <Chip selected>말과 행동의 성장</Chip>
+            <Chip>웃긴 순간</Chip>
+            <Chip>음식·취향</Chip>
+            <Chip>친구와의 시간</Chip>
+            <Chip>가족 이벤트</Chip>
+            <Chip>병원·건강</Chip>
+            <Chip>마음의 변화</Chip>
+          </div>
+          <div className="text-[12px] text-ink-sub pl-1 mt-3">중복 선택 가능</div>
+        </div>
+        <div className="bg-cream/60 rounded-db-md p-3 flex items-center gap-2">
+          <div className="text-[14px]">💡</div>
+          <div className="text-[12px] text-ink-sub leading-relaxed">
+            다음 아이가 있다면, 다른 톤을 선택해도 괜찮아요
+          </div>
+        </div>
+      </div>
+    </OnboardingLayout>
+  )
+}
