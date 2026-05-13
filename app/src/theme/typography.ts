@@ -42,6 +42,13 @@ export const typography = {
     fontWeight: '700',
     lineHeight: 32,
   },
+  /** 카드 사이 섹션 헤더 — 14/700. 홈 “다른 엄마들의 기록” 처럼 카드 그룹 위에 얹는 작은 헤더. */
+  sectionTitle: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
   /** 카드 타이틀 — 17/600 */
   h3: {
     fontFamily: fontFamilies.sansSemibold,
@@ -49,12 +56,26 @@ export const typography = {
     fontWeight: '600',
     lineHeight: 24,
   },
+  /** 카드 내부 강조 타이틀 — 13/700. 피드 카드의 질문처럼 좁은 카드 안에서 시선을 잡는 굵은 본문. */
+  cardTitle: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
   /** 본문 — 15/400, lh 1.6 */
   body: {
     fontFamily: fontFamilies.sans,
     fontSize: 15,
     fontWeight: '400',
     lineHeight: 24,
+  },
+  /** 보조 본문 — 12/400, lh 1.55. 답변 스니펫·“더보기” 처럼 본문보다 한 단계 작은 위계. */
+  bodySmall: {
+    fontFamily: fontFamilies.sans,
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 18,
   },
   /** 캡션 — 13/400, lh 1.4 */
   caption: {
@@ -68,6 +89,20 @@ export const typography = {
     fontFamily: fontFamilies.sansSemibold,
     fontSize: 12,
     fontWeight: '600',
+    lineHeight: 16,
+  },
+  /** 비식별 ID·강조 라벨 — 12/700. badge 보다 한 단계 굵게, alias(cho***3) 같이 카드의 정체성을 잡는 라벨용. */
+  aliasStrong: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  /** 부차 캡션 — 11/400, lh 1.4. 작성자 컨텍스트·♥ 카운트처럼 카드의 가장자리에 들어가는 메타 정보. */
+  micro: {
+    fontFamily: fontFamilies.sans,
+    fontSize: 11,
+    fontWeight: '400',
     lineHeight: 16,
   },
   /** 감성 카피 (캐치프레이즈) — 15/400 Serif */

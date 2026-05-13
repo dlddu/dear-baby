@@ -6,7 +6,7 @@
 // TC-007-06-C: 회전된 질문이 record-audio·record-text route param 의
 //   `question` 으로 실린다.
 
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');
@@ -35,6 +35,12 @@ jest.mock('expo-router', () => ({
 
 jest.mock('../../../src/api/notifications', () => ({
   getUnreadCount: jest.fn(() => Promise.resolve(0)),
+}));
+
+// 본 테스트는 피드 영역이 관심사 밖 — 빈 배열을 돌려 섹션이 렌더되지 않게
+// 한다 (act 경고 방지 + 회전·CTA 단정의 testID 충돌 차단).
+jest.mock('../../../src/api/feed', () => ({
+  getTopThreeForHome: jest.fn(() => Promise.resolve([])),
 }));
 
 // 결정적 3개. 테스트는 인덱스 0/1/2 의 텍스트를 비교하므로 풀의 실제 카피와
@@ -71,10 +77,21 @@ beforeEach(() => {
   mockPush.mockClear();
 });
 
+// 피드 useEffect 가 Promise.resolve([]) 로 setState 를 호출하기 때문에 마운트
+// 직후 한 번의 microtask 플러시가 필요하다. flushFeedEffect 를 거치지 않으면
+// act 경고가 콘솔로 새어 나온다 — 실제 단정에는 영향이 없다.
+async function renderHome() {
+  const view = render(<HomeTab />);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  return view;
+}
+
 describe('HomeTab — 1인칭 카드 회전 + 모달 진입', () => {
   describe('TC-007-04', () => {
-    it('renders the home-question-card on home entry', () => {
-      const { getByTestId } = render(<HomeTab />);
+    it('renders the home-question-card on home entry', async () => {
+      const { getByTestId } = await renderHome();
       expect(getByTestId('home-question-card')).toBeTruthy();
       expect(getByTestId('home-question-card-question').props.children).toBe(
         '질문 1',
@@ -84,8 +101,8 @@ describe('HomeTab — 1인칭 카드 회전 + 모달 진입', () => {
   });
 
   describe('TC-007-05', () => {
-    it('caps rotation at 3 — 3번째 탭 이후 우 화살표가 비활성, 추가 탭은 무시', () => {
-      const { getByTestId } = render(<HomeTab />);
+    it('caps rotation at 3 — 3번째 탭 이후 우 화살표가 비활성, 추가 탭은 무시', async () => {
+      const { getByTestId } = await renderHome();
       const next = getByTestId('home-question-card-next');
 
       fireEvent.press(next);
@@ -112,8 +129,8 @@ describe('HomeTab — 1인칭 카드 회전 + 모달 진입', () => {
   });
 
   describe('TC-007-06-C — 회전된 질문이 route param 으로 실림', () => {
-    it('passes the current rotated question to the voice modal', () => {
-      const { getByTestId } = render(<HomeTab />);
+    it('passes the current rotated question to the voice modal', async () => {
+      const { getByTestId } = await renderHome();
       fireEvent.press(getByTestId('home-question-card-next'));
       fireEvent.press(getByTestId('home-voice-cta'));
       expect(mockPush).toHaveBeenCalledTimes(1);
@@ -122,8 +139,8 @@ describe('HomeTab — 1인칭 카드 회전 + 모달 진입', () => {
       expect(call.params.question).toBe('질문 2');
     });
 
-    it('passes the current rotated question to the text modal', () => {
-      const { getByTestId } = render(<HomeTab />);
+    it('passes the current rotated question to the text modal', async () => {
+      const { getByTestId } = await renderHome();
       fireEvent.press(getByTestId('home-question-card-next'));
       fireEvent.press(getByTestId('home-question-card-next'));
       fireEvent.press(getByTestId('home-text-cta'));

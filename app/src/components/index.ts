@@ -31,3 +31,5 @@ export { HomeHeader } from './HomeHeader';
 export type { HomeHeaderProps } from './HomeHeader';
 export { HomeQuestionCard } from './HomeQuestionCard';
 export type { HomeQuestionCardProps } from './HomeQuestionCard';
+export { OtherEntryCard } from './OtherEntryCard';
+export type { OtherEntryCardProps } from './OtherEntryCard';
