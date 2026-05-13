@@ -180,3 +180,31 @@ jobs:
     with:
       ref: ${{ github.event.pull_request.head.sha }}
     secrets: inherit
+
+  ci-success:
+    name: CI Success
+    needs:
+      - changes
+      - integration
+      - e2e-ios
+      - e2e-android
+      - app-unit-tests
+      - build-image
+      - build-worker-image
+      - deploy-testflight
+      - deploy-play-internal
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job failed or was cancelled
+        if: >-
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled')
+        run: |
+          echo "Upstream results: ${{ join(needs.*.result, ', ') }}"
+          echo "::error::A required CI job failed or was cancelled"
+          exit 1
+      - name: Report success
+        run: |
+          echo "All required CI jobs passed or were skipped"
+          echo "Upstream results: ${{ join(needs.*.result, ', ') }}"
