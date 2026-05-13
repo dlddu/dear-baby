@@ -168,11 +168,12 @@ platform :android do
       json_key: json_key_path,
       track: "alpha",
       aab: aab_path,
-      # `:play_internal` 와 동일한 이유로 `draft` 사용 — 앱이 "Draft app"
-      # 상태(Production 트랙에 release 미등록)인 동안 Play API는
-      # `completed` 를 거절. Production launch 이후 `completed` 로
-      # 승격해 hands-off rollout 으로 전환 가능.
-      release_status: "draft",
+      # `completed`는 alpha track에 빌드를 올리고 즉시 closed testers
+      # 에게 rollout까지 끝낸다 — Play Console에서 수동 "Start rollout"
+      # 단계가 필요 없다. 앱이 "Draft app" 상태(Production 트랙에
+      # release 미등록)인 동안에는 Play API가 `completed`를 거절하므로
+      # 이 값은 Production launch 이후에만 쓸 수 있다.
+      release_status: "completed",
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_changelogs: false,
