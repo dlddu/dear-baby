@@ -4,14 +4,14 @@ doc_type: test
 product: dear_baby
 verifies_prd: PRD-001
 created: 2026-04-04
-updated: 2026-04-04
+updated: 2026-05-12
 ---
 
-# TEST-001: 음성 일기 기록 테스트
+# TEST-001: 음성으로 일기 작성 테스트
 
 ## 대상 PRD
 
-PRD-001: 음성 일기 기록
+PRD-001: 음성으로 일기 작성
 
 ## 테스트 케이스
 

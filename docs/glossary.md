@@ -3,7 +3,7 @@ doc_id: GLOSSARY-001
 doc_type: glossary
 product: dear_baby
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-05-12
 ---
 
 # 용어집 (Glossary)
@@ -39,18 +39,18 @@ updated: 2026-04-15
 |---|---|---|---|---|---|
 | 사용자 | `User` | `user` | `users` / `user_id` | 계정 소유자. OAuth로 인증된 임산부 사용자 | `backend/internal/users/model.go`, `app/src/api/types.ts:1` |
 | 세션 | `Session` | `session` | — (JWT) | 인증 상태. `accessToken` + `refreshToken` + `user` 로 구성 | `app/src/api/types.ts:10` |
-| 기록 *(제안)* | `Record` | `record`, `records` | `records` / `record_id` | 사용자가 작성한 일기 단위. 음성 또는 텍스트로 작성되며 미디어 첨부 가능 | PRD-001, PRD-005 |
-| 음성 일기 *(제안)* | `Record` (subtype: `type: 'voice'`) | `voiceRecord` | `records.type = 'voice'` | 음성 녹음에서 시작된 기록. 별도 타입이 아닌 `Record` 의 하위 분류 | PRD-001, V-004 |
+| 일기 *(제안)* | `Record` | `record`, `records` | `records` / `record_id` | 사용자가 작성한 일기 단위. 음성 또는 텍스트로 작성되며 미디어 첨부 가능. 영문 타입명 `Record` 는 코드 영향을 고려해 현재 유지한다 (2026-05-12 결정, 후속 검토 항목) | PRD-001, PRD-005, PRD-008 |
+| 음성 일기 *(제안)* | `Record` (subtype: `type: 'voice'`) | `voiceRecord` | `records.type = 'voice'` | 음성 녹음에서 시작된 일기. 별도 타입이 아닌 `Record` 의 하위 분류 | PRD-001, V-004 |
 | 오늘의 질문 *(제안)* | `DailyQuestion` | `dailyQuestion`, `todaysQuestion` | `daily_questions` / `question_id` | 임신 주차 기반으로 매일 제공되는 프롬프트 | PRD-002, V-005 |
-| 서사 *(제안)* | `Narrative` | `narrative` | `narratives` / `narrative_id` | AI가 여러 기록을 엮어 생성한 편지 형식의 이야기 | PRD-003, V-003 |
+| 서사 *(제안)* | `Narrative` | `narrative` | `narratives` / `narrative_id` | AI가 여러 일기를 엮어 생성한 편지 형식의 이야기 | PRD-003, V-003 |
 | 실물 책 *(제안)* | `Book` | `book` | `books` / `book_id` | 서사와 미디어로 제작된 물리적 책 제품 | PRD-004, V-006 |
-| 미디어 *(제안)* | `Media` | `media`, `mediaItem` | `media` / `media_id`, `media_type` | 기록에 첨부된 사진/영상/음성 메모 | PRD-005, V-007 |
+| 미디어 *(제안)* | `Media` | `media`, `mediaItem` | `media` / `media_id`, `media_type` | 일기에 첨부된 사진/영상/음성 메모 | PRD-005, V-007 |
 | 임신 주차 *(제안)* | `PregnancyWeek` (number) | `pregnancyWeek`, `currentWeek` | `pregnancy_week` | 출산 예정일 기반으로 계산된 현재 주차. 사용자가 직접 입력할 수도 있다 | PRD-002, AC-002-02, PRD-006, AC-006-02 |
 | 출산 예정일 *(제안)* | `DueDate` (ISO 8601 date string) | `dueDate` | `due_date` | EDD. 사용자가 입력하며 임신 주차 계산의 기준 | PRD-002, AC-002-02, PRD-006, AC-006-02 |
 | 임신 아이 수 *(제안)* | `FetusCount` (`1 \| 2 \| 3`) | `fetusCount` | — (frontend only) | 동시에 품고 있는 태아 수. 단태/쌍둥이/세쌍둥이+ 의 입력 표기. 백엔드 영속화는 추후 PR | PRD-006, AC-006-02 |
 | 태명 *(제안)* | `Nickname` (string) | `nickname` | — (frontend only) | 태아 또는 아이의 애칭. 선택 입력 | PRD-006, AC-006-02 |
 | 성별 (태아/아이) *(제안)* | `Gender` (`'female' \| 'male' \| 'unknown'`) | `gender` | — (frontend only) | 태아 또는 아이의 성별. 선택 입력. 'unknown' 은 "아직 몰라요" | PRD-006, AC-006-02 |
-| 기록 목적 | `Purpose` (string), `purposes: string[]` | `purposes` | `fetuses.purposes_json`, `children.purposes_json` (TEXT, JSON 배열) | A3·C3 화면에서 사용자가 선택한 칩 라벨. **사용자가 선택한 한국어 라벨 그대로 클라/API/DB에 저장한다** (영문 ID 매핑 없음). 다태/다자녀에서도 1회만 묻고 모든 태아·아이에 동일하게 복제 저장. 칩 옵션 표는 PRD-006 AC-006-02·04 참조 | PRD-006, AC-006-02, AC-006-04 |
+| 일기 목적 | `Purpose` (string), `purposes: string[]` | `purposes` | `fetuses.purposes_json`, `children.purposes_json` (TEXT, JSON 배열) | A3·C3 화면에서 사용자가 선택한 칩 라벨. **사용자가 선택한 한국어 라벨 그대로 클라/API/DB에 저장한다** (영문 ID 매핑 없음). 다태/다자녀에서도 1회만 묻고 모든 태아·아이에 동일하게 복제 저장. 칩 옵션 표는 PRD-006 AC-006-02·04 참조 | PRD-006, AC-006-02, AC-006-04 |
 | OAuth 계정 연결 | — (DB only) | — | `oauth_accounts` / `provider`, `provider_user_id` | 사용자와 외부 OAuth 제공자(Google, Apple)의 연결 | `backend/internal/migrations/0001_users.up.sql` |
 | 리프레시 토큰 저장소 | `RefreshStore` | `refreshStore` | `refresh_tokens` | 서버에 영속되는 리프레시 토큰 레코드 | `backend/internal/auth/store.go` |
 
@@ -101,15 +101,29 @@ updated: 2026-04-15
 
 ## 탭 / 화면 용어
 
-UI에 노출되는 한국어 라벨과 라우트 파일 매핑.
+UI에 노출되는 한국어 라벨과 라우트 파일 매핑. 권위는 **PRD-007 AC-007-10** (하단 5탭 정의) 과 본 용어집이다.
 
-| UI 라벨 | 라우트/파일 | 탭 `title` |
-|---|---|---|
-| 홈 | `app/app/(tabs)/index.tsx` | `'홈'` |
-| 기록 | `app/app/(tabs)/records.tsx` | `'기록'` |
-| 마이 | `app/app/(tabs)/settings.tsx` | `'마이'` |
+| 순서 | UI 라벨 | 라우트/파일 (현재) | 라우트/파일 (목표) | 비고 |
+|---|---|---|---|---|
+| 1 | 자서전 | *(미구현)* | `app/app/(tabs)/memoir.tsx` | PRD-007 4번 탭 후속 구현 |
+| 2 | 커뮤니티 | *(미구현)* | `app/app/(tabs)/community.tsx` | PRD-007 후속 구현 |
+| 3 | 홈 | `app/app/(tabs)/index.tsx` | `app/app/(tabs)/index.tsx` | 현행 유지 |
+| 4 | **일기** | `app/app/(tabs)/records.tsx` ⚠️ | `app/app/(tabs)/diary.tsx` | **2026-05-12 라벨 '기록' → '일기' 통일** (PRD-008) |
+| 5 | 설정 | `app/app/(tabs)/settings.tsx` | `app/app/(tabs)/settings.tsx` | UI 라벨은 `'마이'` 로 노출 중 (PRD-007 결정에 따라 후속 정렬 검토) |
 
-> "마이" 탭의 파일명은 `settings.tsx` 이지만 UI 라벨은 `'마이'` 다. `app/app/(tabs)/_layout.tsx` 의 `Tabs.Screen name="settings" options={{ title: '마이' }}` 참조.
+### 2026-05-12 용어 통일: '기록' 탭 → '일기' 탭
+
+- **결정**: 탭의 UI 라벨은 **`일기`** 로 통일한다 (PRD-006 AC-006-09, PRD-007 AC-007-10, mockup Tabbar 와 정합).
+- **근거**: PRD-007 (2026-05-11) 에서 5탭 구조를 확정하며 4번 탭의 이름을 명시적으로 `일기` 로 정의했다. PRD-001 의 "기록 탭" 표현은 이전 명칭으로, 본 결정으로 폐기된다.
+- **적용 범위**:
+  - 모든 신규 문서·디자인·코드는 UI 라벨 `일기` 를 사용한다
+  - **데이터 도메인 명칭은 `Record` 그대로 유지** (DB 테이블 `records`, API 응답의 `record_id` 등 — 본 용어집 line 42 참조). 통일 대상은 **UI에 노출되는 한국어 라벨만**이다
+- **코드 후속 작업 (별도 PR)**: ⚠️ 표시된 항목
+  - `app/app/(tabs)/_layout.tsx` 의 `Tabs.Screen` title `'기록'` → `'일기'`
+  - 파일명 `records.tsx` → `diary.tsx` (라우트 경로 변경, 내부 import 동기화)
+  - 본 코드 작업 완료 시 위 표의 "라우트/파일 (현재)" 가 "라우트/파일 (목표)" 와 일치하게 된다
+
+> "마이" 탭의 파일명은 `settings.tsx` 이지만 UI 라벨은 `'마이'` 다. `app/app/(tabs)/_layout.tsx` 의 `Tabs.Screen name="settings" options={{ title: '마이' }}` 참조. 단 PRD-007 AC-007-10 은 5번 탭을 `설정` 으로 명시했으므로, 라벨 `'마이'` → `'설정'` 정렬은 후속 검토 항목.
 
 ## 인증 / 토큰 필드 표기
 
