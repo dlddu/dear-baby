@@ -3,19 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    paths:
-      - "backend/**"
-      - "worker/**"
-      - "app/**"
-      - "k8s/**"
-      - ".github/workflows/**"
   pull_request:
-    paths:
-      - "backend/**"
-      - "worker/**"
-      - "app/**"
-      - "k8s/**"
-      - ".github/workflows/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
