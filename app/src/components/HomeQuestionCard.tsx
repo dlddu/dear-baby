@@ -5,15 +5,17 @@
 //   - 좌측 컬럼: 60×60 원형 프로필 + 이름 + 컨텍스트 라벨 (D-36 등)
 //   - 우측 말풍선: 1인칭 질문 텍스트 + 회전 footer (◀ n/3 ▶)
 //   - 카드 하단 grid-cols-2: 음성/텍스트 CTA
+//   - 옵션 `footer` 슬롯: CTA 아래의 추가 영역 (책 진행도 등). mockup 의
+//     `mt-3.5 pt-3 border-t` hairline 구분 영역과 시각적으로 매칭되도록
+//     슬롯 자체엔 별도 chrome 을 주지 않고, footer 컴포넌트가 자기 marginTop·
+//     borderTop 을 들고 있는 것을 가정한다 (BookProgress 가 그 규약을 따른다).
 //
 // 회전 상태(현재 인덱스) 는 부모가 관리한다 — 본 컴포넌트는 표시·이벤트만
 // 책임지고 stateless 하게 유지해 단위 테스트를 단순화한다. 1/3 에서 좌 화살표,
 // 3/3 에서 우 화살표가 비활성 상태로 노출되며, 비활성 상태에서는 onPrev /
 // onNext 가 호출되지 않는다.
-//
-// 책 진행도(AC-007-07) 는 작업 D 에서 카드 하단에 추가될 영역으로, 본 작업
-// 범위 밖이다.
 
+import type { ReactNode } from 'react';
 import {
   Image,
   Pressable,
@@ -52,6 +54,12 @@ export type HomeQuestionCardProps = {
   onPressVoice: () => void;
   /** 텍스트 CTA — '글로 남기기' */
   onPressText: () => void;
+  /**
+   * CTA 아래 hairline 구분 영역에 넣을 추가 콘텐츠 (예: BookProgress).
+   * 카드와 시각적으로 한 덩어리가 되도록, 슬롯 컨텐츠가 자기 marginTop·
+   * borderTop 을 들고 있는 것을 가정한다.
+   */
+  footer?: ReactNode;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -71,6 +79,7 @@ export function HomeQuestionCard({
   onNext,
   onPressVoice,
   onPressText,
+  footer,
   style,
   testID = 'home-question-card',
 }: HomeQuestionCardProps) {
@@ -201,6 +210,7 @@ export function HomeQuestionCard({
           />
         </View>
       </View>
+      {footer}
     </View>
   );
 }

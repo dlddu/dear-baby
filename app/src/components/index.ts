@@ -33,3 +33,5 @@ export { HomeQuestionCard } from './HomeQuestionCard';
 export type { HomeQuestionCardProps } from './HomeQuestionCard';
 export { OtherEntryCard } from './OtherEntryCard';
 export type { OtherEntryCardProps } from './OtherEntryCard';
+export { BookProgress } from './BookProgress';
+export type { BookProgressProps } from './BookProgress';

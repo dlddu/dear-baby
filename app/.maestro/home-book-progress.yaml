@@ -1,0 +1,81 @@
+appId: com.dlddu.dearbaby
+---
+# PRD-007 TC-007-07 — 홈 책 진행도 (AC-007-07).
+#
+# 두 분기를 한 flow 로 묶어 확인한다. recordsCount mock 의 결정적 fallback
+# (api/recordsCount.ts) 을 이용한다:
+#   - child ordinal=1 (서연) → 50 → "책 만들기" CTA
+#   - child ordinal=2 (이서) → 36 → 진행 텍스트 + 진행 바
+#   - fetus ordinal=1 (콩이) → 12 → 진행 텍스트
+#   - fetus ordinal=2 (샛별) → 50 → "책 만들기" CTA
+#
+# 따라서 Case B 사용자(양육 2 + 태아 2)로 진입하면 첫 활성 아이(서연)에서
+# 바로 CTA 분기를 검증할 수 있고, 헤더 ▶ 로 다음 아이(이서)로 전환하면
+# 진행도 분기로 자연스럽게 넘어간다 — 한 시드로 두 분기 모두 커버.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Case B → 활성 아이 4명 풀 시나리오 → 홈 도착
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseB.yaml
+- runFlow:
+    file: subflows/onboarding-caseB-full.yaml
+
+# ── TC-007-07-B — n>=50 분기: 서연 (child ordinal=1) ──
+- assertVisible:
+    id: "home-tab"
+- assertVisible: "서연"
+- assertVisible:
+    id: "book-progress"
+- assertVisible:
+    id: "book-progress-cta"
+
+# CTA → 자서전 탭으로 라우팅
+- tapOn:
+    id: "book-progress-cta"
+- assertVisible:
+    id: "memoir-tab"
+
+# 홈 복귀
+- tapOn: "홈"
+- assertVisible:
+    id: "home-tab"
+
+# ── TC-007-07-A — n<50 분기: ▶ 탭 → 이서 (child ordinal=2, fallback=36) ──
+- tapOn:
+    id: "home-header-next"
+- assertVisible: "이서"
+- assertVisible:
+    id: "book-progress-fraction"
+- assertVisible: "36/50"
+
+# ── TC-007-07-C — 다자녀 카운트 독립: ▶ 탭 → 콩이 (fetus ordinal=1, =12) ──
+- tapOn:
+    id: "home-header-next"
+- assertVisible: "콩이"
+- assertVisible: "12/50"
+
+# ── ▶ 탭 → 샛별 (fetus ordinal=2, =50) → 다시 CTA 분기 ──
+- tapOn:
+    id: "home-header-next"
+- assertVisible: "샛별"
+- assertVisible:
+    id: "book-progress-cta"
+
+# ── (?) 안내 탭 — Alert 다이얼로그가 떠야 한다 (◀ 한 번 돌아가 이서) ──
+- tapOn:
+    id: "home-header-prev"
+- assertVisible: "콩이"
+- tapOn:
+    id: "book-progress-help"
+- assertVisible: "책 진행도 안내"
