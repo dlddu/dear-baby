@@ -5,9 +5,9 @@
 | 항목 | 내용 |
 |---|---|
 | **다루는 단계** | Stage 5 홈 첫 진입 → Stage 6 일상 기록 루틴 (반복) |
-| **관련 PRD** | [PRD-001 (음성 일기)](../prd/PRD-001-voice-diary.md), [PRD-002 (오늘의 질문)](../prd/PRD-002-daily-questions.md), [PRD-005 (미디어 통합)](../prd/PRD-005-media-records.md), [PRD-006 (다자녀 컨텍스트)](../prd/PRD-006-onboarding-cases.md), [PRD-007 (홈 화면 구성)](../prd/PRD-007-home-screen.md) |
+| **관련 PRD** | [PRD-001 (음성 일기)](../prd/PRD-001-voice-diary.md), [PRD-002 (오늘의 질문)](../prd/PRD-002-daily-questions.md), [PRD-005 (미디어 통합)](../prd/PRD-005-media-records.md), [PRD-006 (다자녀 컨텍스트)](../prd/PRD-006-onboarding-cases.md), [PRD-007 (홈 화면 구성)](../prd/PRD-007-home-screen.md), [PRD-008 (일기 탭 — 일기 목록)](../prd/PRD-008-diary-list.md) |
 | **관련 페르소나** | 🌸 Case A · 🌼 Case B · 🌿 Case C 모두 (양육자 모드도 같은 루틴) |
-| **앞 플로우로부터 인계** | 케이스 · 활성 아이 정보 · 임신 주차/양육 일수 · 기록 목적 · 다자녀 여부 ← [Onboarding Journey](onboarding-journey.md) 또는 [Birth Conversion Journey](birth-conversion-journey.md) |
+| **앞 플로우로부터 인계** | 케이스 · 활성 아이 정보 · 임신 주차/양육 일수 · 일기 목적 · 다자녀 여부 ← [Onboarding Journey](onboarding-journey.md) 또는 [Birth Conversion Journey](birth-conversion-journey.md) |
 | **다음 플로우로 인계** | 충분히 쌓인 기록 (음성·텍스트·미디어) · 임신/양육 컨텍스트 → [AI Narrative Journey](ai-narrative-journey.md) 또는 [Birth Conversion Journey](birth-conversion-journey.md) (Case A·B만) |
 
 ---
@@ -160,6 +160,7 @@ flowchart LR
 - [`prd/PRD-005-media-records.md`](../prd/PRD-005-media-records.md) — 미디어 첨부
 - [`prd/PRD-006-onboarding-cases.md`](../prd/PRD-006-onboarding-cases.md) — 다자녀 컨텍스트 (AC-006-08·09)
 - [`prd/PRD-007-home-screen.md`](../prd/PRD-007-home-screen.md) — 홈 화면 구성 (Stage 5·6의 시각·구조 명세)
+- [`prd/PRD-008-diary-list.md`](../prd/PRD-008-diary-list.md) — 일기 탭 / 일기 목록 화면 (사용자가 과거 일기를 다시 보는 공간; 본 여정의 "쓰기" 와 짝을 이루는 "다시 보기" 표면)
 - [← 이전 플로우: Onboarding Journey](onboarding-journey.md)
 - [→ 다음 플로우 (Case A·B): Birth Conversion Journey](birth-conversion-journey.md)
 - [→ 다음 플로우 (Case C 또는 출산 후): AI Narrative Journey](ai-narrative-journey.md)

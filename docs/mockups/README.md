@@ -1,6 +1,6 @@
 # DearBaby — Mockups
 
-페이지 단위 mockup 35개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
+페이지 단위 mockup 37개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
 
 ## 빠른 보기
 
@@ -8,7 +8,7 @@
 
 - **[`index.html`](index.html)** — 빌드된 단일 HTML (브라우저로 열기)
 
-이 파일 하나에 35개 화면 + 갤러리가 모두 인라인 번들되어 있다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
+이 파일 하나에 37개 화면 + 갤러리가 모두 인라인 번들되어 있다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
 
 ## 디렉토리 구조
 
@@ -46,7 +46,7 @@ pnpm install
 pnpm dev    # http://localhost:5173 에서 hot reload
 ```
 
-## 35개 페이지 일람
+## 37개 페이지 일람
 
 | ID | 화면 | 여정 / Stage |
 |----|------|--------------|
@@ -55,18 +55,18 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-03 | Q2 — 양육 아이가 있나요? | Onboarding · 2-2 |
 | M-04 | A1 — 임신 아이 수 | Onboarding · 3-A1 (Case A) |
 | M-05 | A2 — 태아 정보 (예정일·태명·성별·임신 주차) | Onboarding · 3-A2 (Case A) |
-| M-06 | A3 — 기록 목적 | Onboarding · 3-A3 (Case A) |
+| M-06 | A3 — 일기 목적 | Onboarding · 3-A3 (Case A) |
 | M-07 | B0 — 안내 ① | Onboarding · 4-B0 (Case B) |
 | M-08 | B1 — 양육 아이 수 | Onboarding · 4-B1 (Case B) |
 | M-09 | B2 — 양육 아이 정보 | Onboarding · 4-B2 (Case B) |
-| _(없음)_ | B2-Purpose — 양육 아이 기록 목적 (1:1, mockup 외 신설) | Onboarding · 4-B2-Purpose (Case B) |
+| _(없음)_ | B2-Purpose — 양육 아이 일기 목적 (1:1, mockup 외 신설) | Onboarding · 4-B2-Purpose (Case B) |
 | M-10 | B3 — 안내 ② | Onboarding · 4-B3 (Case B) |
 | M-11 | B4 — 임신 아이 수 | Onboarding · 4-B4 (Case B) |
 | M-12 | B5 — 태아 정보 | Onboarding · 4-B5 (Case B) |
-| M-13 | B6 — 기록 목적 (아이별) | Onboarding · 4-B6 (Case B) |
+| M-13 | B6 — 일기 목적 (아이별) | Onboarding · 4-B6 (Case B) |
 | M-14 | C1 — 양육 아이 수 | Onboarding · 5-C1 (Case C) |
 | M-15 | C2 — 아이 정보 | Onboarding · 5-C2 (Case C) |
-| M-16 | C3 — 기록 목적 | Onboarding · 5-C3 (Case C) |
+| M-16 | C3 — 일기 목적 | Onboarding · 5-C3 (Case C) |
 | M-17 | 홈 — 임신 모드 (단일) — **PRD-007 준수** | Daily Recording · 6-1 |
 | M-18 | 홈 — 다자녀 (Case B) — **PRD-007 준수** | Daily Recording · 6-1 |
 | M-19 | 음성 녹음 | Daily Recording · 6-2 |
@@ -85,6 +85,8 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-32 | 전체 미리보기 | Book Production · 9-2 |
 | M-33 | 결제 | Book Production · 9-3 |
 | M-34 | 제작·배송 추적 | Book Production · 9-4 |
+| M-35 | 일기 목록 — 채워진 상태 (주차 그룹 + 미디어 아이콘) — **PRD-008 준수** | Diary Tab |
+| M-36 | 일기 목록 — 빈 상태 ("아직 첫 일기를 쓰지 않으셨어요") — **PRD-008 AC-008-05** | Diary Tab |
 
 ## ★ 감정 봉우리 페이지
 
@@ -99,8 +101,8 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 
 | 가치 | 핵심 mockup |
 |------|-------------|
-| V-001 감정 보존 | M-01, M-22, M-24 ★, M-29 ★ |
-| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22 |
+| V-001 감정 보존 | M-01, M-22, M-24 ★, M-29 ★, M-35 |
+| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22, M-36 |
 | V-003 서사적 의미 부여 | M-29 ★, M-30, M-32 |
 | V-004 음성-텍스트 자동 변환 | M-19, M-20, M-27 |
 | V-005 임신 주차별 맞춤 질문 | M-17, M-26 |

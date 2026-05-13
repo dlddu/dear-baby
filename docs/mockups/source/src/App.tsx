@@ -44,6 +44,10 @@ import {
   M33_BookCheckout,
   M34_BookTracking,
 } from "@/screens/BookProduction"
+import {
+  M35_DiaryList,
+  M36_DiaryListEmpty,
+} from "@/screens/DiaryList"
 
 export default function App() {
   const [screen, setScreen] = useState<ScreenId>("gallery")
@@ -97,6 +101,9 @@ export default function App() {
       {screen === "M32" && Phone(M32_BookPreview)}
       {screen === "M33" && Phone(M33_BookCheckout)}
       {screen === "M34" && Phone(M34_BookTracking)}
+
+      {screen === "M35" && Phone(M35_DiaryList)}
+      {screen === "M36" && Phone(M36_DiaryListEmpty)}
     </div>
   )
 }

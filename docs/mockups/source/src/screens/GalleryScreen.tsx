@@ -8,6 +8,7 @@ export type ScreenId =
   | "M23" | "M25" | "M26"
   | "M27" | "M28" | "M29" | "M30"
   | "M31" | "M32" | "M33" | "M34"
+  | "M35" | "M36"
 
 interface MockupCard {
   id: string
@@ -27,17 +28,17 @@ const groups: { num: string; title: string; cards: MockupCard[] }[] = [
       { id: "M-03", name: "Q2 — 양육 아이가 있나요?", meta: "케이스 분기 2차", navigate: "M03" },
       { id: "M-04", name: "A1 — 임신 아이 수", meta: "단태아 · 쌍둥이", navigate: "M04", tags: [{ kind: "case-a", label: "Case A" }] },
       { id: "M-05", name: "A2 — 태아 정보", meta: "예정일 · 태명 · 성별", navigate: "M05", tags: [{ kind: "case-a", label: "Case A" }] },
-      { id: "M-06", name: "A3 — 기록 목적", meta: "맞춤 가이드 분기", navigate: "M06", tags: [{ kind: "case-a", label: "Case A" }] },
+      { id: "M-06", name: "A3 — 일기 목적", meta: "맞춤 가이드 분기", navigate: "M06", tags: [{ kind: "case-a", label: "Case A" }] },
       { id: "M-07", name: "B0 — 안내 ①", meta: "기존 아이부터 안내", navigate: "M07", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-08", name: "B1 — 양육 아이 수", meta: "현재 양육 아이 인원", navigate: "M08", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-09", name: "B2 — 양육 아이 정보", meta: "생년월일 · 이름", navigate: "M09", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-10", name: "B3 — 안내 ②", meta: "임신 아이 정보 시작", navigate: "M10", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-11", name: "B4 — 임신 아이 수", meta: "단태아 · 쌍둥이", navigate: "M11", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-12", name: "B5 — 태아 정보", meta: "예정일 · 태명 · 성별", navigate: "M12", tags: [{ kind: "case-b", label: "Case B" }] },
-      { id: "M-13", name: "B6 — 기록 목적 (아이별)", meta: "아이 단위 가이드", navigate: "M13", tags: [{ kind: "case-b", label: "Case B" }] },
+      { id: "M-13", name: "B6 — 일기 목적 (아이별)", meta: "아이 단위 가이드", navigate: "M13", tags: [{ kind: "case-b", label: "Case B" }] },
       { id: "M-14", name: "C1 — 양육 아이 수", meta: "양육 only 모드", navigate: "M14", tags: [{ kind: "case-c", label: "Case C" }] },
       { id: "M-15", name: "C2 — 아이 정보", meta: "생년월일 · 이름", navigate: "M15", tags: [{ kind: "case-c", label: "Case C" }] },
-      { id: "M-16", name: "C3 — 기록 목적", meta: "맞춤 가이드", navigate: "M16", tags: [{ kind: "case-c", label: "Case C" }] },
+      { id: "M-16", name: "C3 — 일기 목적", meta: "맞춤 가이드", navigate: "M16", tags: [{ kind: "case-c", label: "Case C" }] },
     ],
   },
   {
@@ -82,6 +83,14 @@ const groups: { num: string; title: string; cards: MockupCard[] }[] = [
       { id: "M-34", name: "제작·배송 추적", meta: "5단계 타임라인", navigate: "M34", tags: [{ kind: "value", label: "V-007" }] },
     ],
   },
+  {
+    num: "JOURNEY 06",
+    title: "Diary List (일기 탭 · 과거 일기 다시 보기)",
+    cards: [
+      { id: "M-35", name: "일기 목록 — 채워진 상태", meta: "주차별 그룹 · 미디어 아이콘", navigate: "M35", tags: [{ kind: "value", label: "V-001" }] },
+      { id: "M-36", name: "일기 목록 — 빈 상태", meta: '"첫 일기를 쓰지 않으셨어요"', navigate: "M36", tags: [{ kind: "value", label: "V-002" }] },
+    ],
+  },
 ]
 
 const tagStyles = {
@@ -106,7 +115,7 @@ export function GalleryScreen({ onNavigate }: Props) {
         </div>
       </div>
       <div className="text-[15px] text-ink-sub mb-2">
-        35개 mockup · 5개 사용자 여정에 정렬 · 디자인 시스템 토큰 1:1 적용
+        37개 mockup · 6개 사용자 여정에 정렬 · 디자인 시스템 토큰 1:1 적용
       </div>
       <div className="font-hand text-[22px] text-coral mb-10">
         "기록을 책으로 — 사라지지 않는 마음"
@@ -157,7 +166,7 @@ export function GalleryScreen({ onNavigate }: Props) {
       {/* footer note */}
       <section className="mt-16">
         <div className="bg-ivory rounded-db-md p-6 shadow-db-sm text-[14px] leading-[1.7] text-ink">
-          <strong>스코프</strong> · 35개 페이지 · 모바일 393 × 852 (iPhone 15 base)<br />
+          <strong>스코프</strong> · 37개 페이지 · 모바일 393 × 852 (iPhone 15 base)<br />
           <strong>참조 문서</strong> · <code>docs/journeys/*</code> · <code>docs/design-system/*</code> · <code>docs/values/product-values.md</code><br />
           <strong>★ 감정 봉우리 페이지</strong> · M-24 (출생일 입력) · M-29 (서사 미리보기)<br />
           <strong>케이스 분기</strong> · A 임신 only · B 임신+양육 · C 양육 only<br />
