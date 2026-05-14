@@ -1,0 +1,245 @@
+name: Closed Beta Submission
+
+# Triggered when a PR is labeled `closed-beta`. Orchestrates the full
+# external-testing rollout for that commit:
+#
+#   1. ci-gate         — wait until ci.yml finishes on the PR head SHA
+#                        and fail fast if it didn't conclude success.
+#                        Labels can be applied while CI is still in
+#                        flight, so we poll rather than hard-fail.
+#   2. android / ios   — rebuild against the production backend URL
+#                        and upload to Play Store closed (alpha) /
+#                        TestFlight. The PR-preview builds from ci.yml
+#                        are pinned to the staging API URL, so external
+#                        testers need fresh builds.
+#   3. ios-submit      — promote the TestFlight build to the external
+#                        group and file it for Beta App Review.
+#   4. pin-prod-image  — write the head SHA into the dear-baby-prod-app
+#                        Flux Kustomization in flux-cd-apps so prod
+#                        runs the exact backend image the external
+#                        testers' app was built against. The pin lives
+#                        in flux-cd-apps (not this repo) because Flux's
+#                        images: transformation is applied on top of
+#                        the kustomize build and overrides whatever
+#                        k8s/overlays/production/kustomization.yaml
+#                        sets here.
+#   5. auto-merge     —  enable squash auto-merge so the PR lands as
+#                        soon as required checks are green.
+#
+# A future App Store / Play production-track release should use a
+# separate label (and workflow), so the label-name guard on ci-gate
+# keeps the two paths from colliding.
+on:
+  pull_request:
+    types: [labeled]
+
+# Per-SHA so different commits don't block each other; a re-label of
+# the same SHA queues behind any in-flight submission.
+concurrency:
+  group: closed-beta-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: false
+
+jobs:
+  ci-gate:
+    name: Wait for CI to pass on this commit
+    if: github.event.label.name == 'closed-beta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Poll ci.yml run for head SHA
+        run: |
+          set -euo pipefail
+          # 60 * 30s = 30 minutes. CI's longest leg (e2e) typically
+          # finishes well under that; integration+e2e together stay
+          # under ~25min on the current runners.
+          for attempt in $(seq 1 60); do
+            run=$(gh api \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$HEAD_SHA&per_page=1" \
+              --jq '.workflow_runs[0]')
+            if [ -z "$run" ] || [ "$run" = "null" ]; then
+              echo "Attempt $attempt: no ci.yml run for $HEAD_SHA yet"
+              sleep 30
+              continue
+            fi
+            status=$(echo "$run" | jq -r '.status')
+            conclusion=$(echo "$run" | jq -r '.conclusion')
+            url=$(echo "$run" | jq -r '.html_url')
+            echo "Attempt $attempt: status=$status conclusion=$conclusion ($url)"
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" = "success" ]; then
+                echo "CI passed for $HEAD_SHA."
+                exit 0
+              fi
+              echo "::error::ci.yml concluded '$conclusion' for $HEAD_SHA — refusing to ship to closed beta."
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for ci.yml to complete on $HEAD_SHA."
+          exit 1
+
+  android:
+    name: Build & submit Android (closed)
+    needs: ci-gate
+    uses: ./.github/workflows/build-android-play.yml
+    with:
+      expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_PRODUCTION }}
+      ref: ${{ github.event.pull_request.head.sha }}
+      lane: play_closed
+    secrets: inherit
+
+  ios:
+    name: Build iOS (production)
+    needs: ci-gate
+    uses: ./.github/workflows/build-ios-testflight.yml
+    with:
+      expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_PRODUCTION }}
+      ref: ${{ github.event.pull_request.head.sha }}
+    secrets: inherit
+
+  ios-submit:
+    name: Submit iOS to TestFlight Beta Review
+    needs: ios
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    env:
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+      TESTFLIGHT_EXTERNAL_GROUP: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP }}
+      TESTFLIGHT_BETA_CONTACT_FIRST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_FIRST_NAME }}
+      TESTFLIGHT_BETA_CONTACT_LAST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_LAST_NAME }}
+      TESTFLIGHT_BETA_FEEDBACK_EMAIL: ${{ vars.TESTFLIGHT_BETA_FEEDBACK_EMAIL }}
+      TESTFLIGHT_BETA_PRIVACY_URL: ${{ vars.TESTFLIGHT_BETA_PRIVACY_URL }}
+      TESTFLIGHT_BETA_APP_DESCRIPTION: ${{ vars.TESTFLIGHT_BETA_APP_DESCRIPTION }}
+      TESTFLIGHT_BETA_CONTACT_EMAIL: ${{ secrets.TESTFLIGHT_BETA_CONTACT_EMAIL }}
+      TESTFLIGHT_BETA_CONTACT_PHONE: ${{ secrets.TESTFLIGHT_BETA_CONTACT_PHONE }}
+      TESTFLIGHT_DEMO_ACCOUNT_EMAIL: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_EMAIL }}
+      TESTFLIGHT_DEMO_ACCOUNT_PASSWORD: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_PASSWORD }}
+      TESTFLIGHT_REVIEW_LOCALE: ${{ vars.TESTFLIGHT_REVIEW_LOCALE }}
+      GIT_SHA: ${{ github.event.pull_request.head.sha }}
+      TESTFLIGHT_BUILD_NUMBER: ${{ needs.ios.outputs.build-number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: app
+
+      - name: Fastlane external_beta
+        run: bundle exec fastlane external_beta
+
+  pin-prod-image:
+    name: Pin prod backend image to head SHA (flux-cd-apps)
+    needs: [android, ios-submit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout flux-cd-apps
+        # FLUX_CD_APPS_TOKEN is a PAT with contents:write on
+        # dlddu/flux-cd-apps; the default GITHUB_TOKEN is scoped to
+        # this repo only and can't push to a different one. Cloning
+        # into ./flux-cd-apps keeps the working tree off the dear-baby
+        # checkout root so future steps in this workflow that assume a
+        # plain dear-baby layout stay unaffected.
+        uses: actions/checkout@v4
+        with:
+          repository: dlddu/flux-cd-apps
+          ref: main
+          token: ${{ secrets.FLUX_CD_APPS_TOKEN }}
+          path: flux-cd-apps
+
+      - name: "Pin newTag on dear-baby-prod-app Kustomization"
+        # The Flux Kustomization at cluster/dear-baby-prod.yaml owns
+        # the images: transformation applied on top of the dear-baby
+        # kustomize build, so setting newTag here is what actually
+        # pins prod — anything written into this repo's
+        # k8s/overlays/production/kustomization.yaml would be silently
+        # overridden by this block. The yq selector targets only the
+        # dear-baby-prod-app document in the multi-doc YAML (which
+        # also contains a Namespace, a GitRepository, and the
+        # -configs Kustomization), and the post-write verification
+        # catches structural drift (image name renamed, Kustomization
+        # renamed, etc.) that would otherwise leave prod on
+        # newTag: main while the workflow looked green.
+        working-directory: flux-cd-apps
+        run: |
+          set -euo pipefail
+          yq -i '
+            (select(.kind == "Kustomization" and .metadata.name == "dear-baby-prod-app")
+             | .spec.images[]
+             | select(.name == "ghcr.io/dlddu/dear-baby")
+             | .newTag) = strenv(HEAD_SHA)
+          ' cluster/dear-baby-prod.yaml
+          actual=$(yq '
+            select(.kind == "Kustomization" and .metadata.name == "dear-baby-prod-app")
+            | .spec.images[] | select(.name == "ghcr.io/dlddu/dear-baby") | .newTag
+          ' cluster/dear-baby-prod.yaml)
+          if [ "$actual" != "$HEAD_SHA" ]; then
+            echo "::error::Expected newTag=$HEAD_SHA, got '$actual' — the dear-baby-prod-app Kustomization or its image entry in cluster/dear-baby-prod.yaml has likely been renamed; update the yq selector."
+            exit 1
+          fi
+
+      - name: Commit and push to flux-cd-apps main
+        # Plain (non-force) push so we can only fast-forward on top of
+        # whatever's on flux-cd-apps' main right now; if a concurrent
+        # commit landed since our checkout the push fails, the retry
+        # loop fetches and rebases the pin commit onto the new tip,
+        # then tries again.
+        working-directory: flux-cd-apps
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- cluster/dear-baby-prod.yaml; then
+            echo "dear-baby-prod-app already pinned to $HEAD_SHA — nothing to commit."
+            exit 0
+          fi
+          git add cluster/dear-baby-prod.yaml
+          git commit -m "chore(dear-baby): pin prod image to $HEAD_SHA"
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; fetching and rebasing on main..."
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "::error::Failed to push pin commit to flux-cd-apps main after 3 attempts."
+          exit 1
+
+  auto-merge:
+    name: Enable auto-merge
+    needs: pin-prod-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Enable squash auto-merge
+        # pin-prod-image now writes only to flux-cd-apps, so nothing
+        # in this workflow pushes back to this repo and ci.yml isn't
+        # re-triggered; --auto generally merges immediately.
+        run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash --auto --delete-branch

@@ -4,7 +4,7 @@ name: Build iOS for TestFlight
 # to TestFlight via Fastlane's `:beta` lane. Callers select which
 # backend the build talks to by passing `expo-public-api-url` —
 # staging from the PR-preview path (deploy-testflight.yml) and
-# production from the external-beta path (submit-testflight-beta.yml).
+# production from the external-beta path (closed-beta.yml's ios job).
 #
 # `build-number` mirrors the run number that `app/app.config.ts` stamps
 # into Info.plist's CFBundleVersion, so callers can promote the upload
@@ -74,7 +74,7 @@ jobs:
 
       # TestFlight requires a globally monotonic CFBundleVersion across
       # the app, so we can't rely on per-workflow `github.run_number` —
-      # ci.yml's deploy-testflight and submit-testflight-beta have
+      # ci.yml's deploy-testflight and closed-beta.yml's ios job have
       # independent counters and would collide. Query the current
       # latest from App Store Connect and add one.
       - name: Compute next TestFlight build number
