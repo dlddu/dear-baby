@@ -85,8 +85,8 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-32 | 전체 미리보기 | Book Production · 9-2 |
 | M-33 | 결제 | Book Production · 9-3 |
 | M-34 | 제작·배송 추적 | Book Production · 9-4 |
-| M-36 | 일기 탭 — 목록 (임신 단일) | Diary Browsing · 6½-1·2 |
-| M-37 | 일기 탭 — 목록 (양육 다자녀 + 필터) | Diary Browsing · 6½-2 |
+| M-36 | 일기 탭 — 목록 (단일 아이 통합) | Diary Browsing · 6½-1·2 |
+| M-37 | 일기 탭 — 다자녀 통합 (콩이+하준) + 필터 | Diary Browsing · 6½-2 |
 | M-38 | 기록 상세 + ⋯ 액션 시트 | Diary Browsing · 6½-3·4 |
 | M-39 | 일기 탭 — 빈 상태 (기록 0건) | Diary Browsing · 6½-1 |
 

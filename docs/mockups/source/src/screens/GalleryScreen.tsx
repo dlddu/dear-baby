@@ -89,9 +89,9 @@ const groups: { num: string; title: string; cards: MockupCard[] }[] = [
     num: "JOURNEY 06",
     title: "Diary Browsing (일기 탭 · 조회 · 사후 관리)",
     cards: [
-      { id: "M-36", name: "일기 탭 — 목록 (임신 단일)", meta: "주차 그룹 헤더 · 시간순 카드", navigate: "M36", tags: [{ kind: "value", label: "V-001" }] },
-      { id: "M-37", name: "일기 탭 — 목록 (양육 다자녀 + 필터)", meta: "개월 그룹 + 사진 필터 1 적용", navigate: "M37", tags: [{ kind: "case-b", label: "Case B" }, { kind: "value", label: "V-003" }] },
-      { id: "M-38", name: "기록 상세 + ⋯ 액션 시트", meta: "편집 · 비공개 전환 · 삭제", navigate: "M38", tags: [{ kind: "value", label: "V-007" }] },
+      { id: "M-36", name: "일기 탭 — 목록 (단일 아이 통합)", meta: "월 그룹 · 카드 아이 컨텍스트 칩", navigate: "M36", tags: [{ kind: "value", label: "V-001" }] },
+      { id: "M-37", name: "일기 탭 — 다자녀 통합 (콩이+하준)", meta: "월 그룹에 두 아이 섞임 + 필터", navigate: "M37", tags: [{ kind: "case-b", label: "Case B" }, { kind: "value", label: "V-002" }, { kind: "value", label: "V-003" }] },
+      { id: "M-38", name: "기록 상세 + ⋯ 액션 시트", meta: "아이 컨텍스트 칩 · 편집 · 삭제", navigate: "M38", tags: [{ kind: "value", label: "V-007" }] },
       { id: "M-39", name: "빈 상태 (기록 0건)", meta: "📓 안내 + 홈으로 가기 CTA", navigate: "M39" },
     ],
   },

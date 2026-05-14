@@ -46,8 +46,8 @@ import {
   M34_BookTracking,
 } from "@/screens/BookProduction"
 import {
-  M36_DiaryListPregnancy,
-  M37_DiaryListParentMulti,
+  M36_DiaryListSingle,
+  M37_DiaryListMulti,
   M38_DiaryDetail,
   M39_DiaryEmpty,
 } from "@/screens/Diary"
@@ -106,8 +106,8 @@ export default function App() {
       {screen === "M33" && Phone(M33_BookCheckout)}
       {screen === "M34" && Phone(M34_BookTracking)}
 
-      {screen === "M36" && Phone(M36_DiaryListPregnancy)}
-      {screen === "M37" && Phone(M37_DiaryListParentMulti)}
+      {screen === "M36" && Phone(M36_DiaryListSingle)}
+      {screen === "M37" && Phone(M37_DiaryListMulti)}
       {screen === "M38" && Phone(M38_DiaryDetail)}
       {screen === "M39" && Phone(M39_DiaryEmpty)}
     </div>
