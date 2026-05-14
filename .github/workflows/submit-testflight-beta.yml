@@ -1,8 +1,9 @@
 name: Submit iOS to TestFlight (Beta Review)
 
-# Triggered when a PR is labeled `testflight-beta`. Builds a fresh
-# Release IPA against the production backend, uploads it to TestFlight,
-# then promotes that build to the external group and submits it for
+# Triggered when a PR is labeled `closed-beta` (shared with the
+# Android closed deployment workflow). Builds a fresh Release IPA
+# against the production backend, uploads it to TestFlight, then
+# promotes that build to the external group and submits it for
 # Beta App Review.
 #
 # The PR-preview build that ci.yml's deploy-testflight job uploaded is
@@ -21,13 +22,13 @@ on:
 # Per-SHA so different commits don't block each other; a re-label of
 # the same SHA queues behind any in-flight submission.
 concurrency:
-  group: testflight-beta-${{ github.event.pull_request.head.sha }}
+  group: closed-beta-ios-${{ github.event.pull_request.head.sha }}
   cancel-in-progress: false
 
 jobs:
   build:
     name: Build with production API URL
-    if: github.event.label.name == 'testflight-beta'
+    if: github.event.label.name == 'closed-beta'
     uses: ./.github/workflows/build-ios-testflight.yml
     with:
       expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_PRODUCTION }}

@@ -44,7 +44,7 @@ jobs:
               - '.github/workflows/deploy-testflight.yml'
               - '.github/workflows/build-ios-testflight.yml'
               - '.github/workflows/deploy-play-internal.yml'
-              - '.github/workflows/build-android-play-internal.yml'
+              - '.github/workflows/build-android-play.yml'
               - '.github/actions/setup-js/**'
               - '.github/actions/setup-maestro/**'
               - '.github/actions/upload-maestro-artifacts/**'

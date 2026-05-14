@@ -1,10 +1,11 @@
-name: Build Android for Play Store (Internal)
+name: Build Android for Play Store
 
 # Reusable workflow that bakes a Release AAB, signs it with the upload
-# keystore, and uploads it to the Play Store internal track via
-# Fastlane's `:play_internal` lane. Mirrors build-ios-testflight.yml so
-# the PR-preview path (deploy-play-internal.yml) and any future external
-# track promotion can share the same build steps.
+# keystore, and uploads it to a Play Store track via the Fastlane lane
+# selected by the `lane` input (`play_internal` for the PR-preview path,
+# `play_closed` for closed/alpha external testing). Mirrors
+# build-ios-testflight.yml so multiple trigger workflows share the same
+# build steps.
 #
 # `version-code` mirrors the value `app/app.config.ts` stamps into
 # AndroidManifest.xml's android:versionCode, so callers can promote the
@@ -22,11 +23,10 @@ on:
         required: false
         default: ""
         description: Git ref to check out. Empty checks out the workflow's default ref.
-      track:
+      lane:
         type: string
-        required: false
-        default: "internal"
-        description: Play Store track to publish to. Defaults to internal.
+        required: true
+        description: Fastlane Android lane to invoke (e.g. play_internal, play_closed).
     outputs:
       version-code:
         description: Play Store versionCode stamped into the AAB.
@@ -34,7 +34,7 @@ on:
 
 jobs:
   build:
-    name: Build & upload to Play Store (${{ inputs.track }})
+    name: Build & upload to Play Store (${{ inputs.lane }})
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     defaults:
@@ -102,8 +102,8 @@ jobs:
       - name: Expo prebuild (Android)
         run: npx expo prebuild --platform android --clean
 
-      - name: Fastlane play_internal
-        run: bundle exec fastlane android play_internal
+      - name: Fastlane ${{ inputs.lane }}
+        run: bundle exec fastlane android ${{ inputs.lane }}
 
       - name: Upload build artifacts on failure
         if: failure()
