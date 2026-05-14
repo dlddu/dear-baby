@@ -171,10 +171,10 @@ jobs:
           ' k8s/overlays/production/kustomization.yaml
 
       - name: Commit and push to main
-        # Retry on non-fast-forward — another commit may land on main
-        # between checkout and push. If main is branch-protected
-        # against direct pushes for GITHUB_TOKEN, this step will fail
-        # loudly and the actor running it needs a bypass entry.
+        # Use --force-with-lease so the push refuses to overwrite main
+        # if another commit landed between our checkout and now (the
+        # lease is the refs/remotes/origin/main set up by checkout); a
+        # lease fail drops into the fetch+rebase retry below.
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -186,7 +186,7 @@ jobs:
           git add k8s/overlays/production/kustomization.yaml
           git commit -m "chore(k8s): pin prod backend image to $HEAD_SHA"
           for attempt in 1 2 3; do
-            if git push origin HEAD:main; then
+            if git push --force-with-lease origin HEAD:main; then
               exit 0
             fi
             echo "Push attempt $attempt failed; fetching and rebasing on main..."
