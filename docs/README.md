@@ -44,6 +44,7 @@
 - [PRD-005: 기록 미디어 통합](prd/PRD-005-media-records.md)
 - [PRD-006: 케이스 분기 온보딩 및 아이 컨텍스트 관리](prd/PRD-006-onboarding-cases.md)
 - [PRD-007: 홈 화면 구성](prd/PRD-007-home-screen.md)
+- [PRD-008: 일기 탭 — 내 기록 조회 및 관리](prd/PRD-008-diary-tab.md)
 
 ### 플로우
 - [Onboarding Flow — 케이스 분기 온보딩 전체 흐름도](flows/onboarding-flow.md)
@@ -55,10 +56,11 @@
 - [Birth Conversion Journey — 출산 전환 (Case A · B)](journeys/birth-conversion-journey.md)
 - [AI Narrative Journey — AI 서사 생성·편집](journeys/ai-narrative-journey.md)
 - [Book Production Journey — 책 주문 · 배송 · 선물](journeys/book-production-journey.md)
+- [Diary Browsing Journey — 일기 탭 · 누적 기록 재방문 · 사후 관리](journeys/diary-browse-journey.md)
 
 ### Mockups (페이지 단위 시각 산출물)
 - [Mockups Index — 매핑 인덱스 + 재빌드 방법](mockups/README.md)
-- [Mockups (브라우저로 열기) — 35개 화면 단일 React 번들](mockups/index.html)
+- [Mockups (브라우저로 열기) — 39개 화면 단일 React 번들](mockups/index.html)
 - [Mockups Source — React + Tailwind 소스 (재현 가능)](mockups/source/)
 
 ### 테스트 문서
@@ -69,6 +71,7 @@
 - [TEST-005: 기록 미디어 통합 테스트](tests/TEST-005-media-records.md)
 - [TEST-006: 케이스 분기 온보딩 및 아이 컨텍스트 관리 테스트](tests/TEST-006-onboarding-cases.md)
 - [TEST-007: 홈 화면 구성 테스트](tests/TEST-007-home-screen.md)
+- [TEST-008: 일기 탭 — 내 기록 조회 및 관리 테스트](tests/TEST-008-diary-tab.md)
 
 ### 용어집
 - [용어집 — 코드/문서 용어 사전](glossary.md) (GLOSSARY-001)

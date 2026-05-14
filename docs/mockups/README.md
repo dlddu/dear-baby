@@ -1,6 +1,6 @@
 # DearBaby — Mockups
 
-페이지 단위 mockup 36개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
+페이지 단위 mockup 39개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
 
 ## 빠른 보기
 
@@ -8,7 +8,7 @@
 
 - **[`index.html`](index.html)** — 빌드된 단일 HTML (브라우저로 열기)
 
-이 파일 하나에 36개 화면 + 갤러리가 모두 인라인 번들된다 (현재 `index.html` 은 35개 빌드 — M-35 추가 후 재빌드 필요). CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
+이 파일 하나에 39개 화면 + 갤러리가 모두 인라인 번들된다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
 
 ## 디렉토리 구조
 
@@ -20,7 +20,7 @@ docs/mockups/
     ├── src/
     │   ├── App.tsx
     │   ├── components/  (PhoneFrame, Common 프리미티브)
-    │   └── screens/     (5개 여정별 화면 모듈)
+    │   └── screens/     (6개 여정별 화면 모듈)
     ├── package.json
     ├── tailwind.config.js
     └── ...
@@ -46,7 +46,7 @@ pnpm install
 pnpm dev    # http://localhost:5173 에서 hot reload
 ```
 
-## 36개 페이지 일람
+## 39개 페이지 일람
 
 | ID | 화면 | 여정 / Stage |
 |----|------|--------------|
@@ -85,6 +85,10 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-32 | 전체 미리보기 | Book Production · 9-2 |
 | M-33 | 결제 | Book Production · 9-3 |
 | M-34 | 제작·배송 추적 | Book Production · 9-4 |
+| M-36 | 일기 탭 — 목록 (단일 아이 통합) | Diary Browsing · 6½-1·2 |
+| M-37 | 일기 탭 — 다자녀 통합 (콩이+하준) + 필터 | Diary Browsing · 6½-2 |
+| M-38 | 기록 상세 + ⋯ 액션 시트 | Diary Browsing · 6½-3·4 |
+| M-39 | 일기 탭 — 빈 상태 (기록 0건) | Diary Browsing · 6½-1 |
 
 ## ★ 감정 봉우리 페이지
 
@@ -99,13 +103,13 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 
 | 가치 | 핵심 mockup |
 |------|-------------|
-| V-001 감정 보존 | M-01, M-22, M-24 ★, M-29 ★ |
-| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22, M-35 |
-| V-003 서사적 의미 부여 | M-29 ★, M-30, M-32 |
+| V-001 감정 보존 | M-01, M-22, M-24 ★, M-29 ★, M-36, M-38 |
+| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22, M-35, M-39 |
+| V-003 서사적 의미 부여 | M-29 ★, M-30, M-32, M-36, M-37 |
 | V-004 음성-텍스트 자동 변환 | M-19, M-20, M-27 |
 | V-005 임신 주차별 맞춤 질문 | M-17, M-26 |
 | V-006 실물 책 완성품 | M-31, M-32 |
-| V-007 멀티미디어 감정 표현 | M-21, M-32, M-33 |
+| V-007 멀티미디어 감정 표현 | M-21, M-32, M-33, M-38 |
 
 ## 디자인 시스템 매핑
 
