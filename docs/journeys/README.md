@@ -98,7 +98,7 @@ flowchart TD
 
 ## 플로우 문서 구성
 
-전체 여정은 5개의 플로우로 분할된다. 각 문서는 자족적이며, 앞뒤 플로우로부터의 인계를 명시한다.
+전체 여정은 6개의 플로우로 분할된다. 각 문서는 자족적이며, 앞뒤 플로우로부터의 인계를 명시한다.
 
 | # | 플로우 문서 | 다루는 단계 | 관련 PRD | 핵심 페르소나 |
 |:---:|---|---|---|:---:|
@@ -107,8 +107,11 @@ flowchart TD
 | 3 | [Birth Conversion Journey](birth-conversion-journey.md) | 출산 전환 · 양육자 모드 시작 | PRD-006 | 🌸🌼 |
 | 4 | [AI Narrative Journey](ai-narrative-journey.md) | AI 서사 생성·편집 | PRD-003 | 🌸🌼🌿 |
 | 5 | [Book Production Journey](book-production-journey.md) | 책 주문 · 배송 · 선물 | PRD-004 | 🌸🌼🌿 |
+| 6 | [Diary Browsing Journey](diary-browse-journey.md) | 일기 탭 진입 · 시간 그룹 스크롤 · 상세 재현 · 사후 관리 | PRD-008 (+ PRD-001·005·006·007) | 🌸🌼🌿 (🌼 강) |
 
 > 화살표(←/→)로 표시되는 인계 관계: 1 → 2 → (Case A·B만) 3 → 2(양육자 모드) → 4 → 5
+>
+> **6 Diary Browsing**은 2의 곁가지 루프로, 비주기 트리거로 진행되며 1·2·3·4·5 어느 시점에서도 진입 가능하다 (4·5 직전에 정리 동선으로 자주 진입).
 
 ---
 
@@ -160,6 +163,7 @@ flowchart TD
 | 3. Birth Conversion | ●● | ●● | | | ●● | | |
 | 4. AI Narrative | ●● | | ●●● | ●● | | | ●● |
 | 5. Book Production | ●● | | ●● | | | ●●● | ● |
+| 6. Diary Browsing | ●●● | ●● | ●● | | | | ●● |
 
 > ●●● 핵심 가치 / ●● 보조 가치 / ● 부수 가치
 
@@ -182,6 +186,7 @@ flowchart TD
 | 3 | Birth Conversion | 사산·유산 케이스에서 카피의 잔인성 | [→ Birth Conversion Journey](birth-conversion-journey.md) |
 | 4 | AI Narrative | "내 글을 AI가 고친다"는 거부감 | [→ AI Narrative Journey](ai-narrative-journey.md) |
 | 5 | Book Production | 가격 부담, 배송 지역 제약 | [→ Book Production Journey](book-production-journey.md) |
+| 6 | Diary Browsing | 누적 100건+ 시 못 찾기, 영구 삭제 후 후회 | [→ Diary Browsing Journey](diary-browse-journey.md) |
 
 ---
 

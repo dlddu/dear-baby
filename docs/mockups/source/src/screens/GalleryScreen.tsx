@@ -9,6 +9,7 @@ export type ScreenId =
   | "M23" | "M25" | "M26"
   | "M27" | "M28" | "M29" | "M30"
   | "M31" | "M32" | "M33" | "M34"
+  | "M36" | "M37" | "M38" | "M39"
 
 interface MockupCard {
   id: string
@@ -84,6 +85,16 @@ const groups: { num: string; title: string; cards: MockupCard[] }[] = [
       { id: "M-34", name: "제작·배송 추적", meta: "5단계 타임라인", navigate: "M34", tags: [{ kind: "value", label: "V-007" }] },
     ],
   },
+  {
+    num: "JOURNEY 06",
+    title: "Diary Browsing (일기 탭 · 조회 · 사후 관리)",
+    cards: [
+      { id: "M-36", name: "일기 탭 — 목록 (임신 단일)", meta: "주차 그룹 헤더 · 시간순 카드", navigate: "M36", tags: [{ kind: "value", label: "V-001" }] },
+      { id: "M-37", name: "일기 탭 — 목록 (양육 다자녀 + 필터)", meta: "개월 그룹 + 사진 필터 1 적용", navigate: "M37", tags: [{ kind: "case-b", label: "Case B" }, { kind: "value", label: "V-003" }] },
+      { id: "M-38", name: "기록 상세 + ⋯ 액션 시트", meta: "편집 · 비공개 전환 · 삭제", navigate: "M38", tags: [{ kind: "value", label: "V-007" }] },
+      { id: "M-39", name: "빈 상태 (기록 0건)", meta: "📓 안내 + 홈으로 가기 CTA", navigate: "M39" },
+    ],
+  },
 ]
 
 const tagStyles = {
@@ -108,7 +119,7 @@ export function GalleryScreen({ onNavigate }: Props) {
         </div>
       </div>
       <div className="text-[15px] text-ink-sub mb-2">
-        35개 mockup · 5개 사용자 여정에 정렬 · 디자인 시스템 토큰 1:1 적용
+        39개 mockup · 6개 사용자 여정에 정렬 · 디자인 시스템 토큰 1:1 적용
       </div>
       <div className="font-hand text-[22px] text-coral mb-10">
         "기록을 책으로 — 사라지지 않는 마음"
@@ -159,7 +170,7 @@ export function GalleryScreen({ onNavigate }: Props) {
       {/* footer note */}
       <section className="mt-16">
         <div className="bg-ivory rounded-db-md p-6 shadow-db-sm text-[14px] leading-[1.7] text-ink">
-          <strong>스코프</strong> · 35개 페이지 · 모바일 393 × 852 (iPhone 15 base)<br />
+          <strong>스코프</strong> · 39개 페이지 · 모바일 393 × 852 (iPhone 15 base)<br />
           <strong>참조 문서</strong> · <code>docs/journeys/*</code> · <code>docs/design-system/*</code> · <code>docs/values/product-values.md</code><br />
           <strong>★ 감정 봉우리 페이지</strong> · M-24 (출생일 입력) · M-29 (서사 미리보기)<br />
           <strong>케이스 분기</strong> · A 임신 only · B 임신+양육 · C 양육 only<br />

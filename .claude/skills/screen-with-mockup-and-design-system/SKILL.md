@@ -11,16 +11,17 @@ dear-baby 의 화면을 코드로 구현할 때는 **반드시** 아래 절차�
 
 mockup 은 React + Tailwind 기반 단일 번들이다.
 
-- **번들 (브라우저로 보기)**: `docs/mockups/index.html` — 갤러리에서 35개 화면 모두 클릭 가능
+- **번들 (브라우저로 보기)**: `docs/mockups/index.html` — 갤러리에서 39개 화면 모두 클릭 가능
 - **소스 (코드 참조)**: `docs/mockups/source/src/`
   - `components/PhoneFrame.tsx`, `components/Common.tsx` — 공통 프리미티브
-  - `screens/Onboarding.tsx` — M-01 ~ M-16
+  - `screens/Onboarding.tsx` — M-01 ~ M-16, M-35
   - `screens/HomePregnancyScreen.tsx` — M-17
   - `screens/DailyRecording.tsx` — M-18 ~ M-22
   - `screens/BirthConversion.tsx` — M-23, M-25, M-26
   - `screens/BirthDateScreen.tsx` — M-24 ★
   - `screens/AINarrative.tsx` — M-27 ~ M-30
   - `screens/BookProduction.tsx` — M-31 ~ M-34
+  - `screens/Diary.tsx` — M-36 ~ M-39 (일기 탭)
 
 ## 절차
 
