@@ -1,6 +1,6 @@
 import PostHog from 'posthog-react-native';
 
-import { APP_ENV, POSTHOG_HOST, POSTHOG_KEY } from '../config/env';
+import { POSTHOG_HOST, POSTHOG_KEY } from '../config/env';
 
 // Module-level PostHog singleton. Created once at bundle load so that
 // non-React callers (e.g. the apiFetch wrapper) can attach the current
@@ -30,15 +30,6 @@ export const posthogClient: PostHog | null = POSTHOG_KEY
       },
     })
   : null;
-
-// Pin the deployment environment as a super property so every captured
-// event, screen view, and replay carries `environment=development|staging|
-// production`. Lets a single PostHog project serve all three environments
-// without dev/staging traffic polluting production dashboards — filter or
-// segment on the `environment` property in PostHog instead. register()
-// queues internally until the SDK finishes loading, so the call is safe
-// to make synchronously right after construction.
-posthogClient?.register({ environment: APP_ENV });
 
 // posthogHeaders returns the PostHog correlation headers to attach to
 // backend requests. Returns an empty object when analytics is disabled or

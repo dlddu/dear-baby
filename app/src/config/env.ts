@@ -23,21 +23,6 @@ export const POSTHOG_KEY: string =
 export const POSTHOG_HOST: string =
   process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
 
-// Deployment environment baked into the JS bundle. The CI release
-// workflows set this explicitly (staging for PR-preview builds,
-// production for closed-beta / store builds); anything else (local
-// expo run, fork builds, Maestro CI) falls through to 'development'.
-// Surfaced to PostHog as a super property so a single PostHog project
-// can host all three environments without their events bleeding into
-// each other in dashboards.
-export type AppEnv = 'development' | 'staging' | 'production';
-
-const RAW_APP_ENV = process.env.EXPO_PUBLIC_APP_ENV;
-export const APP_ENV: AppEnv =
-  RAW_APP_ENV === 'production' || RAW_APP_ENV === 'staging'
-    ? RAW_APP_ENV
-    : 'development';
-
 // E2E_AUDIO_FIXTURE swaps real audio recording + whisper STT for a
 // deterministic fixture. Maestro can't drive the microphone, and the
 // whisper model would have to be downloaded on every CI run, so the
