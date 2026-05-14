@@ -127,6 +127,124 @@ func TestUpdateDueDateAndOnboardedAt_NullDueDate(t *testing.T) {
 	}
 }
 
+// TestUpdateDueDateAndOnboardedAt_SynthesizesFetusRow guards the legacy
+// `PATCH /me {due_date}` path: it must seed a fetuses ordinal=1 row so
+// the subsequent `POST /records` (which now requires child_kind/ordinal)
+// has a real row to resolve against. Mirrors migration 0009's synthesis
+// for pre-existing users.
+func TestUpdateDueDateAndOnboardedAt_SynthesizesFetusRow(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	due := "2026-09-01"
+	if err := store.UpdateDueDateAndOnboardedAt(ctx, "u1", &due); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	var n int
+	var seededDue sql.NullString
+	if err := db.QueryRow(
+		`SELECT COUNT(*), MAX(due_date) FROM fetuses WHERE user_id='u1' AND ordinal=1`,
+	).Scan(&n, &seededDue); err != nil {
+		t.Fatalf("count fetuses: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("fetuses ordinal=1 count: got %d want 1", n)
+	}
+	if !seededDue.Valid || seededDue.String != due {
+		t.Errorf("synthesized due_date: got %v want %s", seededDue, due)
+	}
+}
+
+// TestUpdateDueDateAndOnboardedAt_PreservesExistingFetus protects against
+// clobbering richer Case A data when an already-onboarded user later flips
+// the dial through the legacy due_date endpoint (e.g., recovery flow).
+func TestUpdateDueDateAndOnboardedAt_PreservesExistingFetus(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+	if _, err := db.Exec(
+		`INSERT INTO fetuses (user_id, ordinal, nickname, due_date) VALUES ('u1', 1, '봄이', '2025-09-15')`,
+	); err != nil {
+		t.Fatalf("seed fetus: %v", err)
+	}
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	due := "2026-09-01"
+	if err := store.UpdateDueDateAndOnboardedAt(ctx, "u1", &due); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	var nickname, fetusDue sql.NullString
+	if err := db.QueryRow(
+		`SELECT nickname, due_date FROM fetuses WHERE user_id='u1' AND ordinal=1`,
+	).Scan(&nickname, &fetusDue); err != nil {
+		t.Fatalf("requery fetus: %v", err)
+	}
+	if !nickname.Valid || nickname.String != "봄이" {
+		t.Errorf("nickname should survive: got %v", nickname)
+	}
+	if !fetusDue.Valid || fetusDue.String != "2025-09-15" {
+		t.Errorf("existing due_date should survive: got %v", fetusDue)
+	}
+}
+
+// TestUpdateDueDateAndOnboardedAt_SkipsFetusWhenChildExists makes sure
+// the 양육-first then-due_date path doesn't accidentally attribute records
+// to a phantom fetus.
+func TestUpdateDueDateAndOnboardedAt_SkipsFetusWhenChildExists(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+	if _, err := db.Exec(
+		`INSERT INTO children (user_id, ordinal, name, birth_date) VALUES ('u1', 1, '하늘', '2024-01-01')`,
+	); err != nil {
+		t.Fatalf("seed child: %v", err)
+	}
+
+	store := &Store{DB: db}
+	ctx := context.Background()
+	due := "2026-09-01"
+	if err := store.UpdateDueDateAndOnboardedAt(ctx, "u1", &due); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM fetuses WHERE user_id='u1'`).Scan(&n); err != nil {
+		t.Fatalf("count fetuses: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("expected no fetus rows synthesized when child exists, got %d", n)
+	}
+}
+
+// TestUpdateDueDateAndOnboardedAt_NullDoesNotSynthesize confirms that
+// clearing the due_date (`null`) does not synthesize a fetus — the
+// onboarding screen lets users explicitly skip the due_date, in which
+// case Stage 2 should still display "no active child" rather than a
+// blank phantom row.
+func TestUpdateDueDateAndOnboardedAt_NullDoesNotSynthesize(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+
+	store := &Store{DB: db}
+	if err := store.UpdateDueDateAndOnboardedAt(context.Background(), "u1", nil); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM fetuses WHERE user_id='u1'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("expected no fetus rows for null due_date, got %d", n)
+	}
+}
+
 func TestUpdate_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()

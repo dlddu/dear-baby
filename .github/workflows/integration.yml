@@ -325,10 +325,13 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::create record"
+          # `PATCH /me {due_date}` above synthesizes a fetuses ordinal=1
+          # row (mirrors migration 0009), so we can attribute this record
+          # to (fetus, 1) — the same shape the home tab sends in prod.
           curl -fsS -X POST \
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
-            -d '{"content":"today i felt you move for the first time"}' \
+            -d '{"content":"today i felt you move for the first time","child_kind":"fetus","child_ordinal":1}' \
             http://127.0.0.1:18080/v1/records >/tmp/record.json
           cat /tmp/record.json | head -c 400
           echo
@@ -411,10 +414,13 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::create voice record"
+          # Reuses the fetus row synthesized by the AI preview test's
+          # PATCH /me {due_date}; this voice record attributes to the
+          # same (fetus, 1) as the text record above.
           curl -fsS -X POST \
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
-            -d '{"content":"오늘 처음으로 너의 발길질을 느꼈어","source":"voice"}' \
+            -d '{"content":"오늘 처음으로 너의 발길질을 느꼈어","source":"voice","child_kind":"fetus","child_ordinal":1}' \
             http://127.0.0.1:18080/v1/records >/tmp/voice-rec.json
           record_id=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["id"])')
           source=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["source"])')

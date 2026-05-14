@@ -89,18 +89,31 @@ func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, err
 }
 
 // UpdateDueDateAndOnboardedAt persists the user's due date (nullable) and
-// marks onboarding Stage 1 complete by stamping onboarded_at.
+// marks onboarding Stage 1 complete by stamping onboarded_at. When dueDate
+// is non-null and the user has no children row yet, this also synthesizes
+// a `fetuses` ordinal=1 row carrying the same due_date — that way the
+// legacy `completeOnboarding(dueDate)` path produces the same backing row
+// that migration 0009 synthesizes for pre-existing users, so subsequent
+// `POST /records` calls can attribute the record to a real (kind, ordinal)
+// pair.
 func (s *Store) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error {
 	if err := s.ensureRow(ctx, userID); err != nil {
 		return err
 	}
+
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback()
+
 	var dueArg any
 	if dueDate != nil {
 		dueArg = *dueDate
 	} else {
 		dueArg = nil
 	}
-	res, err := s.DB.ExecContext(ctx, `
+	res, err := tx.ExecContext(ctx, `
 		UPDATE onboarding
 		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
 		WHERE user_id = ?
@@ -114,6 +127,27 @@ func (s *Store) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, 
 	}
 	if n == 0 {
 		return ErrNotFound
+	}
+
+	if dueDate != nil {
+		// Mirror migration 0009 synthesis: every user on the legacy
+		// due-date path needs a real fetuses ordinal=1 row so records
+		// can resolve to (fetus, 1). INSERT OR IGNORE avoids clobbering
+		// Case A users who already have richer fetus data; gating on
+		// "no children row exists" leaves 양육-first then due_date flows
+		// alone so we don't accidentally attribute their records to a
+		// phantom fetus.
+		if _, err := tx.ExecContext(ctx, `
+			INSERT OR IGNORE INTO fetuses (user_id, ordinal, due_date)
+			SELECT ?, 1, ?
+			WHERE NOT EXISTS (SELECT 1 FROM children WHERE user_id = ?)
+		`, userID, *dueDate, userID); err != nil {
+			return fmt.Errorf("synthesize fetus row: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
 	}
 	return nil
 }
