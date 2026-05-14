@@ -14,17 +14,31 @@ export function platformAudioFormat(): AudioFormat {
   return Platform.OS === 'ios' ? 'wav' : 'm4a';
 }
 
+// ChildKind discriminates which entity table the record belongs to —
+// mirrors `records.child_kind` on the backend (migration 0009).
+export type ChildKind = 'fetus' | 'child';
+
 // createTextRecord POSTs a text entry to the backend. The response includes
 // the updated user (with first_record_at stamped) so AuthContext can refresh
 // local state in one round-trip — this is what unblurs the Stage 2 AI
 // preview on the home screen. `questionText` is the daily question the
 // home screen showed when the user started writing; pass undefined when
-// no question is associated.
+// no question is associated. `childKind`/`childOrdinal` identify the
+// 태아/양육 아이 this record belongs to and MUST resolve to an existing row
+// in fetuses/children for the user — the backend rejects mismatched values
+// with 400.
 export async function createTextRecord(
   content: string,
-  questionText?: string,
+  questionText: string | undefined,
+  childKind: ChildKind,
+  childOrdinal: number,
 ): Promise<CreateRecordResponse> {
-  const payload: { content: string; question_text?: string } = { content };
+  const payload: {
+    content: string;
+    question_text?: string;
+    child_kind: ChildKind;
+    child_ordinal: number;
+  } = { content, child_kind: childKind, child_ordinal: childOrdinal };
   if (questionText) payload.question_text = questionText;
   const res = await apiFetch('/records', {
     method: 'POST',
@@ -38,6 +52,8 @@ export async function createTextRecord(
     source: 'text',
     content_length: content.length,
     has_question: Boolean(questionText),
+    child_kind: childKind,
+    child_ordinal: childOrdinal,
     record_id: body.record.id,
   });
   return body;
@@ -49,11 +65,21 @@ export async function createTextRecord(
 // is the authoritative artifact and triggers first_record_at.
 export async function createVoiceRecord(
   content: string,
-  questionText?: string,
+  questionText: string | undefined,
+  childKind: ChildKind,
+  childOrdinal: number,
 ): Promise<CreateRecordResponse> {
-  const payload: { content: string; source: 'voice'; question_text?: string } = {
+  const payload: {
+    content: string;
+    source: 'voice';
+    question_text?: string;
+    child_kind: ChildKind;
+    child_ordinal: number;
+  } = {
     content,
     source: 'voice',
+    child_kind: childKind,
+    child_ordinal: childOrdinal,
   };
   if (questionText) payload.question_text = questionText;
   const res = await apiFetch('/records', {
@@ -68,6 +94,8 @@ export async function createVoiceRecord(
     source: 'voice',
     content_length: content.length,
     has_question: Boolean(questionText),
+    child_kind: childKind,
+    child_ordinal: childOrdinal,
     record_id: body.record.id,
   });
   return body;

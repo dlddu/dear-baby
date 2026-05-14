@@ -54,6 +54,8 @@ CREATE TABLE records (
   source        TEXT NOT NULL DEFAULT 'text' CHECK(source IN ('text','voice')),
   audio_s3_key  TEXT,
   question_text TEXT,
+  child_kind    TEXT NOT NULL CHECK(child_kind IN ('child','fetus')),
+  child_ordinal INTEGER NOT NULL CHECK(child_ordinal >= 1),
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE fetuses (
@@ -92,6 +94,41 @@ func seedUser(t *testing.T, db *sql.DB, id, email string) {
 	}
 	if _, err := db.Exec(`INSERT INTO onboarding (user_id) VALUES (?)`, id); err != nil {
 		t.Fatalf("seed onboarding: %v", err)
+	}
+	// Most Create tests need a (kind, ordinal) row to point at. Default to
+	// a single fetus ordinal=1 — matches the Case A / 단일 임신 shape, which
+	// the legacy tests implicitly assumed. Tests that need a different
+	// shape can DELETE/INSERT explicitly.
+	if _, err := db.Exec(
+		`INSERT INTO fetuses (user_id, ordinal, due_date) VALUES (?, 1, '2025-09-15')`,
+		id,
+	); err != nil {
+		t.Fatalf("seed fetus: %v", err)
+	}
+}
+
+// seedChild inserts a children row so handler/store tests can target the
+// 양육 아이 branch without dragging in the onboarding package's Case B/C
+// upserts.
+func seedChild(t *testing.T, db *sql.DB, userID string, ordinal int, name string) {
+	t.Helper()
+	if _, err := db.Exec(
+		`INSERT INTO children (user_id, ordinal, name, birth_date) VALUES (?, ?, ?, '2024-01-01')`,
+		userID, ordinal, name,
+	); err != nil {
+		t.Fatalf("seed child: %v", err)
+	}
+}
+
+// seedFetus inserts a fetuses row for tests that need a second ordinal
+// beyond the default one created by seedUser.
+func seedFetus(t *testing.T, db *sql.DB, userID string, ordinal int, nickname string) {
+	t.Helper()
+	if _, err := db.Exec(
+		`INSERT INTO fetuses (user_id, ordinal, nickname, due_date) VALUES (?, ?, ?, '2025-09-15')`,
+		userID, ordinal, nickname,
+	); err != nil {
+		t.Fatalf("seed fetus: %v", err)
 	}
 }
 
@@ -174,13 +211,25 @@ func post(t *testing.T, h *Handlers, uid, body string) *httptest.ResponseRecorde
 	return rec
 }
 
+// mustJSON marshals a body builder map. Tests use this for any case that
+// needs non-string values (e.g. child_ordinal int) so the inline JSON
+// strings stay readable.
+func mustJSON(t *testing.T, m map[string]any) string {
+	t.Helper()
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return string(b)
+}
+
 // -- POST /records ----------------------------------------------------------
 
 func TestCreate_HappyPath_StampsFirstRecordAt(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	rec := post(t, h, "u1", `{"content":"엄마가 너에게 전하고 싶은 말"}`)
+	rec := post(t, h, "u1", `{"content":"엄마가 너에게 전하고 싶은 말","child_kind":"fetus","child_ordinal":1}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -206,7 +255,7 @@ func TestCreate_VoiceSource_AudioKeyStartsNull(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	rec := post(t, h, "u1", `{"content":"오늘 아기가 처음 움직였어요","source":"voice"}`)
+	rec := post(t, h, "u1", `{"content":"오늘 아기가 처음 움직였어요","source":"voice","child_kind":"fetus","child_ordinal":1}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -229,9 +278,154 @@ func TestCreate_InvalidSource_400(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	rec := post(t, h, "u1", `{"content":"x","source":"audio"}`)
+	rec := post(t, h, "u1", `{"content":"x","source":"audio","child_kind":"fetus","child_ordinal":1}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
+
+// TestCreate_ChildOrdinalEchoed validates that the (kind, ordinal) the
+// client sent are echoed back on the response and persisted on the row.
+// Records.child_kind/child_ordinal is the foundation for attributing a
+// record to a specific 태아/양육 아이 in multi-child households, so the
+// response → DB round-trip is the regression net.
+func TestCreate_ChildOrdinalEchoed(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedChild(t, db, "u1", 1, "첫째")
+	seedChild(t, db, "u1", 2, "둘째")
+
+	body := mustJSON(t, map[string]any{
+		"content":       "둘째에게 들려주는 첫 이야기",
+		"child_kind":    "child",
+		"child_ordinal": 2,
+	})
+	rec := post(t, h, "u1", body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got createResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Record.ChildKind != ChildKindChild {
+		t.Errorf("child_kind: got %q want %q", got.Record.ChildKind, ChildKindChild)
+	}
+	if got.Record.ChildOrdinal != 2 {
+		t.Errorf("child_ordinal: got %d want 2", got.Record.ChildOrdinal)
+	}
+
+	var kind string
+	var ordinal int
+	if err := db.QueryRow(
+		`SELECT child_kind, child_ordinal FROM records WHERE id=?`, got.Record.ID,
+	).Scan(&kind, &ordinal); err != nil {
+		t.Fatalf("requery: %v", err)
+	}
+	if kind != "child" || ordinal != 2 {
+		t.Errorf("persisted (kind, ordinal): got (%q, %d) want (\"child\", 2)", kind, ordinal)
+	}
+}
+
+func TestCreate_MissingChildKind_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+
+	rec := post(t, h, "u1", `{"content":"ok","child_ordinal":1}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
+
+func TestCreate_InvalidChildKind_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+
+	rec := post(t, h, "u1", `{"content":"ok","child_kind":"sibling","child_ordinal":1}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
+
+func TestCreate_ZeroChildOrdinal_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+
+	rec := post(t, h, "u1", `{"content":"ok","child_kind":"fetus","child_ordinal":0}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
+
+func TestCreate_NegativeChildOrdinal_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+
+	rec := post(t, h, "u1", `{"content":"ok","child_kind":"fetus","child_ordinal":-1}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
+
+func TestCreate_NonExistentChildOrdinal_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	// seedUser created fetus ordinal=1; ordinal=2 does not exist for u1.
+
+	rec := post(t, h, "u1", `{"content":"ok","child_kind":"fetus","child_ordinal":2}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400 body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreate_NonExistentChildKindForUser_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	// seedUser created a fetus ordinal=1 only — no children row exists.
+
+	rec := post(t, h, "u1", `{"content":"ok","child_kind":"child","child_ordinal":1}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400 body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCreate_OtherUsersChildOrdinal_400 verifies that the existence
+// check is scoped to the inserting user — a user cannot reference a
+// (kind, ordinal) row that belongs to a different user even if the
+// numbers happen to line up.
+func TestCreate_OtherUsersChildOrdinal_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedUser(t, db, "u2", "u2@b.com")
+	seedChild(t, db, "u2", 3, "u2의 첫째")
+	// u1 has no children rows (only the default fetus ordinal=1).
+
+	rec := post(t, h, "u1", `{"content":"ok","child_kind":"child","child_ordinal":3}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400 body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCreate_FetusOrdinalRoutesToFetusesTable confirms that
+// child_kind="fetus" is checked against the fetuses table even if a
+// children row with the same ordinal exists. Same numeric ordinal across
+// the two tables is legal — Case B users have both — so the
+// discriminator must dispatch correctly.
+func TestCreate_FetusOrdinalRoutesToFetusesTable(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	// Default seedUser already inserted fetus ordinal=1. Add child
+	// ordinal=2; only fetus ordinal=2 should be rejected.
+	seedChild(t, db, "u1", 2, "u1의 첫째")
+
+	rec := post(t, h, "u1", `{"content":"ok","child_kind":"fetus","child_ordinal":2}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400 (no fetus ordinal=2)", rec.Code)
+	}
+
+	rec = post(t, h, "u1", `{"content":"ok","child_kind":"child","child_ordinal":2}`)
+	if rec.Code != http.StatusCreated {
+		t.Errorf("child ordinal=2 should succeed: got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -240,11 +434,13 @@ func TestCreate_QuestionText_PersistedAndEchoed(t *testing.T) {
 	defer db.Close()
 
 	question := "요즘 아기가 가장 활발하게 움직인 순간은 언제였나요?"
-	body, _ := json.Marshal(map[string]string{
+	body := mustJSON(t, map[string]any{
 		"content":       "오늘 처음으로 태동을 느꼈어요.",
 		"question_text": question,
+		"child_kind":    "fetus",
+		"child_ordinal": 1,
 	})
-	rec := post(t, h, "u1", string(body))
+	rec := post(t, h, "u1", body)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -274,12 +470,14 @@ func TestCreate_VoiceWithQuestion_PersistedAndEchoed(t *testing.T) {
 	defer db.Close()
 
 	question := "오늘 아기에게 어떤 노래를 들려주고 싶나요?"
-	body, _ := json.Marshal(map[string]string{
+	body := mustJSON(t, map[string]any{
 		"content":       "방금 들려준 자장가가 마음에 드는 것 같아요.",
 		"source":        "voice",
 		"question_text": question,
+		"child_kind":    "fetus",
+		"child_ordinal": 1,
 	})
-	rec := post(t, h, "u1", string(body))
+	rec := post(t, h, "u1", body)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -299,7 +497,7 @@ func TestCreate_NoQuestion_QuestionTextIsNull(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	rec := post(t, h, "u1", `{"content":"질문 없이 저장"}`)
+	rec := post(t, h, "u1", `{"content":"질문 없이 저장","child_kind":"fetus","child_ordinal":1}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -317,11 +515,13 @@ func TestCreate_QuestionTextTooLong_400(t *testing.T) {
 	defer db.Close()
 
 	long := strings.Repeat("가", 501)
-	body, _ := json.Marshal(map[string]string{
+	body := mustJSON(t, map[string]any{
 		"content":       "ok",
 		"question_text": long,
+		"child_kind":    "fetus",
+		"child_ordinal": 1,
 	})
-	rec := post(t, h, "u1", string(body))
+	rec := post(t, h, "u1", body)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
 	}
@@ -331,7 +531,7 @@ func TestCreate_QuestionTextWhitespaceOnly_StoredAsNull(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	body := `{"content":"ok","question_text":"   \n\t  "}`
+	body := `{"content":"ok","question_text":"   \n\t  ","child_kind":"fetus","child_ordinal":1}`
 	rec := post(t, h, "u1", body)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
@@ -351,13 +551,13 @@ func TestCreate_AfterReset_ReusesOldestExistingRecord(t *testing.T) {
 
 	old := "2023-01-02 03:04:05"
 	if _, err := db.Exec(`
-		INSERT INTO records (id, user_id, content, source, created_at)
-		VALUES ('r0', 'u1', 'old', 'text', ?)
+		INSERT INTO records (id, user_id, content, source, child_kind, child_ordinal, created_at)
+		VALUES ('r0', 'u1', 'old', 'text', 'fetus', 1, ?)
 	`, old); err != nil {
 		t.Fatalf("seed old record: %v", err)
 	}
 
-	rec := post(t, h, "u1", `{"content":"new"}`)
+	rec := post(t, h, "u1", `{"content":"new","child_kind":"fetus","child_ordinal":1}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -379,7 +579,7 @@ func TestCreate_SecondRecord_PreservesFirstRecordAt(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	r1 := post(t, h, "u1", `{"content":"one"}`)
+	r1 := post(t, h, "u1", `{"content":"one","child_kind":"fetus","child_ordinal":1}`)
 	if r1.Code != http.StatusCreated {
 		t.Fatalf("first: %d %s", r1.Code, r1.Body.String())
 	}
@@ -389,7 +589,7 @@ func TestCreate_SecondRecord_PreservesFirstRecordAt(t *testing.T) {
 	}
 	stamped := *first.User.FirstRecordAt
 
-	r2 := post(t, h, "u1", `{"content":"two"}`)
+	r2 := post(t, h, "u1", `{"content":"two","child_kind":"fetus","child_ordinal":1}`)
 	if r2.Code != http.StatusCreated {
 		t.Fatalf("second: %d %s", r2.Code, r2.Body.String())
 	}
@@ -497,15 +697,19 @@ const seededRecordPartition = "year=2026/month=05/day=09"
 func seedVoiceRecord(t *testing.T, db *sql.DB, recordID, userID, content string, audioKey *string) {
 	t.Helper()
 	if audioKey == nil {
-		_, err := db.Exec(`INSERT INTO records (id, user_id, content, source, created_at) VALUES (?,?,?,?,?)`,
-			recordID, userID, content, "voice", seededRecordCreatedAtSQL)
+		_, err := db.Exec(
+			`INSERT INTO records (id, user_id, content, source, child_kind, child_ordinal, created_at) VALUES (?,?,?,?,?,?,?)`,
+			recordID, userID, content, "voice", "fetus", 1, seededRecordCreatedAtSQL,
+		)
 		if err != nil {
 			t.Fatalf("seed record: %v", err)
 		}
 		return
 	}
-	_, err := db.Exec(`INSERT INTO records (id, user_id, content, source, audio_s3_key, created_at) VALUES (?,?,?,?,?,?)`,
-		recordID, userID, content, "voice", *audioKey, seededRecordCreatedAtSQL)
+	_, err := db.Exec(
+		`INSERT INTO records (id, user_id, content, source, audio_s3_key, child_kind, child_ordinal, created_at) VALUES (?,?,?,?,?,?,?,?)`,
+		recordID, userID, content, "voice", *audioKey, "fetus", 1, seededRecordCreatedAtSQL,
+	)
 	if err != nil {
 		t.Fatalf("seed record: %v", err)
 	}

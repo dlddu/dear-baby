@@ -60,6 +60,8 @@ export type User = {
 // when the user opts out of audio upload). `question_text` is the
 // daily question the home screen surfaced when the entry was started;
 // null when the entry came from a path that doesn't carry a question.
+// `child_kind` + `child_ordinal` identify the 태아/양육 아이 this record
+// was made for — required (NOT NULL) on the row.
 export type Record = {
   id: string;
   user_id: string;
@@ -67,6 +69,8 @@ export type Record = {
   content: string;
   question_text: string | null;
   audio_s3_key: string | null;
+  child_kind: 'fetus' | 'child';
+  child_ordinal: number;
   created_at: string;
 };
 

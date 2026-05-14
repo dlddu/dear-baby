@@ -11,6 +11,7 @@ import { logout as apiLogout, me as apiMe } from '../api/auth';
 import {
   createTextRecord as apiCreateTextRecord,
   createVoiceRecord as apiCreateVoiceRecord,
+  type ChildKind,
 } from '../api/records';
 import type { Record, Session, User } from '../api/types';
 import {
@@ -64,12 +65,22 @@ type AuthContextValue = {
    */
   completeOnboardingCaseC: (payload: CaseCPayload) => Promise<void>;
   dismissVoiceCoachmark: () => Promise<void>;
-  createTextRecord: (content: string, questionText?: string) => Promise<void>;
+  createTextRecord: (
+    content: string,
+    questionText: string | undefined,
+    childKind: ChildKind,
+    childOrdinal: number,
+  ) => Promise<void>;
   // createVoiceRecord saves the transcript with source="voice". The
   // returned Record is what the caller needs to either move on or
   // kick off the audio upload pipeline (record.id is the key for the
   // draft store + presigned URL).
-  createVoiceRecord: (content: string, questionText?: string) => Promise<Record>;
+  createVoiceRecord: (
+    content: string,
+    questionText: string | undefined,
+    childKind: ChildKind,
+    childOrdinal: number,
+  ) => Promise<Record>;
   applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -192,10 +203,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // createTextRecord saves a text entry and refreshes local user state.
   // Responsibility is strictly storage + user cache update — the home
   // screen observes `first_record_at` to decide when to request an AI
-  // preview and subscribe to the SSE stream.
+  // preview and subscribe to the SSE stream. childKind/childOrdinal are
+  // required so the row is attributed to a specific 태아/양육 아이.
   const createTextRecord = useCallback(
-    async (content: string, questionText?: string) => {
-      const { user: updated } = await apiCreateTextRecord(content, questionText);
+    async (
+      content: string,
+      questionText: string | undefined,
+      childKind: ChildKind,
+      childOrdinal: number,
+    ) => {
+      const { user: updated } = await apiCreateTextRecord(
+        content,
+        questionText,
+        childKind,
+        childOrdinal,
+      );
       setUser(updated);
       await cacheFromUser(updated);
     },
@@ -207,10 +229,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // handled by the review screen, which uses the returned record_id
   // to feed the draft store and/or uploadAudio orchestrator.
   const createVoiceRecord = useCallback(
-    async (content: string, questionText?: string) => {
+    async (
+      content: string,
+      questionText: string | undefined,
+      childKind: ChildKind,
+      childOrdinal: number,
+    ) => {
       const { record, user: updated } = await apiCreateVoiceRecord(
         content,
         questionText,
+        childKind,
+        childOrdinal,
       );
       setUser(updated);
       await cacheFromUser(updated);

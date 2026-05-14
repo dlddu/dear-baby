@@ -50,19 +50,29 @@ var ErrAudioAlreadyAttached = errors.New("audio already attached")
 // records, audio_s3_key starts as null; the device attaches the audio
 // later via PATCH /records/{id}. questionText is optional — pass nil
 // when the caller has no question to associate (e.g. legacy paths or
-// non-home entry points).
+// non-home entry points). childKind/childOrdinal identify which
+// 태아/양육 아이 the record belongs to and MUST resolve to a real row in
+// fetuses/children for the inserting user; otherwise the insert is
+// rejected with ErrChildNotFound.
 //
 // In a single transaction it: (1) ensures the onboarding row exists,
-// (2) inserts the row, (3) re-derives onboarding.first_record_at from
-// the oldest record. Step 3 makes first_record_at always reflect the
+// (2) verifies the (kind, ordinal) row exists for this user,
+// (3) inserts the row, (4) re-derives onboarding.first_record_at from
+// the oldest record. Step 4 makes first_record_at always reflect the
 // earliest record's created_at — even after an onboarding reset, where
 // first_record_at is nulled but prior records are preserved.
 //
 // Returns the new record plus the updated flat profile so callers can
 // skip a /me round-trip.
-func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, content string, source Source, questionText *string) (*CreateResult, error) {
+func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, content string, source Source, questionText *string, childKind ChildKind, childOrdinal int) (*CreateResult, error) {
 	if !source.Valid() {
 		return nil, fmt.Errorf("%w: source", ErrInvalidContent)
+	}
+	if !childKind.Valid() {
+		return nil, fmt.Errorf("%w: child_kind", ErrInvalidContent)
+	}
+	if childOrdinal < 1 {
+		return nil, fmt.Errorf("%w: child_ordinal", ErrInvalidContent)
 	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -73,6 +83,13 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 	// Verify the user exists before inserting — preserves FK integrity
 	// even if the caller forgot to run auth middleware.
 	if _, err := userStore.GetByIDTx(ctx, tx, userID); err != nil {
+		return nil, err
+	}
+
+	// Verify (child_kind, child_ordinal) resolves to a real entity for this
+	// user. SQLite cannot polymorphically FK a single column to two parent
+	// tables, so we enforce the relationship in application code instead.
+	if err := childRowExistsTx(ctx, tx, userID, childKind, childOrdinal); err != nil {
 		return nil, err
 	}
 
@@ -98,8 +115,8 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 		questionArg = *questionText
 	}
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO records (id, user_id, content, source, question_text) VALUES (?, ?, ?, ?, ?)
-	`, id, userID, content, string(source), questionArg); err != nil {
+		INSERT INTO records (id, user_id, content, source, question_text, child_kind, child_ordinal) VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, id, userID, content, string(source), questionArg, string(childKind), childOrdinal); err != nil {
 		return nil, fmt.Errorf("insert record: %w", err)
 	}
 
@@ -114,7 +131,15 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 		return nil, fmt.Errorf("stamp first_record_at: %w", err)
 	}
 
-	rec := &Record{ID: id, UserID: userID, Content: content, Source: source, QuestionText: questionText}
+	rec := &Record{
+		ID:           id,
+		UserID:       userID,
+		Content:      content,
+		Source:       source,
+		QuestionText: questionText,
+		ChildKind:    childKind,
+		ChildOrdinal: childOrdinal,
+	}
 	var createdAt string
 	if err := tx.QueryRowContext(ctx, `
 		SELECT created_at FROM records WHERE id = ?
@@ -140,11 +165,31 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 	}, nil
 }
 
-// CreateText is preserved as a convenience for the legacy text-only
-// callers and tests. New code paths should use Create with an explicit
-// source so the intent is visible at the call site.
-func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, content string) (*CreateResult, error) {
-	return s.Create(ctx, userStore, userID, content, SourceText, nil)
+// childRowExistsTx returns nil if (userID, ordinal) resolves to a row in
+// the table matching kind (children for ChildKindChild, fetuses for
+// ChildKindFetus). Returns ErrChildNotFound otherwise — callers map that
+// to 400 so the API does not leak whether a row exists for another user.
+func childRowExistsTx(ctx context.Context, tx *sql.Tx, userID string, kind ChildKind, ordinal int) error {
+	var table string
+	switch kind {
+	case ChildKindChild:
+		table = "children"
+	case ChildKindFetus:
+		table = "fetuses"
+	default:
+		return fmt.Errorf("%w: child_kind", ErrInvalidContent)
+	}
+	var n int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM `+table+` WHERE user_id = ? AND ordinal = ?`,
+		userID, ordinal,
+	).Scan(&n); err != nil {
+		return fmt.Errorf("check %s row: %w", table, err)
+	}
+	if n == 0 {
+		return ErrChildNotFound
+	}
+	return nil
 }
 
 // GetByIDForUser returns the record only if it belongs to userID. The
@@ -159,10 +204,10 @@ func (s *Store) GetByIDForUser(ctx context.Context, userID, recordID string) (*R
 		rec          Record
 	)
 	err := s.DB.QueryRowContext(ctx, `
-		SELECT id, user_id, source, content, question_text, audio_s3_key, created_at
+		SELECT id, user_id, source, content, question_text, audio_s3_key, child_kind, child_ordinal, created_at
 		FROM records
 		WHERE id = ? AND user_id = ?
-	`, recordID, userID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, &createdAt)
+	`, recordID, userID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, (*string)(&rec.ChildKind), &rec.ChildOrdinal, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -230,9 +275,9 @@ func (s *Store) AttachAudio(ctx context.Context, userID, recordID, audioS3Key st
 		rec          Record
 	)
 	if err := tx.QueryRowContext(ctx, `
-		SELECT id, user_id, source, content, question_text, audio_s3_key, created_at
+		SELECT id, user_id, source, content, question_text, audio_s3_key, child_kind, child_ordinal, created_at
 		FROM records WHERE id = ?
-	`, recordID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, &createdAt); err != nil {
+	`, recordID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, (*string)(&rec.ChildKind), &rec.ChildOrdinal, &createdAt); err != nil {
 		return nil, fmt.Errorf("fetch record: %w", err)
 	}
 	if audioKey.Valid {
@@ -255,4 +300,8 @@ func (s *Store) AttachAudio(ctx context.Context, userID, recordID, audioS3Key st
 // sentinel errors surfaced to handlers.
 var (
 	ErrInvalidContent = errors.New("invalid content")
+	// ErrChildNotFound signals that the (child_kind, child_ordinal) pair on
+	// a record write does not resolve to an existing row in fetuses/children
+	// for the inserting user. Handlers map it to 400.
+	ErrChildNotFound = errors.New("child not found")
 )

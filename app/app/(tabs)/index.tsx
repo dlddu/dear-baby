@@ -129,19 +129,35 @@ export default function HomeTab() {
     );
   }, [triplet.length]);
 
+  // 기록 화면 진입 시 활성 아이 (kind, ordinal) 을 라우팅 params 로 동봉한다.
+  // 자식 화면이 context 를 직접 구독하지 않게 해 iOS 스와이프 백 함정을 피한다
+  // (CLAUDE.md 참고). activeChild 가 null 인 호환 경로에서는 라우팅을 막아
+  // child 정보 없는 기록 작성을 방지한다.
   const handleVoicePress = useCallback(() => {
+    if (!activeKind || activeOrdinal == null) return;
     router.push({
       pathname: '/record-audio',
-      params: { question: activeQuestion, week_label: weekLabel },
+      params: {
+        question: activeQuestion,
+        week_label: weekLabel,
+        child_kind: activeKind,
+        child_ordinal: String(activeOrdinal),
+      },
     });
-  }, [router, activeQuestion, weekLabel]);
+  }, [router, activeQuestion, weekLabel, activeKind, activeOrdinal]);
 
   const handleTextPress = useCallback(() => {
+    if (!activeKind || activeOrdinal == null) return;
     router.push({
       pathname: '/record-text',
-      params: { question: activeQuestion, week_label: weekLabel },
+      params: {
+        question: activeQuestion,
+        week_label: weekLabel,
+        child_kind: activeKind,
+        child_ordinal: String(activeOrdinal),
+      },
     });
-  }, [router, activeQuestion, weekLabel]);
+  }, [router, activeQuestion, weekLabel, activeKind, activeOrdinal]);
 
   const handleFeedMorePress = useCallback(() => {
     router.push('/(tabs)/community');

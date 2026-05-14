@@ -20,9 +20,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../src/components/Button';
+import { RecordChildBanner } from '../src/components/RecordChildBanner';
 import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
 import { useAuth } from '../src/auth/AuthContext';
+import {
+  parseChildKindParam,
+  parseChildOrdinalParam,
+  resolveRecordChildDisplayName,
+} from '../src/utils/recordChild';
 import { colors } from '../src/theme/colors';
 import { radius } from '../src/theme/radius';
 import { spacing } from '../src/theme/spacing';
@@ -32,36 +38,53 @@ const MAX_CONTENT_LENGTH = 2000;
 
 export default function RecordTextScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ question?: string; week_label?: string }>();
+  const params = useLocalSearchParams<{
+    question?: string;
+    week_label?: string;
+    child_kind?: string;
+    child_ordinal?: string;
+  }>();
   const question = typeof params.question === 'string' ? params.question : '';
   const weekLabel =
     typeof params.week_label === 'string' && params.week_label.length > 0
       ? params.week_label
       : null;
+  const childKind = parseChildKindParam(params.child_kind);
+  const childOrdinal = parseChildOrdinalParam(params.child_ordinal);
 
-  const { createTextRecord } = useAuth();
+  const { user, createTextRecord } = useAuth();
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
 
   const trimmed = useMemo(() => content.trim(), [content]);
-  const canSave = trimmed.length > 0 && !saving;
+  const childDisplayName = useMemo(
+    () => resolveRecordChildDisplayName(user, childKind, childOrdinal),
+    [user, childKind, childOrdinal],
+  );
+  const canSave =
+    trimmed.length > 0 && !saving && childKind !== null && childOrdinal !== null;
 
   const handleCancel = useCallback(() => {
     router.back();
   }, [router]);
 
   const handleSave = useCallback(async () => {
-    if (!canSave) return;
+    if (!canSave || childKind === null || childOrdinal === null) return;
     setSaving(true);
     try {
-      await createTextRecord(trimmed, question || undefined);
+      await createTextRecord(
+        trimmed,
+        question || undefined,
+        childKind,
+        childOrdinal,
+      );
       router.back();
     } catch {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해주세요.');
     } finally {
       setSaving(false);
     }
-  }, [canSave, trimmed, createTextRecord, router, question]);
+  }, [canSave, trimmed, createTextRecord, router, question, childKind, childOrdinal]);
 
   return (
     <SafeAreaView
@@ -90,6 +113,12 @@ export default function RecordTextScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
+          {childDisplayName ? (
+            <RecordChildBanner
+              displayName={childDisplayName}
+              testID="record-text-child-banner"
+            />
+          ) : null}
           <RecordQuestionHeader
             question={question}
             weekLabel={weekLabel}

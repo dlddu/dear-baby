@@ -17,8 +17,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../src/components/Button';
+import { RecordChildBanner } from '../src/components/RecordChildBanner';
 import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
+import { useAuth } from '../src/auth/AuthContext';
+import {
+  parseChildKindParam,
+  parseChildOrdinalParam,
+  resolveRecordChildDisplayName,
+} from '../src/utils/recordChild';
 import { colors } from '../src/theme/colors';
 import { radius } from '../src/theme/radius';
 import { spacing } from '../src/theme/spacing';
@@ -38,12 +45,25 @@ function formatTime(ms: number): string {
 
 export default function RecordAudioScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ question?: string; week_label?: string }>();
+  const params = useLocalSearchParams<{
+    question?: string;
+    week_label?: string;
+    child_kind?: string;
+    child_ordinal?: string;
+  }>();
   const question = typeof params.question === 'string' ? params.question : '';
   const weekLabel =
     typeof params.week_label === 'string' && params.week_label.length > 0
       ? params.week_label
       : null;
+  const childKind = parseChildKindParam(params.child_kind);
+  const childOrdinal = parseChildOrdinalParam(params.child_ordinal);
+  const { user } = useAuth();
+  const childDisplayName = resolveRecordChildDisplayName(
+    user,
+    childKind,
+    childOrdinal,
+  );
 
   const [isRecording, setIsRecording] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -115,6 +135,8 @@ export default function RecordAudioScreen() {
           audio_duration_ms: String(result.durationMs),
           question,
           week_label: weekLabel ?? '',
+          child_kind: childKind ?? '',
+          child_ordinal: childOrdinal != null ? String(childOrdinal) : '',
         },
       });
     } catch (err) {
@@ -122,7 +144,7 @@ export default function RecordAudioScreen() {
       Alert.alert('녹음 종료 실패', '잠시 후 다시 시도해 주세요.');
       setIsRecording(false);
     }
-  }, [router, stopTicker, question, weekLabel]);
+  }, [router, stopTicker, question, weekLabel, childKind, childOrdinal]);
 
   const handleCancel = useCallback(async () => {
     stopTicker();
@@ -150,6 +172,13 @@ export default function RecordAudioScreen() {
         </Pressable>
       </View>
 
+      {childDisplayName ? (
+        <RecordChildBanner
+          displayName={childDisplayName}
+          style={styles.childBanner}
+          testID="record-audio-child-banner"
+        />
+      ) : null}
       <RecordQuestionHeader
         question={question}
         weekLabel={weekLabel}
@@ -214,6 +243,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: spacing[5],
     paddingVertical: spacing[3],
+  },
+  childBanner: {
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[1],
   },
   questionHeader: {
     paddingHorizontal: spacing[5],

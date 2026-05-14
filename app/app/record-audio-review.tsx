@@ -27,10 +27,16 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../src/components/Button';
+import { RecordChildBanner } from '../src/components/RecordChildBanner';
 import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
 import { useAuth } from '../src/auth/AuthContext';
 import * as draftStore from '../src/drafts/draftStore';
+import {
+  parseChildKindParam,
+  parseChildOrdinalParam,
+  resolveRecordChildDisplayName,
+} from '../src/utils/recordChild';
 import { colors } from '../src/theme/colors';
 import { radius } from '../src/theme/radius';
 import { spacing } from '../src/theme/spacing';
@@ -49,6 +55,8 @@ export default function RecordAudioReviewScreen() {
     audio_duration_ms?: string;
     question?: string;
     week_label?: string;
+    child_kind?: string;
+    child_ordinal?: string;
   }>();
   const audioPath = typeof params.audio_path === 'string' ? params.audio_path : '';
   const audioDurationMs = Number(params.audio_duration_ms ?? '0') || 0;
@@ -57,8 +65,14 @@ export default function RecordAudioReviewScreen() {
     typeof params.week_label === 'string' && params.week_label.length > 0
       ? params.week_label
       : null;
+  const childKind = parseChildKindParam(params.child_kind);
+  const childOrdinal = parseChildOrdinalParam(params.child_ordinal);
 
-  const { createVoiceRecord } = useAuth();
+  const { user, createVoiceRecord } = useAuth();
+  const childDisplayName = useMemo(
+    () => resolveRecordChildDisplayName(user, childKind, childOrdinal),
+    [user, childKind, childOrdinal],
+  );
   const [content, setContent] = useState('');
   const [phase, setPhase] = useState<Phase>('transcribing');
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
@@ -67,7 +81,11 @@ export default function RecordAudioReviewScreen() {
   const consumedRef = useRef(false);
 
   const trimmed = useMemo(() => content.trim(), [content]);
-  const canSave = trimmed.length > 0 && phase === 'editing';
+  const canSave =
+    trimmed.length > 0 &&
+    phase === 'editing' &&
+    childKind !== null &&
+    childOrdinal !== null;
 
   const uploadButtonTitle =
     phase === 'saving_and_uploading' ? '업로드 중…' : '저장 후 음성 원본 업로드';
@@ -128,10 +146,15 @@ export default function RecordAudioReviewScreen() {
   );
 
   const handleSave = useCallback(async () => {
-    if (!canSave) return;
+    if (!canSave || childKind === null || childOrdinal === null) return;
     setPhase('saving');
     try {
-      const record = await createVoiceRecord(trimmed, question || undefined);
+      const record = await createVoiceRecord(
+        trimmed,
+        question || undefined,
+        childKind,
+        childOrdinal,
+      );
       await persistDraftOnSuccess(record.id, record.created_at);
       router.replace('/(tabs)');
     } catch (err) {
@@ -139,13 +162,27 @@ export default function RecordAudioReviewScreen() {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
-  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question]);
+  }, [
+    canSave,
+    createVoiceRecord,
+    persistDraftOnSuccess,
+    router,
+    trimmed,
+    question,
+    childKind,
+    childOrdinal,
+  ]);
 
   const handleSaveAndUpload = useCallback(async () => {
-    if (!canSave) return;
+    if (!canSave || childKind === null || childOrdinal === null) return;
     setPhase('saving_and_uploading');
     try {
-      const record = await createVoiceRecord(trimmed, question || undefined);
+      const record = await createVoiceRecord(
+        trimmed,
+        question || undefined,
+        childKind,
+        childOrdinal,
+      );
       await persistDraftOnSuccess(record.id, record.created_at);
       // Fire the upload — uploadAudio handles its own errors and
       // marks the LocalAudio as 'failed' on the way out, so we don't
@@ -164,7 +201,16 @@ export default function RecordAudioReviewScreen() {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
-  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question]);
+  }, [
+    canSave,
+    createVoiceRecord,
+    persistDraftOnSuccess,
+    router,
+    trimmed,
+    question,
+    childKind,
+    childOrdinal,
+  ]);
 
   const handleCancel = useCallback(() => {
     router.back();
@@ -197,6 +243,12 @@ export default function RecordAudioReviewScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
+          {childDisplayName ? (
+            <RecordChildBanner
+              displayName={childDisplayName}
+              testID="record-audio-review-child-banner"
+            />
+          ) : null}
           <RecordQuestionHeader
             question={question}
             weekLabel={weekLabel}

@@ -64,6 +64,12 @@ type createBody struct {
 	// the user started this record. Optional — non-home entry points
 	// (deep links, future flows) may omit it.
 	QuestionText string `json:"question_text"`
+	// ChildKind + ChildOrdinal identify the 태아/양육 아이 this record
+	// is being made for. Both are required — see migration 0009. The
+	// pair MUST match an existing row in fetuses/children for the
+	// inserting user; otherwise the handler returns 400.
+	ChildKind    string `json:"child_kind"`
+	ChildOrdinal int    `json:"child_ordinal"`
 }
 
 // createResponse returns the new record alongside the updated flat profile
@@ -121,13 +127,28 @@ func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 		questionText = &q
 	}
 
-	res, err := h.Store.Create(r.Context(), h.Users, uid, content, source, questionText)
+	childKind := ChildKind(body.ChildKind)
+	if !childKind.Valid() {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid child_kind")
+		return
+	}
+	if body.ChildOrdinal < 1 {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid child_ordinal")
+		return
+	}
+
+	res, err := h.Store.Create(r.Context(), h.Users, uid, content, source, questionText, childKind, body.ChildOrdinal)
 	if err != nil {
-		if errors.Is(err, users.ErrNotFound) {
+		switch {
+		case errors.Is(err, users.ErrNotFound):
 			httpx.WriteError(w, http.StatusNotFound, "user not found")
-			return
+		case errors.Is(err, ErrChildNotFound):
+			httpx.WriteError(w, http.StatusBadRequest, "child not found")
+		case errors.Is(err, ErrInvalidContent):
+			httpx.WriteError(w, http.StatusBadRequest, "invalid content")
+		default:
+			httpx.WriteError(w, http.StatusInternalServerError, "internal")
 		}
-		httpx.WriteError(w, http.StatusInternalServerError, "internal")
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, createResponse{Record: res.Record, User: res.Profile})
