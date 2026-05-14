@@ -14,13 +14,15 @@ name: Closed Beta Submission
 #                        testers need fresh builds.
 #   3. ios-submit      — promote the TestFlight build to the external
 #                        group and file it for Beta App Review.
-#   4. pin-prod-image  — write the head SHA into the production
-#                        kustomize overlay's images: block and push the
-#                        commit straight to main, so prod runs the
-#                        exact backend image the external testers' app
-#                        was built against. Going to main directly
-#                        (instead of the PR branch) avoids retriggering
-#                        ci.yml on the PR.
+#   4. pin-prod-image  — write the head SHA into the dear-baby-prod-app
+#                        Flux Kustomization in flux-cd-apps so prod
+#                        runs the exact backend image the external
+#                        testers' app was built against. The pin lives
+#                        in flux-cd-apps (not this repo) because Flux's
+#                        images: transformation is applied on top of
+#                        the kustomize build and overrides whatever
+#                        k8s/overlays/production/kustomization.yaml
+#                        sets here.
 #   5. auto-merge     —  enable squash auto-merge so the PR lands as
 #                        soon as required checks are green.
 #
@@ -144,47 +146,74 @@ jobs:
         run: bundle exec fastlane external_beta
 
   pin-prod-image:
-    name: Pin prod backend image to head SHA
+    name: Pin prod backend image to head SHA (flux-cd-apps)
     needs: [android, ios-submit]
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      contents: write
     env:
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-      - name: Checkout main
+      - name: Checkout flux-cd-apps
+        # FLUX_CD_APPS_TOKEN is a PAT with contents:write on
+        # dlddu/flux-cd-apps; the default GITHUB_TOKEN is scoped to
+        # this repo only and can't push to a different one. Cloning
+        # into ./flux-cd-apps keeps the working tree off the dear-baby
+        # checkout root so future steps in this workflow that assume a
+        # plain dear-baby layout stay unaffected.
         uses: actions/checkout@v4
         with:
+          repository: dlddu/flux-cd-apps
           ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.FLUX_CD_APPS_TOKEN }}
+          path: flux-cd-apps
 
-      - name: "Rewrite images: block in production overlay"
-        # yq (Mike Farah) is preinstalled on ubuntu-latest. Setting the
-        # whole images: list (rather than appending) keeps the file
-        # idempotent across re-runs that re-label the same SHA or move
-        # the label between commits.
+      - name: "Pin newTag on dear-baby-prod-app Kustomization"
+        # The Flux Kustomization at cluster/dear-baby-prod.yaml owns
+        # the images: transformation applied on top of the dear-baby
+        # kustomize build, so setting newTag here is what actually
+        # pins prod — anything written into this repo's
+        # k8s/overlays/production/kustomization.yaml would be silently
+        # overridden by this block. The yq selector targets only the
+        # dear-baby-prod-app document in the multi-doc YAML (which
+        # also contains a Namespace, a GitRepository, and the
+        # -configs Kustomization), and the post-write verification
+        # catches structural drift (image name renamed, Kustomization
+        # renamed, etc.) that would otherwise leave prod on
+        # newTag: main while the workflow looked green.
+        working-directory: flux-cd-apps
         run: |
           set -euo pipefail
           yq -i '
-            .images = [{"name": "ghcr.io/dlddu/dear-baby", "newTag": strenv(HEAD_SHA)}]
-          ' k8s/overlays/production/kustomization.yaml
+            (select(.kind == "Kustomization" and .metadata.name == "dear-baby-prod-app")
+             | .spec.images[]
+             | select(.name == "ghcr.io/dlddu/dear-baby")
+             | .newTag) = strenv(HEAD_SHA)
+          ' cluster/dear-baby-prod.yaml
+          actual=$(yq '
+            select(.kind == "Kustomization" and .metadata.name == "dear-baby-prod-app")
+            | .spec.images[] | select(.name == "ghcr.io/dlddu/dear-baby") | .newTag
+          ' cluster/dear-baby-prod.yaml)
+          if [ "$actual" != "$HEAD_SHA" ]; then
+            echo "::error::Expected newTag=$HEAD_SHA, got '$actual' — the dear-baby-prod-app Kustomization or its image entry in cluster/dear-baby-prod.yaml has likely been renamed; update the yq selector."
+            exit 1
+          fi
 
-      - name: Commit and push to main
-        # Use --force-with-lease so the push refuses to overwrite main
-        # if another commit landed between our checkout and now (the
-        # lease is the refs/remotes/origin/main set up by checkout); a
-        # lease fail drops into the fetch+rebase retry below.
+      - name: Commit and push to flux-cd-apps main
+        # --force-with-lease guards against another commit landing on
+        # flux-cd-apps' main between checkout and push; on a lease
+        # failure we fetch+rebase and retry up to 3 times, same shape
+        # as the previous (dear-baby-only) version of this step.
+        working-directory: flux-cd-apps
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- k8s/overlays/production/kustomization.yaml; then
-            echo "Production overlay already pinned to $HEAD_SHA — nothing to commit."
+          if git diff --quiet -- cluster/dear-baby-prod.yaml; then
+            echo "dear-baby-prod-app already pinned to $HEAD_SHA — nothing to commit."
             exit 0
           fi
-          git add k8s/overlays/production/kustomization.yaml
-          git commit -m "chore(k8s): pin prod backend image to $HEAD_SHA"
+          git add cluster/dear-baby-prod.yaml
+          git commit -m "chore(dear-baby): pin prod image to $HEAD_SHA"
           for attempt in 1 2 3; do
             if git push --force-with-lease origin HEAD:main; then
               exit 0
@@ -193,7 +222,7 @@ jobs:
             git fetch origin main
             git rebase origin/main
           done
-          echo "::error::Failed to push pin commit to main after 3 attempts."
+          echo "::error::Failed to push pin commit to flux-cd-apps main after 3 attempts."
           exit 1
 
   auto-merge:
@@ -209,6 +238,7 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
       - name: Enable squash auto-merge
-        # We don't push to the PR branch in pin-prod-image, so ci.yml
-        # isn't re-triggered and --auto generally merges immediately.
+        # pin-prod-image now writes only to flux-cd-apps, so nothing
+        # in this workflow pushes back to this repo and ci.yml isn't
+        # re-triggered; --auto generally merges immediately.
         run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash --auto --delete-branch
