@@ -199,10 +199,11 @@ jobs:
           fi
 
       - name: Commit and push to flux-cd-apps main
-        # --force-with-lease guards against another commit landing on
-        # flux-cd-apps' main between checkout and push; on a lease
-        # failure we fetch+rebase and retry up to 3 times, same shape
-        # as the previous (dear-baby-only) version of this step.
+        # Plain (non-force) push so we can only fast-forward on top of
+        # whatever's on flux-cd-apps' main right now; if a concurrent
+        # commit landed since our checkout the push fails, the retry
+        # loop fetches and rebases the pin commit onto the new tip,
+        # then tries again.
         working-directory: flux-cd-apps
         run: |
           set -euo pipefail
@@ -215,7 +216,7 @@ jobs:
           git add cluster/dear-baby-prod.yaml
           git commit -m "chore(dear-baby): pin prod image to $HEAD_SHA"
           for attempt in 1 2 3; do
-            if git push --force-with-lease origin HEAD:main; then
+            if git push origin HEAD:main; then
               exit 0
             fi
             echo "Push attempt $attempt failed; fetching and rebasing on main..."
