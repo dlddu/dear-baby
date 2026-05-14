@@ -17,6 +17,10 @@ on:
         type: string
         required: true
         description: Backend base URL baked into the IPA via EXPO_PUBLIC_API_URL.
+      app-env:
+        type: string
+        required: true
+        description: Deployment environment baked into the IPA via EXPO_PUBLIC_APP_ENV (staging | production). Surfaced to PostHog as a super property.
       ref:
         type: string
         required: false
@@ -39,6 +43,7 @@ jobs:
       build-number: ${{ steps.build_number.outputs.value }}
     env:
       EXPO_PUBLIC_API_URL: ${{ inputs.expo-public-api-url }}
+      EXPO_PUBLIC_APP_ENV: ${{ inputs.app-env }}
       EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
       EXPO_PUBLIC_POSTHOG_HOST: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
       APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}

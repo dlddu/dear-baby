@@ -31,6 +31,7 @@ jobs:
     uses: ./.github/workflows/build-android-play.yml
     with:
       expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_PRODUCTION }}
+      app-env: production
       ref: ${{ github.event.pull_request.head.sha }}
       lane: play_closed
     secrets: inherit
