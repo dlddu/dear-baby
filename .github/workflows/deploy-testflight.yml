@@ -24,6 +24,5 @@ jobs:
     uses: ./.github/workflows/build-ios-testflight.yml
     with:
       expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
-      app-env: staging
       ref: ${{ inputs.ref }}
     secrets: inherit
