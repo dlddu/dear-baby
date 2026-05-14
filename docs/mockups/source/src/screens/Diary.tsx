@@ -4,7 +4,7 @@ import { Tabbar, BackToGallery } from "@/components/Common"
 // ─────────────────────────────────────────────────────────────────────────────
 // M-36 · 일기 탭 — 목록 (단일 아이, 통합 표시)
 //   준수: PRD-008 (AC-008-01·02·03·10). 단일 아이도 아이 컨텍스트 칩 표시.
-//   헤더는 일기 탭 전용 — 좌우 화살표·아이 이름 없음, "내 기록" + 🔔 만.
+//   헤더는 일기 탭 전용 — 좌우 화살표·아이 이름 없음, "일기" + 🔔 만.
 // ─────────────────────────────────────────────────────────────────────────────
 export function M36_DiaryListSingle({ onBack }: { onBack: () => void }) {
   // 임신 28주차 작성 — 콩이
@@ -64,10 +64,10 @@ export function M36_DiaryListSingle({ onBack }: { onBack: () => void }) {
       <BackToGallery onClick={onBack} />
 
       <PhoneFrame label="M-36 · Diary Browsing · Stage 6½-1·2 · 단일 아이 통합" screenClassName="bg-cream">
-        {/* ─── 일기 탭 전용 헤더 (AC-008-10) — "내 기록" + 🔔 ─────── */}
+        {/* ─── 일기 탭 전용 헤더 (AC-008-10) — "일기" + 🔔 ─────── */}
         <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-beige/60">
           <div className="w-8 h-8"></div>
-          <div className="text-[17px] font-bold text-ink font-display">내 기록</div>
+          <div className="text-[17px] font-bold text-ink font-display">일기</div>
           <button className="relative w-8 h-8 flex items-center justify-center text-ink-sub">
             <span className="text-[18px]">🔔</span>
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-coral" />
@@ -183,7 +183,7 @@ export function M37_DiaryListMulti({ onBack }: { onBack: () => void }) {
         {/* ─── 일기 탭 전용 헤더 — 다자녀도 헤더 동일 ─────────────── */}
         <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-beige/60">
           <div className="w-8 h-8"></div>
-          <div className="text-[17px] font-bold text-ink font-display">내 기록</div>
+          <div className="text-[17px] font-bold text-ink font-display">일기</div>
           <button className="relative w-8 h-8 flex items-center justify-center text-ink-sub">
             <span className="text-[18px]">🔔</span>
           </button>
@@ -364,7 +364,7 @@ export function M39_DiaryEmpty({ onBack }: { onBack: () => void }) {
         {/* ─── 일기 탭 전용 헤더 ─────────────────────────────────── */}
         <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-beige/60">
           <div className="w-8 h-8"></div>
-          <div className="text-[17px] font-bold text-ink font-display">내 기록</div>
+          <div className="text-[17px] font-bold text-ink font-display">일기</div>
           <button className="relative w-8 h-8 flex items-center justify-center text-ink-sub">
             <span className="text-[18px]">🔔</span>
           </button>
