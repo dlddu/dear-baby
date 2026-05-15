@@ -165,6 +165,8 @@ jobs:
           adb shell monkey -p com.dlddu.dearbaby -c android.intent.category.LAUNCHER 1
           sleep 3
 
+          cd "$GITHUB_WORKSPACE/e2e"
+
           run_flow() {
             maestro test \
               --env MAESTRO_TEST_USER_EMAIL="$MAESTRO_TEST_USER_EMAIL" \
@@ -175,21 +177,21 @@ jobs:
             (cd "$GITHUB_WORKSPACE/backend" && ./reset-user "$TEST_USER_EMAIL")
           }
 
-          run_flow .maestro/health.yaml
+          run_flow maestro/health.yaml
           reset_user
-          run_flow .maestro/login.yaml
+          run_flow maestro/login.yaml
           reset_user
-          run_flow .maestro/onboarding-caseA.yaml
+          run_flow maestro/onboarding-caseA.yaml
           reset_user
-          run_flow .maestro/onboarding-caseB.yaml
+          run_flow maestro/onboarding-caseB.yaml
           reset_user
-          run_flow .maestro/onboarding-caseC.yaml
+          run_flow maestro/onboarding-caseC.yaml
           reset_user
-          run_flow .maestro/home-record-ctas.yaml
+          run_flow maestro/home-record-ctas.yaml
           reset_user
-          run_flow .maestro/home-question-card-undecided.yaml
+          run_flow maestro/home-question-card-undecided.yaml
           reset_user
-          run_flow .maestro/home-voice-record.yaml
+          run_flow maestro/home-voice-record.yaml
           SCRIPT
           chmod +x /tmp/e2e-android.sh
 

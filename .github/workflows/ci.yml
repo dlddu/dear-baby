@@ -40,6 +40,8 @@ jobs:
               - '.github/workflows/worker-image.yml'
               - '.github/actions/setup-ai-worker/**'
               - 'scripts/openrouter-mock/**'
+            # Maestro 플로우는 e2e/maestro/** 로 분리되어 app/** 밖에 있으므로
+            # maestro-only 변경 시 deploy-testflight/play 가 자연스럽게 스킵된다.
             app:
               - 'app/**'
               - '.github/workflows/deploy-testflight.yml'
@@ -47,13 +49,14 @@ jobs:
               - '.github/workflows/deploy-play-internal.yml'
               - '.github/workflows/build-android-play.yml'
               - '.github/actions/setup-js/**'
-              - '.github/actions/setup-maestro/**'
-              - '.github/actions/upload-maestro-artifacts/**'
             k8s:
               - 'k8s/**'
             e2e:
+              - 'e2e/**'
               - '.github/workflows/e2e-ios.yml'
               - '.github/workflows/e2e-android.yml'
+              - '.github/actions/setup-maestro/**'
+              - '.github/actions/upload-maestro-artifacts/**'
               - '.github/actions/setup-minio/**'
               - '.github/actions/upload-service-logs/**'
             integration:
@@ -114,14 +117,35 @@ jobs:
         working-directory: app
         run: npm test -- --ci --colors=false
 
+  backend-unit-tests:
+    name: Backend Unit Tests
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Run Go tests
+        working-directory: backend
+        run: make test
+
   build-image:
     name: Build & Push Backend Image
-    needs: [integration, e2e-ios, e2e-android, changes]
+    needs: [integration, e2e-ios, e2e-android, backend-unit-tests, changes]
     if: >-
       !failure() && !cancelled() &&
       needs.integration.result != 'cancelled' &&
       needs.e2e-ios.result != 'cancelled' &&
       needs.e2e-android.result != 'cancelled' &&
+      needs.backend-unit-tests.result != 'cancelled' &&
       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/backend-image.yml
     permissions:
@@ -184,6 +208,7 @@ jobs:
       - e2e-ios
       - e2e-android
       - app-unit-tests
+      - backend-unit-tests
       - build-image
       - build-worker-image
       - deploy-testflight
