@@ -208,15 +208,17 @@ jobs:
           # Each onboarding flow sets onboarded_at, so the next flow
           # gets a reset to land back on the welcome screen.
           reset_onboarding
-          run_flow .maestro/onboarding-stage1-skip.yaml
+          run_flow .maestro/onboarding-caseA.yaml
           reset_onboarding
-          run_flow .maestro/onboarding-stage1-date.yaml
+          run_flow .maestro/onboarding-caseB.yaml
           reset_onboarding
-          run_flow .maestro/onboarding-stage2.yaml
+          run_flow .maestro/onboarding-caseC.yaml
           reset_onboarding
-          run_flow .maestro/onboarding-stage2-undecided.yaml
+          run_flow .maestro/home-record-ctas.yaml
           reset_onboarding
-          run_flow .maestro/onboarding-stage2-voice.yaml
+          run_flow .maestro/home-question-card-undecided.yaml
+          reset_onboarding
+          run_flow .maestro/home-voice-record.yaml
 
       - name: Upload Maestro debug artifacts
         if: always()

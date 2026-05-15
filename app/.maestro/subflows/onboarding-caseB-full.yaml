@@ -93,8 +93,29 @@ appId: com.dlddu.dearbaby
     id: "onboarding-b5"
 - assertVisible:
     id: "onboarding-b5-fetus-index-0"
+
+# 예정일 picker 열기 → 기본값 확정 (a2 date 경로 mirror).
 - tapOn:
-    id: "onboarding-b5-due-date-skip-0"
+    id: "onboarding-b5-due-date-field-0"
+# Android: native date-picker dialog — confirm the default date.
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+# iOS: inline spinner — swipe a wheel to fire onChange, then 완료.
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-b5-date-picker-done"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn:
+          id: "onboarding-b5-date-picker-done"
+
 - tapOn:
     id: "onboarding-b5-nickname-0"
 - inputText: "콩이"
@@ -115,8 +136,27 @@ appId: com.dlddu.dearbaby
     id: "onboarding-b5"
 - assertVisible:
     id: "onboarding-b5-fetus-index-1"
+
+# 예정일 picker 열기 → 기본값 확정 (a2 date 경로 mirror).
 - tapOn:
-    id: "onboarding-b5-due-date-skip-1"
+    id: "onboarding-b5-due-date-field-1"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-b5-date-picker-done"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn:
+          id: "onboarding-b5-date-picker-done"
+
 - tapOn:
     id: "onboarding-b5-nickname-1"
 - inputText: "샛별"

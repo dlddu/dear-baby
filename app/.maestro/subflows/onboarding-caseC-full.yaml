@@ -1,6 +1,6 @@
 appId: com.dlddu.dearbaby
 ---
-# Reusable Case C c1·c2·c3 subflow — single-child happy path.
+# Reusable Case C c1 → c2 → c3 → home subflow (single-child happy path).
 #
 # Caller must be on the c1 screen (id "onboarding-c1") — typically reached
 # via subflows/onboarding-q1-q2-caseC.yaml. This subflow:
