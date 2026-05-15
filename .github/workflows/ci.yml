@@ -39,6 +39,7 @@ jobs:
               - 'worker/**'
               - '.github/workflows/worker-image.yml'
               - '.github/actions/setup-ai-worker/**'
+              - 'scripts/openrouter-mock/**'
             app:
               - 'app/**'
               - '.github/workflows/deploy-testflight.yml'
@@ -53,8 +54,12 @@ jobs:
             e2e:
               - '.github/workflows/e2e-ios.yml'
               - '.github/workflows/e2e-android.yml'
+              - '.github/actions/setup-minio/**'
+              - '.github/actions/upload-service-logs/**'
             integration:
               - '.github/workflows/integration.yml'
+              - 'scripts/minio/**'
+              - 'scripts/openrouter-mock/**'
             ci:
               - '.github/workflows/ci.yml'
 
@@ -75,8 +80,9 @@ jobs:
     needs: [changes]
     if: >-
       !failure() && !cancelled() &&
-      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
-      needs.changes.outputs.e2e == 'true' || needs.changes.outputs.ci == 'true')
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.worker == 'true' ||
+      needs.changes.outputs.app == 'true' || needs.changes.outputs.e2e == 'true' ||
+      needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/e2e-ios.yml
     secrets: inherit
 
@@ -85,8 +91,9 @@ jobs:
     needs: [changes]
     if: >-
       !failure() && !cancelled() &&
-      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.app == 'true' ||
-      needs.changes.outputs.e2e == 'true' || needs.changes.outputs.ci == 'true')
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.worker == 'true' ||
+      needs.changes.outputs.app == 'true' || needs.changes.outputs.e2e == 'true' ||
+      needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/e2e-android.yml
     secrets: inherit
 
