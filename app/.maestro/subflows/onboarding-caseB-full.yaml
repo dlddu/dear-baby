@@ -124,6 +124,13 @@ appId: com.dlddu.dearbaby
     text: "이전 아이들과 따로 기록해드려요"
 - tapOn:
     id: "onboarding-b5-gender-unknown"
+# 둘째 태아부터는 BackLink (← 이전 아이로) 가 actions 영역에 추가로 렌더돼
+# ScrollView 의 가용 높이가 줄고, 임신 주차 입력 칸이 fold 아래로 밀린다.
+# 인덱스 0 에서도 동일 가드를 둬 회귀를 빨리 잡는다.
+- scrollUntilVisible:
+    element:
+      id: "onboarding-b5-week-0"
+    direction: DOWN
 - tapOn:
     id: "onboarding-b5-week-0"
 - inputText: "17"
@@ -165,6 +172,10 @@ appId: com.dlddu.dearbaby
     text: "이전 아이들과 따로 기록해드려요"
 - tapOn:
     id: "onboarding-b5-gender-unknown"
+- scrollUntilVisible:
+    element:
+      id: "onboarding-b5-week-1"
+    direction: DOWN
 - tapOn:
     id: "onboarding-b5-week-1"
 - inputText: "17"
