@@ -188,7 +188,7 @@ jobs:
           exit 1
 
       - name: Run Maestro flows
-        working-directory: app
+        working-directory: e2e
         run: |
           set -euo pipefail
           run_flow() {
@@ -201,27 +201,27 @@ jobs:
             (cd ../backend && ./reset-user "$TEST_USER_EMAIL")
           }
 
-          run_flow .maestro/health.yaml
+          run_flow maestro/health.yaml
           # login.yaml requires a fresh-onboarding state to assert the
           # welcome screen on landing.
           reset_user
-          run_flow .maestro/login.yaml
+          run_flow maestro/login.yaml
           # reset-user wipes the test account's onboarding state AND
           # leftover children/fetuses/records between flows so each
           # scenario lands back on the welcome screen with no stale
           # active-child rows polluting home.
           reset_user
-          run_flow .maestro/onboarding-caseA.yaml
+          run_flow maestro/onboarding-caseA.yaml
           reset_user
-          run_flow .maestro/onboarding-caseB.yaml
+          run_flow maestro/onboarding-caseB.yaml
           reset_user
-          run_flow .maestro/onboarding-caseC.yaml
+          run_flow maestro/onboarding-caseC.yaml
           reset_user
-          run_flow .maestro/home-record-ctas.yaml
+          run_flow maestro/home-record-ctas.yaml
           reset_user
-          run_flow .maestro/home-question-card-undecided.yaml
+          run_flow maestro/home-question-card-undecided.yaml
           reset_user
-          run_flow .maestro/home-voice-record.yaml
+          run_flow maestro/home-voice-record.yaml
 
       - name: Upload Maestro debug artifacts
         if: always()
