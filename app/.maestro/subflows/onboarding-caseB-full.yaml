@@ -25,14 +25,15 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b1-next"
 
-# ── b2 첫째 아이 (서연) ──
+# ── b2 첫째 아이 (Seoyeon — 한글 inputText 가 Android maestro 에서 막혀
+# ASCII 음차로 적는다. mobile-dev-inc/maestro#146) ──
 - assertVisible:
     id: "onboarding-b2"
 - assertVisible:
     id: "onboarding-b2-child-index-0"
 - tapOn:
     id: "onboarding-b2-name-0"
-- inputText: "서연"
+- inputText: "Seoyeon"
 - tapOn:
     text: "기록 가이드를 맞춰드릴게요"
 - tapOn:
@@ -51,14 +52,14 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b2-purpose-next"
 
-# ── b2 둘째 아이 (이서) — 인덱스 1 로 진입 ──
+# ── b2 둘째 아이 (Iseo) — 인덱스 1 로 진입 ──
 - assertVisible:
     id: "onboarding-b2"
 - assertVisible:
     id: "onboarding-b2-child-index-1"
 - tapOn:
     id: "onboarding-b2-name-1"
-- inputText: "이서"
+- inputText: "Iseo"
 - tapOn:
     text: "기록 가이드를 맞춰드릴게요"
 - tapOn:
@@ -88,7 +89,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b4-next"
 
-# ── b5 첫째 태아 (콩이) ──
+# ── b5 첫째 태아 (Kongi) ──
 - assertVisible:
     id: "onboarding-b5"
 - assertVisible:
@@ -118,7 +119,7 @@ appId: com.dlddu.dearbaby
 
 - tapOn:
     id: "onboarding-b5-nickname-0"
-- inputText: "콩이"
+- inputText: "Kongi"
 - tapOn:
     text: "이전 아이들과 따로 기록해드려요"
 - tapOn:
@@ -131,7 +132,7 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b5-next"
 
-# ── b5 둘째 태아 (샛별) — 인덱스 1 로 진입 ──
+# ── b5 둘째 태아 (Saetbyeol) — 인덱스 1 로 진입 ──
 - assertVisible:
     id: "onboarding-b5"
 - assertVisible:
@@ -159,7 +160,7 @@ appId: com.dlddu.dearbaby
 
 - tapOn:
     id: "onboarding-b5-nickname-1"
-- inputText: "샛별"
+- inputText: "Saetbyeol"
 - tapOn:
     text: "이전 아이들과 따로 기록해드려요"
 - tapOn:
