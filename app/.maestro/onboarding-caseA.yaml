@@ -8,7 +8,7 @@ appId: com.dlddu.dearbaby
 # 단위 검증으로 책임진다.
 #
 # CI must reset the seeded test user's onboarding state via
-# `backend/reset-onboarding $TEST_USER_EMAIL` before running this flow.
+# `backend/reset-user $TEST_USER_EMAIL` before running this flow.
 
 - clearKeychain
 - launchApp:

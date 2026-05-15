@@ -13,7 +13,7 @@ appId: com.dlddu.dearbaby
 #
 # Requires the seeded test user (TEST_USER_EMAIL / TEST_USER_PASSWORD)
 # in a fresh onboarding state — CI calls
-# `backend/reset-onboarding $TEST_USER_EMAIL` before this flow runs —
+# `backend/reset-user $TEST_USER_EMAIL` before this flow runs —
 # plus EXPO_PUBLIC_E2E_AUDIO_FIXTURE=1 in the app build.
 #
 # The fixture flag is critical: Maestro can't drive the microphone, the

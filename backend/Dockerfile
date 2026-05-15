@@ -13,12 +13,12 @@ COPY . ./
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w" -o /out/dear-baby-backend ./cmd/server && \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -trimpath -ldflags="-s -w" -o /out/reset-onboarding ./cmd/reset-onboarding
+    go build -trimpath -ldflags="-s -w" -o /out/reset-user ./cmd/reset-user
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=build /out/dear-baby-backend /dear-baby-backend
-COPY --from=build /out/reset-onboarding /reset-onboarding
+COPY --from=build /out/reset-user /reset-user
 COPY --chmod=0755 scripts/ /scripts/
 EXPOSE 8080
 USER nonroot:nonroot
