@@ -138,10 +138,33 @@ func TestUpdate_NotFound(t *testing.T) {
 	}
 }
 
-func TestResetByEmail(t *testing.T) {
+func TestResetUserByEmail(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUserWithOnboarding(t, db, "u1", "a@b.com")
+	// 다른 사용자의 데이터는 건드리지 않음을 확인하기 위한 대조군.
+	seedUserWithOnboarding(t, db, "u2", "other@b.com")
+
+	if _, err := db.Exec(
+		`INSERT INTO children (user_id, ordinal, name, gender) VALUES (?, 0, 'Seoyeon', 'female')`, "u1",
+	); err != nil {
+		t.Fatalf("seed child u1: %v", err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO fetuses (user_id, ordinal, nickname) VALUES (?, 0, 'Kongi')`, "u1",
+	); err != nil {
+		t.Fatalf("seed fetus u1: %v", err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO records (id, user_id, content) VALUES ('r1', ?, 'mine')`, "u1",
+	); err != nil {
+		t.Fatalf("seed record u1: %v", err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO records (id, user_id, content) VALUES ('r2', ?, 'theirs')`, "u2",
+	); err != nil {
+		t.Fatalf("seed record u2: %v", err)
+	}
 
 	store := &Store{DB: db}
 	ctx := context.Background()
@@ -149,24 +172,62 @@ func TestResetByEmail(t *testing.T) {
 	if err := store.UpdateDueDateAndOnboardedAt(ctx, "u1", &due); err != nil {
 		t.Fatalf("update: %v", err)
 	}
-	if err := store.ResetByEmail(ctx, "a@b.com"); err != nil {
+	if err := store.ResetUserByEmail(ctx, "a@b.com"); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
+
 	o, err := store.GetByID(ctx, "u1")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if o.DueDate != nil || o.OnboardedAt != nil {
-		t.Errorf("reset should clear: got due=%v onb=%v", o.DueDate, o.OnboardedAt)
+		t.Errorf("reset should clear onboarding fields: got due=%v onb=%v", o.DueDate, o.OnboardedAt)
+	}
+
+	countByUser := func(table, userID string) int {
+		t.Helper()
+		var n int
+		row := db.QueryRow(`SELECT COUNT(*) FROM `+table+` WHERE user_id = ?`, userID)
+		if err := row.Scan(&n); err != nil {
+			t.Fatalf("count %s for %s: %v", table, userID, err)
+		}
+		return n
+	}
+	for _, tbl := range []string{"children", "fetuses", "records"} {
+		if n := countByUser(tbl, "u1"); n != 0 {
+			t.Errorf("%s rows for u1 after reset: got %d want 0", tbl, n)
+		}
+	}
+	// 다른 사용자의 데이터는 그대로.
+	if n := countByUser("records", "u2"); n != 1 {
+		t.Errorf("records for u2 after reset: got %d want 1", n)
 	}
 }
 
-func TestResetByEmail_NotFound(t *testing.T) {
+func TestResetUserByEmail_OnboardingRowAutoCreated(t *testing.T) {
+	// 어떤 이유로 onboarding 행이 없는 사용자도 reset 후엔 깨끗한 행 한 줄이
+	// 보장돼 다음 로그인 / GetByID 가 깨지지 않는다.
+	db := newTestDB(t)
+	defer db.Close()
+	if _, err := db.Exec(`INSERT INTO users (id, email) VALUES (?, ?)`, "u1", "a@b.com"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	store := &Store{DB: db}
+	if err := store.ResetUserByEmail(context.Background(), "a@b.com"); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if _, err := store.GetByID(context.Background(), "u1"); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+}
+
+func TestResetUserByEmail_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 
 	store := &Store{DB: db}
-	err := store.ResetByEmail(context.Background(), "missing@example.com")
+	err := store.ResetUserByEmail(context.Background(), "missing@example.com")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("err: got %v want ErrNotFound", err)
 	}

@@ -62,13 +62,14 @@ jobs:
         with:
           redis-url: ${{ env.REDIS_URL }}
 
-      # Build the reset-onboarding CLI alongside the server so the
-      # maestro suite below can wipe the seeded test user's onboarding
-      # state between runs that need a fresh funnel. Lives inside the
-      # backend module so it shares config + migrations.
-      - name: Build reset-onboarding tool
+      # Build the reset-user CLI alongside the server so the maestro
+      # suite below can wipe the seeded test user's per-user state
+      # (onboarding flags, children, fetuses, records) between runs
+      # that need a fresh funnel. Lives inside the backend module so
+      # it shares config + migrations.
+      - name: Build reset-user tool
         working-directory: backend
-        run: go build -o reset-onboarding ./cmd/reset-onboarding
+        run: go build -o reset-user ./cmd/reset-user
 
       - name: Setup AI worker
         uses: ./.github/actions/setup-ai-worker
@@ -196,27 +197,31 @@ jobs:
               --env MAESTRO_TEST_USER_PASSWORD="$MAESTRO_TEST_USER_PASSWORD" \
               "$1"
           }
-          reset_onboarding() {
-            (cd ../backend && ./reset-onboarding "$TEST_USER_EMAIL")
+          reset_user() {
+            (cd ../backend && ./reset-user "$TEST_USER_EMAIL")
           }
 
           run_flow .maestro/health.yaml
           # login.yaml requires a fresh-onboarding state to assert the
           # welcome screen on landing.
-          reset_onboarding
+          reset_user
           run_flow .maestro/login.yaml
-          # Each onboarding flow sets onboarded_at, so the next flow
-          # gets a reset to land back on the welcome screen.
-          reset_onboarding
-          run_flow .maestro/onboarding-stage1-skip.yaml
-          reset_onboarding
-          run_flow .maestro/onboarding-stage1-date.yaml
-          reset_onboarding
-          run_flow .maestro/onboarding-stage2.yaml
-          reset_onboarding
-          run_flow .maestro/onboarding-stage2-undecided.yaml
-          reset_onboarding
-          run_flow .maestro/onboarding-stage2-voice.yaml
+          # reset-user wipes the test account's onboarding state AND
+          # leftover children/fetuses/records between flows so each
+          # scenario lands back on the welcome screen with no stale
+          # active-child rows polluting home.
+          reset_user
+          run_flow .maestro/onboarding-caseA.yaml
+          reset_user
+          run_flow .maestro/onboarding-caseB.yaml
+          reset_user
+          run_flow .maestro/onboarding-caseC.yaml
+          reset_user
+          run_flow .maestro/home-record-ctas.yaml
+          reset_user
+          run_flow .maestro/home-question-card-undecided.yaml
+          reset_user
+          run_flow .maestro/home-voice-record.yaml
 
       - name: Upload Maestro debug artifacts
         if: always()

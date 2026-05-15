@@ -1,8 +1,10 @@
-// Command reset-onboarding clears onboarded_at, due_date, and the voice
-// coachmark dismissal for the user matching the given email. Intended to
-// be invoked inside the backend container, e.g.
+// Command reset-user wipes a single user's onboarding state, children,
+// fetuses, and records — leaving only the users row and auth artifacts
+// (oauth_accounts, refresh_tokens) — so the next session lands on a
+// fresh funnel. Intended for CI between maestro e2e runs and ops
+// break-glass.
 //
-//	/reset-onboarding user@example.com
+//	/reset-user user@example.com
 package main
 
 import (
@@ -26,7 +28,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
-		return errors.New("usage: reset-onboarding <email>")
+		return errors.New("usage: reset-user <email>")
 	}
 	email := strings.TrimSpace(args[0])
 
@@ -41,12 +43,12 @@ func run(args []string) error {
 	defer d.Close()
 
 	store := &onboarding.Store{DB: d}
-	if err := store.ResetByEmail(context.Background(), email); err != nil {
+	if err := store.ResetUserByEmail(context.Background(), email); err != nil {
 		if errors.Is(err, onboarding.ErrNotFound) {
 			return fmt.Errorf("no user found with email %q", email)
 		}
 		return err
 	}
-	fmt.Printf("reset onboarding for %s\n", email)
+	fmt.Printf("reset user %s\n", email)
 	return nil
 }

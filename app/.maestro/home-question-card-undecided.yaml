@@ -1,0 +1,50 @@
+appId: com.dlddu.dearbaby
+---
+# Home 1인칭 질문 카드 e2e — 홈 카드/CTA 의 렌더 회로.
+#
+# verifies: PRD-007 AC-007-01·03 (헤더), AC-007-04 (1인칭 카드 + 컨텍스트
+#           라벨 — D-day/주차), AC-007-06 (음성·텍스트 CTA).
+#
+# 셋업으로 Case A (예정일 선택) 를 거친다. 본래 이 flow 는 skip 분기에서
+# 컨텍스트 라벨이 사라지는지를 검증했지만, e2e 셋업 분기를 제거(β 정책)
+# 하면서 그 검증 책임은 app/(onboarding)/__tests__/a2.test.tsx 의 skip
+# 동작 어셋션과 home-question-card 유닛 테스트로 이관됐다. 본 e2e 는
+# 도착 후 홈 카드가 정상 렌더되는지(컨텍스트 라벨 포함) 확인한다.
+#
+# CI must reset the seeded test user's onboarding state before running
+# this flow.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1·Q2 (Case A: 임신 O · 양육 X) → a1
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseA.yaml
+
+# a1 → a2 → a3 → 홈 (예정일 선택 경로)
+- runFlow:
+    file: subflows/onboarding-caseA-full.yaml
+
+# 홈 카드 + CTA 가 모두 노출된다.
+- assertVisible:
+    id: "home-header"
+- assertVisible:
+    id: "home-header-bell"
+- assertVisible:
+    id: "home-question-card"
+- assertVisible:
+    id: "home-voice-cta"
+- assertVisible:
+    id: "home-text-cta"
+# 예정일 선택 경로 — 카드의 컨텍스트 라벨(D-day/주차) 도 함께 노출된다.
+- assertVisible:
+    id: "home-question-card-context"

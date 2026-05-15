@@ -25,14 +25,15 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b1-next"
 
-# ── b2 첫째 아이 (서연) ──
+# ── b2 첫째 아이 (Seoyeon — 한글 inputText 가 Android maestro 에서 막혀
+# ASCII 음차로 적는다. mobile-dev-inc/maestro#146) ──
 - assertVisible:
     id: "onboarding-b2"
 - assertVisible:
     id: "onboarding-b2-child-index-0"
 - tapOn:
     id: "onboarding-b2-name-0"
-- inputText: "서연"
+- inputText: "Seoyeon"
 - tapOn:
     text: "기록 가이드를 맞춰드릴게요"
 - tapOn:
@@ -51,14 +52,14 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b2-purpose-next"
 
-# ── b2 둘째 아이 (이서) — 인덱스 1 로 진입 ──
+# ── b2 둘째 아이 (Iseo) — 인덱스 1 로 진입 ──
 - assertVisible:
     id: "onboarding-b2"
 - assertVisible:
     id: "onboarding-b2-child-index-1"
 - tapOn:
     id: "onboarding-b2-name-1"
-- inputText: "이서"
+- inputText: "Iseo"
 - tapOn:
     text: "기록 가이드를 맞춰드릴게요"
 - tapOn:
@@ -88,20 +89,48 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b4-next"
 
-# ── b5 첫째 태아 (콩이) ──
+# ── b5 첫째 태아 (Kongi) ──
 - assertVisible:
     id: "onboarding-b5"
 - assertVisible:
     id: "onboarding-b5-fetus-index-0"
+
+# 예정일 picker 열기 → 기본값 확정 (a2 date 경로 mirror).
 - tapOn:
-    id: "onboarding-b5-due-date-skip-0"
+    id: "onboarding-b5-due-date-field-0"
+# Android: native date-picker dialog — confirm the default date.
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+# iOS: inline spinner — swipe a wheel to fire onChange, then 완료.
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-b5-date-picker-done"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn:
+          id: "onboarding-b5-date-picker-done"
+
 - tapOn:
     id: "onboarding-b5-nickname-0"
-- inputText: "콩이"
+- inputText: "Kongi"
 - tapOn:
     text: "이전 아이들과 따로 기록해드려요"
 - tapOn:
     id: "onboarding-b5-gender-unknown"
+# 둘째 태아부터는 BackLink (← 이전 아이로) 가 actions 영역에 추가로 렌더돼
+# ScrollView 의 가용 높이가 줄고, 임신 주차 입력 칸이 fold 아래로 밀린다.
+# 인덱스 0 에서도 동일 가드를 둬 회귀를 빨리 잡는다.
+- scrollUntilVisible:
+    element:
+      id: "onboarding-b5-week-0"
+    direction: DOWN
 - tapOn:
     id: "onboarding-b5-week-0"
 - inputText: "17"
@@ -110,20 +139,43 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "onboarding-b5-next"
 
-# ── b5 둘째 태아 (샛별) — 인덱스 1 로 진입 ──
+# ── b5 둘째 태아 (Saetbyeol) — 인덱스 1 로 진입 ──
 - assertVisible:
     id: "onboarding-b5"
 - assertVisible:
     id: "onboarding-b5-fetus-index-1"
+
+# 예정일 picker 열기 → 기본값 확정 (a2 date 경로 mirror).
 - tapOn:
-    id: "onboarding-b5-due-date-skip-1"
+    id: "onboarding-b5-due-date-field-1"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-b5-date-picker-done"
+    commands:
+      - swipe:
+          start: "50%, 85%"
+          end: "50%, 70%"
+          duration: 400
+      - tapOn:
+          id: "onboarding-b5-date-picker-done"
+
 - tapOn:
     id: "onboarding-b5-nickname-1"
-- inputText: "샛별"
+- inputText: "Saetbyeol"
 - tapOn:
     text: "이전 아이들과 따로 기록해드려요"
 - tapOn:
     id: "onboarding-b5-gender-unknown"
+- scrollUntilVisible:
+    element:
+      id: "onboarding-b5-week-1"
+    direction: DOWN
 - tapOn:
     id: "onboarding-b5-week-1"
 - inputText: "17"

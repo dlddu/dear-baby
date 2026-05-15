@@ -92,7 +92,7 @@ can spot stale deployments without parsing routes.
 ```
 cmd/
   server/            // server entrypoint → internal/app.Run
-  reset-onboarding/  // ops CLI: clears onboarded_at/due_date by email
+  reset-user/        // ops CLI: wipes per-user onboarding + children/fetuses/records by email
 internal/
   app/        // HTTP wiring (chi router, middleware, lifecycle)
   config/     // Load() from environment
@@ -102,7 +102,7 @@ internal/
   auth/       // JWT issuer, Google verifier, refresh store, handlers, middleware
   users/      // User model, SQL store, /me handler
 scripts/
-  reset-onboarding.sh  // busybox-sh wrapper shipped in the container image
+  reset-user.sh        // busybox-sh wrapper shipped in the container image
 ```
 
 ## Common tasks

@@ -25,7 +25,7 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/onboarding-q1-q2-caseA.yaml
 - runFlow:
-    file: subflows/onboarding-caseA-a1-a2-date.yaml
+    file: subflows/onboarding-caseA-full.yaml
 
 # 5개 탭 라벨이 모두 보이는지 확인 (홈은 가운데)
 - assertVisible:

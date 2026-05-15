@@ -1,14 +1,16 @@
 appId: com.dlddu.dearbaby
 ---
-# Onboarding → Home (예정일 선택 경로) 확인.
+# Home record CTAs e2e — voice·text CTA → 기록 화면 진입/취소 회로.
 #
-# PRD-007 작업 C 이후의 홈은 1인칭 질문 카드(home-question-card) +
-# 음성/텍스트 CTA(home-voice-cta / home-text-cta) 로 구성된다.
-# 본 flow 는 Case A 예정일 선택 후 홈에 도착해 새 카드와 CTA 가
-# 노출되는지, CTA 가 각 기록 화면을 띄우는지를 확인한다.
+# verifies: PRD-007 AC-007-01·03 (헤더), AC-007-04 (1인칭 카드),
+#           AC-007-06 (음성·텍스트 CTA 가 record 화면을 띄움).
+#
+# 셋업으로 Case A 온보딩(예정일 선택 경로)을 거쳐 홈에 도착한 뒤 CTA
+# 동작만 검증한다. 예정일 미정 경로의 컨텍스트 라벨 부재 검증은
+# home-question-card-undecided.yaml 가 책임진다.
 #
 # CI must reset the seeded test user's onboarding state before running
-# this flow; the undecided path lives in onboarding-stage2-undecided.yaml.
+# this flow.
 
 - clearKeychain
 - launchApp:
@@ -26,9 +28,9 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/onboarding-q1-q2-caseA.yaml
 
-# a1 → a2 → 홈 (예정일 선택 경로)
+# a1 → a2 → a3 → 홈 (예정일 선택 경로)
 - runFlow:
-    file: subflows/onboarding-caseA-a1-a2-date.yaml
+    file: subflows/onboarding-caseA-full.yaml
 
 # 홈 진입 — PRD-007 AC-007-01·03 헤더 + AC-007-04·06 1인칭 카드 + CTA.
 - assertVisible:

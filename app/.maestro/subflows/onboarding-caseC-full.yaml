@@ -1,6 +1,6 @@
 appId: com.dlddu.dearbaby
 ---
-# Reusable Case C c1·c2·c3 subflow — single-child happy path.
+# Reusable Case C c1 → c2 → c3 → home subflow (single-child happy path).
 #
 # Caller must be on the c1 screen (id "onboarding-c1") — typically reached
 # via subflows/onboarding-q1-q2-caseC.yaml. This subflow:
@@ -25,10 +25,11 @@ appId: com.dlddu.dearbaby
 - assertVisible:
     id: "onboarding-c2"
 
-# 이름 = 민준
+# 이름 = Minjun (한글 inputText 가 Android maestro 에서 막혀 ASCII 음차로 적는다.
+# mobile-dev-inc/maestro#146)
 - tapOn:
     id: "onboarding-c2-name"
-- inputText: "민준"
+- inputText: "Minjun"
 - tapOn:
     text: "기록 가이드를 맞춰드릴게요"
 

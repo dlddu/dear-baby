@@ -8,7 +8,7 @@ appId: com.dlddu.dearbaby
 # 한 트랜잭션에 영속화된다.
 #
 # CI must reset the seeded test user's onboarding state via
-# `backend/reset-onboarding $TEST_USER_EMAIL` before running this flow.
+# `backend/reset-user $TEST_USER_EMAIL` before running this flow.
 
 - clearKeychain
 - launchApp:

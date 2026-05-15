@@ -178,10 +178,53 @@ func (s *Store) Reset(ctx context.Context, userID string) error {
 	return nil
 }
 
-// ResetByEmail clears onboarding state for the user with the given email.
-// Returns ErrNotFound if no user or onboarding row matches.
-func (s *Store) ResetByEmail(ctx context.Context, email string) error {
-	res, err := s.DB.ExecContext(ctx, `
+// ResetUserByEmail wipes all per-user state used by the onboarding e2e
+// suite — onboarding flags, the per-fetus / per-child onboarding rows,
+// and the user's record history — so the next session lands on a fresh
+// funnel. The users row itself, plus auth artifacts (oauth_accounts,
+// refresh_tokens), are untouched so the test account can still log in.
+//
+// Intended for CI between maestro runs and ops break-glass. Returns
+// ErrNotFound if no user matches the given email.
+func (s *Store) ResetUserByEmail(ctx context.Context, email string) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin reset user tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var userID string
+	if err := tx.QueryRowContext(ctx,
+		`SELECT id FROM users WHERE email = ?`, email,
+	).Scan(&userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("lookup user by email: %w", err)
+	}
+
+	// children + fetuses 는 활성 아이 픽커가 leftover 를 골라 카드 컨텍스트
+	// 라벨이 비결정적으로 되는 사례(맥락 leak)를 제거. records 는 다음
+	// 시나리오의 home-feed 어셋션이 직전 run 의 voice fixture 와 섞이지
+	// 않도록 함께 wipe.
+	for _, stmt := range []string{
+		`DELETE FROM children WHERE user_id = ?`,
+		`DELETE FROM fetuses  WHERE user_id = ?`,
+		`DELETE FROM records  WHERE user_id = ?`,
+	} {
+		if _, err := tx.ExecContext(ctx, stmt, userID); err != nil {
+			return fmt.Errorf("reset user (%s): %w", stmt, err)
+		}
+	}
+
+	// onboarding row 는 EnsureRowTx 가 로그인마다 보장한다. INSERT OR
+	// IGNORE 로 멱등하게 한 줄 보장 후, 모든 필드를 null 로 되돌린다.
+	if _, err := tx.ExecContext(ctx,
+		`INSERT OR IGNORE INTO onboarding (user_id) VALUES (?)`, userID,
+	); err != nil {
+		return fmt.Errorf("ensure onboarding row: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
 		UPDATE onboarding
 		SET due_date = NULL,
 		    onboarded_at = NULL,
@@ -189,17 +232,13 @@ func (s *Store) ResetByEmail(ctx context.Context, email string) error {
 		    first_record_at = NULL,
 		    ai_preview = NULL,
 		    updated_at = datetime('now')
-		WHERE user_id = (SELECT id FROM users WHERE email = ?)
-	`, email)
-	if err != nil {
-		return fmt.Errorf("reset onboarding by email: %w", err)
+		WHERE user_id = ?
+	`, userID); err != nil {
+		return fmt.Errorf("reset onboarding fields: %w", err)
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
-	}
-	if n == 0 {
-		return ErrNotFound
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit reset user tx: %w", err)
 	}
 	return nil
 }

@@ -7,7 +7,7 @@ appId: com.dlddu.dearbaby
 # rows + 기록 목적, and lands on home.
 #
 # CI must reset the seeded test user's onboarding state via
-# `backend/reset-onboarding $TEST_USER_EMAIL` before running this flow.
+# `backend/reset-user $TEST_USER_EMAIL` before running this flow.
 
 - clearKeychain
 - launchApp:
@@ -27,7 +27,7 @@ appId: com.dlddu.dearbaby
 
 # c1 → c2 → c3 → 홈
 - runFlow:
-    file: subflows/onboarding-caseC-c1-c2-c3.yaml
+    file: subflows/onboarding-caseC-full.yaml
 
 # PRD-007 AC-007-01·03 — 홈 도착 후 새 헤더가 보여야 한다.
 - assertVisible:

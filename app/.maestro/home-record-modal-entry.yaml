@@ -22,7 +22,7 @@ appId: com.dlddu.dearbaby
 - runFlow:
     file: subflows/onboarding-q1-q2-caseA.yaml
 - runFlow:
-    file: subflows/onboarding-caseA-a1-a2-date.yaml
+    file: subflows/onboarding-caseA-full.yaml
 
 # 홈 도착 — 카드와 CTA 두 개가 모두 보여야 한다.
 - assertVisible:
