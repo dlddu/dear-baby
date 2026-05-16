@@ -88,36 +88,6 @@ func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, err
 	return o, nil
 }
 
-// UpdateDueDateAndOnboardedAt persists the user's due date (nullable) and
-// marks onboarding Stage 1 complete by stamping onboarded_at.
-func (s *Store) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error {
-	if err := s.ensureRow(ctx, userID); err != nil {
-		return err
-	}
-	var dueArg any
-	if dueDate != nil {
-		dueArg = *dueDate
-	} else {
-		dueArg = nil
-	}
-	res, err := s.DB.ExecContext(ctx, `
-		UPDATE onboarding
-		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
-		WHERE user_id = ?
-	`, dueArg, userID)
-	if err != nil {
-		return fmt.Errorf("update due date: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
-	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
 // DismissVoiceCoachmark stamps voice_coachmark_dismissed_at. Idempotent —
 // a second call preserves the original timestamp. Returns ErrNotFound only
 // if no onboarding row (and therefore no user) exists.
@@ -147,33 +117,6 @@ func (s *Store) UpdateAIPreview(ctx context.Context, userID, preview string) err
 		WHERE user_id = ?
 	`, preview, userID); err != nil {
 		return fmt.Errorf("update ai preview: %w", err)
-	}
-	return nil
-}
-
-// Reset clears all onboarding state for the given user. Used by the
-// test-login handler so successive E2E runs re-enter the onboarding
-// funnel. Records themselves are preserved.
-func (s *Store) Reset(ctx context.Context, userID string) error {
-	res, err := s.DB.ExecContext(ctx, `
-		UPDATE onboarding
-		SET due_date = NULL,
-		    onboarded_at = NULL,
-		    voice_coachmark_dismissed_at = NULL,
-		    first_record_at = NULL,
-		    ai_preview = NULL,
-		    updated_at = datetime('now')
-		WHERE user_id = ?
-	`, userID)
-	if err != nil {
-		return fmt.Errorf("reset onboarding: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
-	}
-	if n == 0 {
-		return ErrNotFound
 	}
 	return nil
 }
@@ -446,99 +389,6 @@ func (s *Store) UpsertCaseC(ctx context.Context, userID string, children []Child
 		return fmt.Errorf("commit: %w", err)
 	}
 	return nil
-}
-
-// ListFetuses returns all fetus rows for the user, ordered by ordinal.
-func (s *Store) ListFetuses(ctx context.Context, userID string) ([]Fetus, error) {
-	return listFetuses(ctx, s.DB, userID)
-}
-
-// ListChildren returns all child rows for the user, ordered by ordinal.
-func (s *Store) ListChildren(ctx context.Context, userID string) ([]Child, error) {
-	return listChildren(ctx, s.DB, userID)
-}
-
-func listFetuses(ctx context.Context, q rowQuerier, userID string) ([]Fetus, error) {
-	rows, err := q.QueryContext(ctx, `
-		SELECT ordinal, nickname, gender, pregnancy_week, due_date, purposes_json
-		FROM fetuses WHERE user_id = ? ORDER BY ordinal ASC
-	`, userID)
-	if err != nil {
-		return nil, fmt.Errorf("select fetuses: %w", err)
-	}
-	defer rows.Close()
-	var out []Fetus
-	for rows.Next() {
-		var f Fetus
-		var nickname, gender, dueDate sql.NullString
-		var pregnancyWeek sql.NullInt64
-		var purposesJSON string
-		if err := rows.Scan(&f.Ordinal, &nickname, &gender, &pregnancyWeek, &dueDate, &purposesJSON); err != nil {
-			return nil, fmt.Errorf("scan fetus: %w", err)
-		}
-		if nickname.Valid {
-			v := nickname.String
-			f.Nickname = &v
-		}
-		if gender.Valid {
-			v := gender.String
-			f.Gender = &v
-		}
-		if pregnancyWeek.Valid {
-			v := int(pregnancyWeek.Int64)
-			f.PregnancyWeek = &v
-		}
-		if dueDate.Valid {
-			v := dueDate.String
-			f.DueDate = &v
-		}
-		f.Purposes = parsePurposes(purposesJSON)
-		out = append(out, f)
-	}
-	return out, rows.Err()
-}
-
-func listChildren(ctx context.Context, q rowQuerier, userID string) ([]Child, error) {
-	rows, err := q.QueryContext(ctx, `
-		SELECT ordinal, name, gender, birth_date, bio, purposes_json
-		FROM children WHERE user_id = ? ORDER BY ordinal ASC
-	`, userID)
-	if err != nil {
-		return nil, fmt.Errorf("select children: %w", err)
-	}
-	defer rows.Close()
-	var out []Child
-	for rows.Next() {
-		var c Child
-		var name, gender, birthDate, bio sql.NullString
-		var purposesJSON string
-		if err := rows.Scan(&c.Ordinal, &name, &gender, &birthDate, &bio, &purposesJSON); err != nil {
-			return nil, fmt.Errorf("scan child: %w", err)
-		}
-		if name.Valid {
-			v := name.String
-			c.Name = &v
-		}
-		if gender.Valid {
-			v := gender.String
-			c.Gender = &v
-		}
-		if birthDate.Valid {
-			v := birthDate.String
-			c.BirthDate = &v
-		}
-		if bio.Valid {
-			v := bio.String
-			c.Bio = &v
-		}
-		c.Purposes = parsePurposes(purposesJSON)
-		out = append(out, c)
-	}
-	return out, rows.Err()
-}
-
-type rowQuerier interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 func parsePurposes(raw string) []string {

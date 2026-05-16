@@ -82,60 +82,94 @@ func seedUserWithOnboarding(t *testing.T, db *sql.DB, id, email string) {
 	}
 }
 
-func TestUpdateDueDateAndOnboardedAt_WithDueDate(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-	seedUserWithOnboarding(t, db, "u1", "a@b.com")
-
-	store := &Store{DB: db}
-	ctx := context.Background()
-	due := "2025-09-15"
-	if err := store.UpdateDueDateAndOnboardedAt(ctx, "u1", &due); err != nil {
-		t.Fatalf("update: %v", err)
-	}
-	o, err := store.GetByID(ctx, "u1")
+// listFetusesForTest reads back the user's fetuses for upsert assertions.
+// Replaces the production ListFetuses helper that used to live on Store;
+// kept test-local since no production caller needs it.
+func listFetusesForTest(t *testing.T, db *sql.DB, userID string) []Fetus {
+	t.Helper()
+	rows, err := db.Query(`
+		SELECT ordinal, nickname, gender, pregnancy_week, due_date, purposes_json
+		FROM fetuses WHERE user_id = ? ORDER BY ordinal ASC
+	`, userID)
 	if err != nil {
-		t.Fatalf("get: %v", err)
+		t.Fatalf("select fetuses: %v", err)
 	}
-	if o.DueDate == nil || *o.DueDate != "2025-09-15" {
-		t.Errorf("due_date: got %v want 2025-09-15", o.DueDate)
+	defer rows.Close()
+	var out []Fetus
+	for rows.Next() {
+		var f Fetus
+		var nickname, gender, dueDate sql.NullString
+		var pregnancyWeek sql.NullInt64
+		var purposesJSON string
+		if err := rows.Scan(&f.Ordinal, &nickname, &gender, &pregnancyWeek, &dueDate, &purposesJSON); err != nil {
+			t.Fatalf("scan fetus: %v", err)
+		}
+		if nickname.Valid {
+			v := nickname.String
+			f.Nickname = &v
+		}
+		if gender.Valid {
+			v := gender.String
+			f.Gender = &v
+		}
+		if pregnancyWeek.Valid {
+			v := int(pregnancyWeek.Int64)
+			f.PregnancyWeek = &v
+		}
+		if dueDate.Valid {
+			v := dueDate.String
+			f.DueDate = &v
+		}
+		f.Purposes = parsePurposes(purposesJSON)
+		out = append(out, f)
 	}
-	if o.OnboardedAt == nil {
-		t.Errorf("onboarded_at should be set")
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows.Err: %v", err)
 	}
+	return out
 }
 
-func TestUpdateDueDateAndOnboardedAt_NullDueDate(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-	seedUserWithOnboarding(t, db, "u1", "a@b.com")
-
-	store := &Store{DB: db}
-	ctx := context.Background()
-	if err := store.UpdateDueDateAndOnboardedAt(ctx, "u1", nil); err != nil {
-		t.Fatalf("update: %v", err)
-	}
-	o, err := store.GetByID(ctx, "u1")
+func listChildrenForTest(t *testing.T, db *sql.DB, userID string) []Child {
+	t.Helper()
+	rows, err := db.Query(`
+		SELECT ordinal, name, gender, birth_date, bio, purposes_json
+		FROM children WHERE user_id = ? ORDER BY ordinal ASC
+	`, userID)
 	if err != nil {
-		t.Fatalf("get: %v", err)
+		t.Fatalf("select children: %v", err)
 	}
-	if o.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *o.DueDate)
+	defer rows.Close()
+	var out []Child
+	for rows.Next() {
+		var c Child
+		var name, gender, birthDate, bio sql.NullString
+		var purposesJSON string
+		if err := rows.Scan(&c.Ordinal, &name, &gender, &birthDate, &bio, &purposesJSON); err != nil {
+			t.Fatalf("scan child: %v", err)
+		}
+		if name.Valid {
+			v := name.String
+			c.Name = &v
+		}
+		if gender.Valid {
+			v := gender.String
+			c.Gender = &v
+		}
+		if birthDate.Valid {
+			v := birthDate.String
+			c.BirthDate = &v
+		}
+		if bio.Valid {
+			v := bio.String
+			c.Bio = &v
+		}
+		c.Purposes = parsePurposes(purposesJSON)
+		out = append(out, c)
 	}
-	if o.OnboardedAt == nil {
-		t.Errorf("onboarded_at should be set even when due_date is null")
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows.Err: %v", err)
 	}
-}
-
-func TestUpdate_NotFound(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-
-	store := &Store{DB: db}
-	err := store.UpdateDueDateAndOnboardedAt(context.Background(), "missing", nil)
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("err: got %v want ErrNotFound", err)
-	}
+	return out
 }
 
 func TestResetUserByEmail(t *testing.T) {
@@ -168,9 +202,10 @@ func TestResetUserByEmail(t *testing.T) {
 
 	store := &Store{DB: db}
 	ctx := context.Background()
-	due := "2025-09-15"
-	if err := store.UpdateDueDateAndOnboardedAt(ctx, "u1", &due); err != nil {
-		t.Fatalf("update: %v", err)
+	if _, err := db.Exec(`
+		UPDATE onboarding SET due_date = '2025-09-15', onboarded_at = datetime('now') WHERE user_id = 'u1'
+	`); err != nil {
+		t.Fatalf("seed onboarding fields: %v", err)
 	}
 	if err := store.ResetUserByEmail(ctx, "a@b.com"); err != nil {
 		t.Fatalf("reset: %v", err)
@@ -277,60 +312,6 @@ func TestDismissVoiceCoachmark_NotFound(t *testing.T) {
 	}
 }
 
-func TestReset_ClearsAllFields(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-	seedUserWithOnboarding(t, db, "u1", "a@b.com")
-
-	store := &Store{DB: db}
-	ctx := context.Background()
-	if err := store.DismissVoiceCoachmark(ctx, "u1"); err != nil {
-		t.Fatalf("dismiss: %v", err)
-	}
-	if err := store.UpdateAIPreview(ctx, "u1", "preview text"); err != nil {
-		t.Fatalf("update preview: %v", err)
-	}
-	if err := store.Reset(ctx, "u1"); err != nil {
-		t.Fatalf("reset: %v", err)
-	}
-	o, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if o.VoiceCoachmarkDismissedAt != nil ||
-		o.AIPreview != nil ||
-		o.OnboardedAt != nil ||
-		o.DueDate != nil ||
-		o.FirstRecordAt != nil {
-		t.Errorf("reset should clear all onboarding fields: got %+v", o)
-	}
-}
-
-func TestReset_PreservesRecords(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-	seedUserWithOnboarding(t, db, "u1", "a@b.com")
-
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content) VALUES ('r1', 'u1', 'hello')`); err != nil {
-		t.Fatalf("seed record: %v", err)
-	}
-	if _, err := db.Exec(`UPDATE onboarding SET first_record_at = datetime('now') WHERE user_id = ?`, "u1"); err != nil {
-		t.Fatalf("seed first_record_at: %v", err)
-	}
-
-	store := &Store{DB: db}
-	if err := store.Reset(context.Background(), "u1"); err != nil {
-		t.Fatalf("reset: %v", err)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM records WHERE user_id = ?`, "u1").Scan(&n); err != nil {
-		t.Fatalf("count records: %v", err)
-	}
-	if n != 1 {
-		t.Errorf("records should be preserved on reset, got %d want 1", n)
-	}
-}
-
 func TestListPendingAIPreviews(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
@@ -428,10 +409,7 @@ func TestUpsertCaseA_InsertsAndStamps(t *testing.T) {
 		t.Error("onboarded_at should be set")
 	}
 
-	got, err := store.ListFetuses(ctx, "u1")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
+	got := listFetusesForTest(t, db, "u1")
 	if len(got) != 2 {
 		t.Fatalf("rows: got %d want 2", len(got))
 	}
@@ -470,10 +448,7 @@ func TestUpsertCaseA_ReplacesExisting(t *testing.T) {
 		t.Fatalf("second upsert: %v", err)
 	}
 
-	got, err := store.ListFetuses(ctx, "u1")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
+	got := listFetusesForTest(t, db, "u1")
 	if len(got) != 1 {
 		t.Fatalf("rows: got %d want 1", len(got))
 	}
@@ -544,10 +519,7 @@ func TestUpsertCaseC_InsertsAndStamps(t *testing.T) {
 		t.Error("onboarded_at should be set")
 	}
 
-	got, err := store.ListChildren(ctx, "u1")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
+	got := listChildrenForTest(t, db, "u1")
 	if len(got) != 1 {
 		t.Fatalf("rows: got %d want 1", len(got))
 	}
@@ -577,10 +549,7 @@ func TestUpsertCaseC_ReplacesExisting(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("second upsert: %v", err)
 	}
-	got, err := store.ListChildren(ctx, "u1")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
+	got := listChildrenForTest(t, db, "u1")
 	if len(got) != 1 || got[0].Name == nil || *got[0].Name != "새이름" {
 		t.Errorf("rows: got %+v", got)
 	}
@@ -627,10 +596,7 @@ func TestUpsertCaseB_InsertsBothAndStamps(t *testing.T) {
 		t.Error("onboarded_at should be set")
 	}
 
-	gotChildren, err := store.ListChildren(ctx, "u1")
-	if err != nil {
-		t.Fatalf("list children: %v", err)
-	}
+	gotChildren := listChildrenForTest(t, db, "u1")
 	if len(gotChildren) != 1 || gotChildren[0].Name == nil || *gotChildren[0].Name != "서연" {
 		t.Errorf("children: got %+v", gotChildren)
 	}
@@ -638,10 +604,7 @@ func TestUpsertCaseB_InsertsBothAndStamps(t *testing.T) {
 		t.Errorf("child purposes: got %+v", gotChildren[0].Purposes)
 	}
 
-	gotFetuses, err := store.ListFetuses(ctx, "u1")
-	if err != nil {
-		t.Fatalf("list fetuses: %v", err)
-	}
+	gotFetuses := listFetusesForTest(t, db, "u1")
 	if len(gotFetuses) != 1 || gotFetuses[0].Nickname == nil || *gotFetuses[0].Nickname != "콩이" {
 		t.Errorf("fetuses: got %+v", gotFetuses)
 	}
@@ -705,17 +668,11 @@ func TestUpsertCaseB_ReplacesExisting(t *testing.T) {
 	); err != nil {
 		t.Fatalf("second upsert: %v", err)
 	}
-	gotChildren, err := store.ListChildren(ctx, "u1")
-	if err != nil {
-		t.Fatalf("list children: %v", err)
-	}
+	gotChildren := listChildrenForTest(t, db, "u1")
 	if len(gotChildren) != 1 || *gotChildren[0].Name != "새이름" {
 		t.Errorf("children: got %+v", gotChildren)
 	}
-	gotFetuses, err := store.ListFetuses(ctx, "u1")
-	if err != nil {
-		t.Fatalf("list fetuses: %v", err)
-	}
+	gotFetuses := listFetusesForTest(t, db, "u1")
 	if len(gotFetuses) != 1 || *gotFetuses[0].Nickname != "새콩" {
 		t.Errorf("fetuses: got %+v", gotFetuses)
 	}

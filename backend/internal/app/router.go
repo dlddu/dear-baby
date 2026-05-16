@@ -173,10 +173,6 @@ type onboardingAdapter struct {
 	store *onboarding.Store
 }
 
-func (a *onboardingAdapter) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error {
-	return a.store.UpdateDueDateAndOnboardedAt(ctx, userID, dueDate)
-}
-
 func (a *onboardingAdapter) DismissVoiceCoachmark(ctx context.Context, userID string) error {
 	return a.store.DismissVoiceCoachmark(ctx, userID)
 }
