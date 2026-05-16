@@ -40,7 +40,6 @@ CREATE TABLE onboarding (
   onboarded_at                 TEXT,
   voice_coachmark_dismissed_at TEXT,
   first_record_at              TEXT,
-  ai_preview                   TEXT,
   updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE refresh_tokens (

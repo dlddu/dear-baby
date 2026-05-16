@@ -38,7 +38,6 @@ CREATE TABLE onboarding (
   onboarded_at                 TEXT,
   voice_coachmark_dismissed_at TEXT,
   first_record_at              TEXT,
-  ai_preview                   TEXT,
   updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (
@@ -161,7 +160,7 @@ func TestGetProfile_NilOnboardingFieldsWhenRowMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get profile: %v", err)
 	}
-	if p.DueDate != nil || p.OnboardedAt != nil || p.VoiceCoachmarkDismissedAt != nil || p.FirstRecordAt != nil || p.AIPreview != nil {
+	if p.DueDate != nil || p.OnboardedAt != nil || p.VoiceCoachmarkDismissedAt != nil || p.FirstRecordAt != nil {
 		t.Errorf("missing onboarding row should give all-nil onboarding fields: got %+v", p)
 	}
 }

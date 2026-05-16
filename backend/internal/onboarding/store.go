@@ -49,12 +49,12 @@ func (s *Store) GetByIDTx(ctx context.Context, tx *sql.Tx, userID string) (*Onbo
 
 func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, error) {
 	o := &Onboarding{UserID: userID}
-	var dueDate, onboardedAt, voiceDismissedAt, firstRecordAt, aiPreview sql.NullString
+	var dueDate, onboardedAt, voiceDismissedAt, firstRecordAt sql.NullString
 	var updatedAt string
 	err := q.QueryRowContext(ctx, `
-		SELECT due_date, onboarded_at, voice_coachmark_dismissed_at, first_record_at, ai_preview, updated_at
+		SELECT due_date, onboarded_at, voice_coachmark_dismissed_at, first_record_at, updated_at
 		FROM onboarding WHERE user_id = ?
-	`, userID).Scan(&dueDate, &onboardedAt, &voiceDismissedAt, &firstRecordAt, &aiPreview, &updatedAt)
+	`, userID).Scan(&dueDate, &onboardedAt, &voiceDismissedAt, &firstRecordAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -79,10 +79,6 @@ func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, err
 		if t, err := time.Parse(sqliteTimeLayout, firstRecordAt.String); err == nil {
 			o.FirstRecordAt = &t
 		}
-	}
-	if aiPreview.Valid {
-		s := aiPreview.String
-		o.AIPreview = &s
 	}
 	o.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
 	return o, nil
