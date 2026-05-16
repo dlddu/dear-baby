@@ -45,7 +45,6 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   setSession: (session: Session) => Promise<void>;
-  completeOnboarding: (dueDate: string | null) => Promise<void>;
   /**
    * Case A 결말 — 첫 태아 dueDate + 모든 태아 행(각 행에 동일 purposes 복제)을
    * 백엔드에 영속화하고 onboarded_at 을 스탬프한다.
@@ -144,17 +143,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(session.user);
   }, []);
 
-  const completeOnboarding = useCallback(async (dueDate: string | null) => {
-    const updated = await patchMe({ due_date: dueDate });
-    setUser(updated);
-    setStatus(statusForUser(updated));
-    await cacheFromUser(updated);
-    // 백엔드 onboarded_at 이 스탬프되었으니 진행 중 입력 슬롯도 정리한다.
-    // OnboardingProvider 가 unmount 되면서 자체 cleanup 도 하지만, 모드 전환
-    // 타이밍의 누수를 막기 위해 여기서도 한 번 더 정리.
-    await clearOnboardingDraft();
-  }, []);
-
   const completeOnboardingCaseA = useCallback(async (payload: CaseAPayload) => {
     const updated = await apiSubmitCaseA(payload);
     setUser(updated);
@@ -247,7 +235,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
       completeOnboardingCaseA,
       completeOnboardingCaseB,
       completeOnboardingCaseC,
@@ -261,7 +248,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
       completeOnboardingCaseA,
       completeOnboardingCaseB,
       completeOnboardingCaseC,

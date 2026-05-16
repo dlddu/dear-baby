@@ -9,8 +9,8 @@ import { colors } from '../../src/theme/colors';
 //
 // OnboardingProvider 는 이 스택 안에서 마운트되고, mount 시 SecureStore
 // 에서 진행 중 입력을 hydrate 한다. 사용자가 앱을 강제 종료한 뒤
-// 재진입해도 마지막 입력 상태가 그대로 표시된다. `completeOnboarding`
-// 성공 시 SecureStore 의 진행 슬롯은 자동으로 정리된다.
+// 재진입해도 마지막 입력 상태가 그대로 표시된다. Case A/B/C 결말 성공 시
+// SecureStore 의 진행 슬롯은 자동으로 정리된다.
 export default function OnboardingLayout() {
   return (
     <OnboardingProvider>
@@ -36,7 +36,6 @@ export default function OnboardingLayout() {
         <Stack.Screen name="c1" />
         <Stack.Screen name="c2" />
         <Stack.Screen name="c3" />
-        <Stack.Screen name="not-ready" />
       </Stack>
     </OnboardingProvider>
   );
