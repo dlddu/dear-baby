@@ -52,7 +52,6 @@ const baseUser = {
   onboarded_at: '2026-05-01T00:00:00Z',
   voice_coachmark_dismissed_at: null,
   first_record_at: null,
-  ai_preview: null,
   due_date: null,
   fetuses: [],
   children: [],

@@ -69,7 +69,6 @@ type AuthContextValue = {
   // kick off the audio upload pipeline (record.id is the key for the
   // draft store + presigned URL).
   createVoiceRecord: (content: string, questionText?: string) => Promise<Record>;
-  applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -89,7 +88,6 @@ function cacheFromUser(u: User) {
     u.due_date,
     u.voice_coachmark_dismissed_at,
     u.first_record_at,
-    u.ai_preview,
   );
 }
 
@@ -207,18 +205,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  // applyAiPreview is called by the home screen when the SSE stream
-  // delivers a `ready` event. It merges the new preview text into the
-  // current user without hitting /me again.
-  const applyAiPreview = useCallback(async (preview: string) => {
-    setUser((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev, ai_preview: preview };
-      void cacheFromUser(next);
-      return next;
-    });
-  }, []);
-
   const signOut = useCallback(async () => {
     const refresh = await getRefreshToken();
     if (refresh) {
@@ -241,7 +227,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
-      applyAiPreview,
       signOut,
     }),
     [
@@ -254,7 +239,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
-      applyAiPreview,
       signOut,
     ],
   );

@@ -35,15 +35,9 @@ export type User = {
   // Null until the user closes the coachmark; once stamped, the coachmark
   // never shows again.
   voice_coachmark_dismissed_at: string | null;
-  // Timestamp of the user's first saved record. Drives the AI preview
-  // state: null → blurred teaser; set → request + render the LLM-edited
-  // preview. Stamped once by the backend and preserved on subsequent
-  // records.
+  // Timestamp of the user's first saved record. Stamped once by the
+  // backend and preserved on subsequent records.
   first_record_at: string | null;
-  // AI-edited preview text. Null until the worker finishes editing the
-  // first record. The home screen subscribes to an SSE stream that
-  // notifies when this flips from null → string.
-  ai_preview: string | null;
   // Per-태아 / per-아이 onboarding rows. Empty array until Case A/C
   // completion. Each row carries the chip-selected purposes the client
   // replicated to every entry on A3/C3.
