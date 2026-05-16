@@ -64,23 +64,9 @@ describe('buildActiveChildren — 정규화 규칙', () => {
     expect(buildActiveChildren(null)).toEqual([]);
   });
 
-  it('synthesizes one fetus row when arrays are empty but due_date is set (legacy compat)', () => {
-    const list = buildActiveChildren({
-      ...baseUser,
-      due_date: '2026-09-01',
-    });
-    expect(list).toHaveLength(1);
-    expect(list[0]).toEqual({
-      kind: 'fetus',
-      ordinal: 1,
-      dueOrBirthDate: '2026-09-01',
-      displayName: '우리 아이',
-      profileImageUrl: null,
-    });
-  });
-
-  it('returns empty when arrays empty AND due_date null (cold post-signin state)', () => {
+  it('returns empty when fetuses and children are both empty (cold post-signin state)', () => {
     expect(buildActiveChildren(baseUser)).toEqual([]);
+    expect(buildActiveChildren({ ...baseUser, due_date: '2026-09-01' })).toEqual([]);
   });
 
   it('orders children before fetuses, each by ordinal ascending', () => {

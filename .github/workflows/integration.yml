@@ -267,118 +267,13 @@ jobs:
           fi
           echo "backend Redis wiring OK"
 
-      - name: AI preview enqueue path is gated on Redis
-        # POST /v1/onboarding/ai-preview requires a valid access token
-        # from the auth pipeline. Assert that the route exists (401)
-        # rather than 404 — a 404 would mean the Redis-dependent route
-        # group didn't mount.
-        run: |
-          set -euo pipefail
-          code=$(curl -s -o /tmp/body.txt -w '%{http_code}' \
-            -X POST http://127.0.0.1:18080/v1/onboarding/ai-preview)
-          if [ "$code" != "401" ]; then
-            echo "expected 401 (route exists, auth missing), got $code, body=$(cat /tmp/body.txt)"
-            exit 1
-          fi
-          echo "AI preview route mounted (401 on unauth) OK"
-
-      # ─── End-to-end: mock OpenRouter call via the worker ─────────────
-      #
-      # Goes all the way through: password-login → PATCH /me to complete
-      # onboarding → record save → AI preview enqueue → worker reads
-      # queue → openrouter-mock chat completion → publishes result →
-      # backend hub processor persists → /me reflects ai_preview. Prints
-      # the generated preview to the job log for visual inspection of
-      # each CI run.
-      #
-      # The test runs as the seeded password account whose credentials
-      # come from the auth-secret created above. There is no longer a
-      # /auth/test-login endpoint to short-circuit OAuth — the password
-      # path is the same code path that ships in production.
-
-      - name: AI preview end-to-end (password-login → record → worker → /me)
-        run: |
-          set -euo pipefail
-
-          echo "::group::password-login"
-          session=$(curl -fsS -X POST \
-            -H 'Content-Type: application/json' \
-            -d '{"email":"integration@dear-baby.test","password":"integration-password"}' \
-            http://127.0.0.1:18080/v1/auth/password-login)
-          echo "$session" | head -c 200
-          echo
-          access_token=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-          user_id=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["user"]["id"])')
-          echo "user_id=$user_id"
-          echo "::endgroup::"
-
-          echo "::group::complete onboarding"
-          # Stamp onboarded_at so /v1/onboarding/ai-preview proceeds
-          # (which the seeded user does not have by default — the
-          # seeder leaves onboarding state untouched on every boot to
-          # mirror a fresh sign-up).
-          curl -fsS -X PATCH \
-            -H "Authorization: Bearer $access_token" \
-            -H 'Content-Type: application/json' \
-            -d '{"due_date":"2026-09-01"}' \
-            http://127.0.0.1:18080/v1/me >/dev/null
-          echo "::endgroup::"
-
-          echo "::group::create record"
-          curl -fsS -X POST \
-            -H "Authorization: Bearer $access_token" \
-            -H 'Content-Type: application/json' \
-            -d '{"content":"today i felt you move for the first time"}' \
-            http://127.0.0.1:18080/v1/records >/tmp/record.json
-          cat /tmp/record.json | head -c 400
-          echo
-          echo "::endgroup::"
-
-          echo "::group::request AI preview"
-          code=$(curl -s -o /tmp/req.txt -w '%{http_code}' \
-            -X POST \
-            -H "Authorization: Bearer $access_token" \
-            http://127.0.0.1:18080/v1/onboarding/ai-preview)
-          if [ "$code" != "202" ]; then
-            echo "expected 202, got $code body=$(cat /tmp/req.txt)"
-            exit 1
-          fi
-          echo "enqueue accepted (202)"
-          echo "::endgroup::"
-
-          echo "::group::poll /v1/me for ai_preview (up to 45s)"
-          preview=""
-          for i in $(seq 1 45); do
-            preview=$(curl -fsS \
-              -H "Authorization: Bearer $access_token" \
-              http://127.0.0.1:18080/v1/me \
-              | python3 -c 'import json,sys; v=json.load(sys.stdin).get("ai_preview") or ""; print(v)')
-            if [ -n "$preview" ]; then
-              break
-            fi
-            sleep 1
-          done
-          if [ -z "$preview" ]; then
-            echo "ai_preview did not arrive within 45s"
-            echo "--- worker logs ---"
-            kubectl logs deployment/worker --tail=300 --all-containers=true || true
-            echo "--- backend logs ---"
-            kubectl logs deployment/dear-baby --tail=300 --all-containers=true || true
-            exit 1
-          fi
-          echo "ai_preview received:"
-          echo "---"
-          echo "$preview"
-          echo "---"
-          echo "::endgroup::"
-
-          echo "::group::worker logs (preview_ready entry)"
-          # The handler logs {preview, msg: "preview ready"} — grep it
-          # so the exact model output is visible in the job log too.
-          kubectl logs deployment/worker --tail=500 --all-containers=true \
-            | grep -E 'preview ready|preview generation failed' \
-            || { echo "no preview log line found"; kubectl logs deployment/worker --tail=500 --all-containers=true; exit 1; }
-          echo "::endgroup::"
+      # AI preview enqueue + end-to-end steps lived here until the
+      # feature was removed (POST /v1/onboarding/ai-preview · GET
+      # /v1/onboarding/ai-preview/events were torn down together with
+      # the backend processor and SyncPendingAIPreviews). The worker
+      # tasks/ai-preview implementation and openrouter-mock deployment
+      # are intentionally left alive so they can be reused for future
+      # task workloads.
 
       # ─── End-to-end: voice record + audio upload via MinIO ────────────
       #

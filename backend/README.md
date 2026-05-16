@@ -76,16 +76,18 @@ can spot stale deployments without parsing routes.
   to the App Store reviewer and CI).
 - `GET /v1/me` — requires `Authorization: Bearer <access>`. Returns the
   authenticated user.
-- `PATCH /v1/me` — completes Stage 1 onboarding (`{"due_date": ...}`) or
-  dismisses the home voice coachmark (`{"dismiss_voice_coachmark": true}`).
+- `PATCH /v1/me` — dismisses the home voice coachmark
+  (`{"dismiss_voice_coachmark": true}`). Stage 1 onboarding is finalised
+  via the case-specific `/me/onboarding/case-{a,b,c}` endpoints instead.
+- `POST /v1/me/onboarding/case-a` — persists Case A (임신만) fetuses +
+  due_date and stamps onboarded_at.
+- `POST /v1/me/onboarding/case-b` — persists Case B (임신+양육) children
+  and fetuses in one transaction.
+- `POST /v1/me/onboarding/case-c` — persists Case C (양육만) children
+  with due_date null.
 - `POST /v1/records` — creates a text or voice record.
 - `POST /v1/records/{id}/audio/upload-url` — issues an S3 presigned PUT.
 - `PATCH /v1/records/{id}` — attaches an `audio_s3_key` after the upload.
-- `POST /v1/onboarding/ai-preview` — kicks off (or retries) AI preview
-  generation; responds 202.
-- `GET /v1/onboarding/ai-preview/events` — long-lived SSE stream of
-  preview events. Accepts `?token=` as a query fallback for clients that
-  cannot set the `Authorization` header.
 
 ## Layout
 
