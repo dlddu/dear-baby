@@ -193,19 +193,17 @@ func (s *Store) GetProfileTx(ctx context.Context, tx *sql.Tx, id string) (*Profi
 
 func getProfile(ctx context.Context, q rowScanner, id string) (*Profile, error) {
 	p := &Profile{}
-	var name, picture, dueDate, onboardedAt, voiceDismissedAt, firstRecordAt, aiPreview sql.NullString
+	var name, picture, dueDate, onboardedAt, firstRecordAt sql.NullString
 	var createdAt, updatedAt string
 	err := q.QueryRowContext(ctx, `
 		SELECT u.id, u.email, u.name, u.picture_url,
-		       o.due_date, o.onboarded_at, o.voice_coachmark_dismissed_at,
-		       o.first_record_at, o.ai_preview,
+		       o.due_date, o.onboarded_at, o.first_record_at,
 		       u.created_at, u.updated_at
 		FROM users u
 		LEFT JOIN onboarding o ON o.user_id = u.id
 		WHERE u.id = ?
 	`, id).Scan(&p.ID, &p.Email, &name, &picture,
-		&dueDate, &onboardedAt, &voiceDismissedAt,
-		&firstRecordAt, &aiPreview,
+		&dueDate, &onboardedAt, &firstRecordAt,
 		&createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -224,19 +222,10 @@ func getProfile(ctx context.Context, q rowScanner, id string) (*Profile, error) 
 			p.OnboardedAt = &t
 		}
 	}
-	if voiceDismissedAt.Valid {
-		if t, err := time.Parse(sqliteTimeLayout, voiceDismissedAt.String); err == nil {
-			p.VoiceCoachmarkDismissedAt = &t
-		}
-	}
 	if firstRecordAt.Valid {
 		if t, err := time.Parse(sqliteTimeLayout, firstRecordAt.String); err == nil {
 			p.FirstRecordAt = &t
 		}
-	}
-	if aiPreview.Valid {
-		v := aiPreview.String
-		p.AIPreview = &v
 	}
 	p.CreatedAt, _ = time.Parse(sqliteTimeLayout, createdAt)
 	p.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)

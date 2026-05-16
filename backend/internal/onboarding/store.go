@@ -49,12 +49,12 @@ func (s *Store) GetByIDTx(ctx context.Context, tx *sql.Tx, userID string) (*Onbo
 
 func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, error) {
 	o := &Onboarding{UserID: userID}
-	var dueDate, onboardedAt, voiceDismissedAt, firstRecordAt, aiPreview sql.NullString
+	var dueDate, onboardedAt, firstRecordAt sql.NullString
 	var updatedAt string
 	err := q.QueryRowContext(ctx, `
-		SELECT due_date, onboarded_at, voice_coachmark_dismissed_at, first_record_at, ai_preview, updated_at
+		SELECT due_date, onboarded_at, first_record_at, updated_at
 		FROM onboarding WHERE user_id = ?
-	`, userID).Scan(&dueDate, &onboardedAt, &voiceDismissedAt, &firstRecordAt, &aiPreview, &updatedAt)
+	`, userID).Scan(&dueDate, &onboardedAt, &firstRecordAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -70,112 +70,13 @@ func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, err
 			o.OnboardedAt = &t
 		}
 	}
-	if voiceDismissedAt.Valid {
-		if t, err := time.Parse(sqliteTimeLayout, voiceDismissedAt.String); err == nil {
-			o.VoiceCoachmarkDismissedAt = &t
-		}
-	}
 	if firstRecordAt.Valid {
 		if t, err := time.Parse(sqliteTimeLayout, firstRecordAt.String); err == nil {
 			o.FirstRecordAt = &t
 		}
 	}
-	if aiPreview.Valid {
-		s := aiPreview.String
-		o.AIPreview = &s
-	}
 	o.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
 	return o, nil
-}
-
-// UpdateDueDateAndOnboardedAt persists the user's due date (nullable) and
-// marks onboarding Stage 1 complete by stamping onboarded_at.
-func (s *Store) UpdateDueDateAndOnboardedAt(ctx context.Context, userID string, dueDate *string) error {
-	if err := s.ensureRow(ctx, userID); err != nil {
-		return err
-	}
-	var dueArg any
-	if dueDate != nil {
-		dueArg = *dueDate
-	} else {
-		dueArg = nil
-	}
-	res, err := s.DB.ExecContext(ctx, `
-		UPDATE onboarding
-		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
-		WHERE user_id = ?
-	`, dueArg, userID)
-	if err != nil {
-		return fmt.Errorf("update due date: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
-	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
-// DismissVoiceCoachmark stamps voice_coachmark_dismissed_at. Idempotent —
-// a second call preserves the original timestamp. Returns ErrNotFound only
-// if no onboarding row (and therefore no user) exists.
-func (s *Store) DismissVoiceCoachmark(ctx context.Context, userID string) error {
-	if _, err := s.GetByID(ctx, userID); err != nil {
-		return err
-	}
-	if _, err := s.DB.ExecContext(ctx, `
-		UPDATE onboarding
-		SET voice_coachmark_dismissed_at = datetime('now'), updated_at = datetime('now')
-		WHERE user_id = ? AND voice_coachmark_dismissed_at IS NULL
-	`, userID); err != nil {
-		return fmt.Errorf("dismiss voice coachmark: %w", err)
-	}
-	return nil
-}
-
-// UpdateAIPreview stores the AI-edited preview text. Overwrites any prior
-// value — callers (the worker) decide the semantics of retry.
-func (s *Store) UpdateAIPreview(ctx context.Context, userID, preview string) error {
-	if _, err := s.GetByID(ctx, userID); err != nil {
-		return err
-	}
-	if _, err := s.DB.ExecContext(ctx, `
-		UPDATE onboarding
-		SET ai_preview = ?, updated_at = datetime('now')
-		WHERE user_id = ?
-	`, preview, userID); err != nil {
-		return fmt.Errorf("update ai preview: %w", err)
-	}
-	return nil
-}
-
-// Reset clears all onboarding state for the given user. Used by the
-// test-login handler so successive E2E runs re-enter the onboarding
-// funnel. Records themselves are preserved.
-func (s *Store) Reset(ctx context.Context, userID string) error {
-	res, err := s.DB.ExecContext(ctx, `
-		UPDATE onboarding
-		SET due_date = NULL,
-		    onboarded_at = NULL,
-		    voice_coachmark_dismissed_at = NULL,
-		    first_record_at = NULL,
-		    ai_preview = NULL,
-		    updated_at = datetime('now')
-		WHERE user_id = ?
-	`, userID)
-	if err != nil {
-		return fmt.Errorf("reset onboarding: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
-	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
 }
 
 // ResetUserByEmail wipes all per-user state used by the onboarding e2e
@@ -228,9 +129,7 @@ func (s *Store) ResetUserByEmail(ctx context.Context, email string) error {
 		UPDATE onboarding
 		SET due_date = NULL,
 		    onboarded_at = NULL,
-		    voice_coachmark_dismissed_at = NULL,
 		    first_record_at = NULL,
-		    ai_preview = NULL,
 		    updated_at = datetime('now')
 		WHERE user_id = ?
 	`, userID); err != nil {
@@ -241,60 +140,6 @@ func (s *Store) ResetUserByEmail(ctx context.Context, email string) error {
 		return fmt.Errorf("commit reset user tx: %w", err)
 	}
 	return nil
-}
-
-// PendingAIPreview is a single row returned by ListPendingAIPreviews —
-// a user who has a first record but no AI preview yet, with their oldest
-// record's id and content.
-type PendingAIPreview struct {
-	UserID   string
-	RecordID string
-	Content  string
-}
-
-// ListPendingAIPreviews returns users with first_record_at set but
-// ai_preview still null, paired with their oldest record. Used by the
-// worker's sync() on boot to recover jobs that Redis may have lost.
-func (s *Store) ListPendingAIPreviews(ctx context.Context, limit int) ([]PendingAIPreview, error) {
-	rows, err := s.DB.QueryContext(ctx, `
-		SELECT o.user_id, r.id, r.content
-		FROM onboarding o
-		JOIN records r ON r.id = (
-		    SELECT id FROM records
-		    WHERE user_id = o.user_id
-		    ORDER BY created_at ASC
-		    LIMIT 1
-		)
-		WHERE o.first_record_at IS NOT NULL
-		  AND o.ai_preview IS NULL
-		ORDER BY o.first_record_at ASC
-		LIMIT ?
-	`, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list pending: %w", err)
-	}
-	defer rows.Close()
-	var out []PendingAIPreview
-	for rows.Next() {
-		var p PendingAIPreview
-		if err := rows.Scan(&p.UserID, &p.RecordID, &p.Content); err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
-}
-
-// GetOldestRecord returns the id and content of the user's oldest record.
-// Returns sql.ErrNoRows if the user has no records.
-func (s *Store) GetOldestRecord(ctx context.Context, userID string) (recordID, content string, err error) {
-	err = s.DB.QueryRowContext(ctx, `
-		SELECT id, content FROM records
-		WHERE user_id = ?
-		ORDER BY created_at ASC
-		LIMIT 1
-	`, userID).Scan(&recordID, &content)
-	return
 }
 
 // UpsertCaseA atomically replaces the user's fetuses with the provided list
@@ -446,16 +291,6 @@ func (s *Store) UpsertCaseC(ctx context.Context, userID string, children []Child
 		return fmt.Errorf("commit: %w", err)
 	}
 	return nil
-}
-
-// ListFetuses returns all fetus rows for the user, ordered by ordinal.
-func (s *Store) ListFetuses(ctx context.Context, userID string) ([]Fetus, error) {
-	return listFetuses(ctx, s.DB, userID)
-}
-
-// ListChildren returns all child rows for the user, ordered by ordinal.
-func (s *Store) ListChildren(ctx context.Context, userID string) ([]Child, error) {
-	return listChildren(ctx, s.DB, userID)
 }
 
 func listFetuses(ctx context.Context, q rowQuerier, userID string) ([]Fetus, error) {
