@@ -312,41 +312,6 @@ func TestDismissVoiceCoachmark_NotFound(t *testing.T) {
 	}
 }
 
-func TestListPendingAIPreviews(t *testing.T) {
-	db := newTestDB(t)
-	defer db.Close()
-	seedUserWithOnboarding(t, db, "u1", "a@b.com")
-	seedUserWithOnboarding(t, db, "u2", "c@d.com")
-
-	// u1 has first record + pending preview.
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content) VALUES ('r1', 'u1', 'hello')`); err != nil {
-		t.Fatalf("seed r1: %v", err)
-	}
-	if _, err := db.Exec(`UPDATE onboarding SET first_record_at = datetime('now') WHERE user_id = 'u1'`); err != nil {
-		t.Fatalf("stamp fr u1: %v", err)
-	}
-
-	// u2 has first record + preview already generated — excluded.
-	if _, err := db.Exec(`INSERT INTO records (id, user_id, content) VALUES ('r2', 'u2', 'world')`); err != nil {
-		t.Fatalf("seed r2: %v", err)
-	}
-	if _, err := db.Exec(`UPDATE onboarding SET first_record_at = datetime('now'), ai_preview = 'done' WHERE user_id = 'u2'`); err != nil {
-		t.Fatalf("stamp u2: %v", err)
-	}
-
-	store := &Store{DB: db}
-	pending, err := store.ListPendingAIPreviews(context.Background(), 10)
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(pending) != 1 || pending[0].UserID != "u1" || pending[0].RecordID != "r1" {
-		t.Errorf("pending: got %+v want one entry for u1/r1", pending)
-	}
-	if pending[0].Content != "hello" {
-		t.Errorf("content: got %q want hello", pending[0].Content)
-	}
-}
-
 func TestEnsureRowTx_Idempotent(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()

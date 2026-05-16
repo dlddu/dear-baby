@@ -108,14 +108,6 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 	// smoke check should keep working unchanged across API version bumps.
 	r.Get("/health", httpx.Health)
 
-	tasksClient := &tasks.Client{Redis: redisClient}
-	onbHandlers := &onboarding.Handlers{
-		Store:           onboardingStore,
-		Tasks:           tasksClient,
-		Hub:             hub,
-		UserIDFromCtxFn: auth.UserIDFromRequest,
-	}
-
 	// All product API routes live under /v1. Bumping the version is a
 	// single edit (httpx.APIVersionPrefix) plus a new chi.Route block;
 	// the v1 surface stays parallel-mountable next to /v2 when the time
@@ -147,18 +139,6 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 			// if Audio is nil.
 			pr.Post("/records/{id}/audio/upload-url", recordsHandlers.CreateAudioUploadURL)
 			pr.Patch("/records/{id}", recordsHandlers.Patch)
-		})
-
-		// Authenticated onboarding routes. The SSE route permits
-		// query token fallback because some RN EventSource shims
-		// cannot set headers reliably.
-		v.Group(func(pr chi.Router) {
-			pr.Use(auth.RequireAuth(issuer))
-			pr.Post("/onboarding/ai-preview", onbHandlers.RequestAIPreview)
-		})
-		v.Group(func(pr chi.Router) {
-			pr.Use(auth.RequireAuthWithQueryFallback(issuer))
-			pr.Get("/onboarding/ai-preview/events", onbHandlers.AIPreviewEvents)
 		})
 	})
 

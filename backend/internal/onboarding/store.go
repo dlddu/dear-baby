@@ -105,22 +105,6 @@ func (s *Store) DismissVoiceCoachmark(ctx context.Context, userID string) error 
 	return nil
 }
 
-// UpdateAIPreview stores the AI-edited preview text. Overwrites any prior
-// value — callers (the worker) decide the semantics of retry.
-func (s *Store) UpdateAIPreview(ctx context.Context, userID, preview string) error {
-	if _, err := s.GetByID(ctx, userID); err != nil {
-		return err
-	}
-	if _, err := s.DB.ExecContext(ctx, `
-		UPDATE onboarding
-		SET ai_preview = ?, updated_at = datetime('now')
-		WHERE user_id = ?
-	`, preview, userID); err != nil {
-		return fmt.Errorf("update ai preview: %w", err)
-	}
-	return nil
-}
-
 // ResetUserByEmail wipes all per-user state used by the onboarding e2e
 // suite — onboarding flags, the per-fetus / per-child onboarding rows,
 // and the user's record history — so the next session lands on a fresh
@@ -173,7 +157,6 @@ func (s *Store) ResetUserByEmail(ctx context.Context, email string) error {
 		    onboarded_at = NULL,
 		    voice_coachmark_dismissed_at = NULL,
 		    first_record_at = NULL,
-		    ai_preview = NULL,
 		    updated_at = datetime('now')
 		WHERE user_id = ?
 	`, userID); err != nil {
@@ -184,60 +167,6 @@ func (s *Store) ResetUserByEmail(ctx context.Context, email string) error {
 		return fmt.Errorf("commit reset user tx: %w", err)
 	}
 	return nil
-}
-
-// PendingAIPreview is a single row returned by ListPendingAIPreviews —
-// a user who has a first record but no AI preview yet, with their oldest
-// record's id and content.
-type PendingAIPreview struct {
-	UserID   string
-	RecordID string
-	Content  string
-}
-
-// ListPendingAIPreviews returns users with first_record_at set but
-// ai_preview still null, paired with their oldest record. Used by the
-// worker's sync() on boot to recover jobs that Redis may have lost.
-func (s *Store) ListPendingAIPreviews(ctx context.Context, limit int) ([]PendingAIPreview, error) {
-	rows, err := s.DB.QueryContext(ctx, `
-		SELECT o.user_id, r.id, r.content
-		FROM onboarding o
-		JOIN records r ON r.id = (
-		    SELECT id FROM records
-		    WHERE user_id = o.user_id
-		    ORDER BY created_at ASC
-		    LIMIT 1
-		)
-		WHERE o.first_record_at IS NOT NULL
-		  AND o.ai_preview IS NULL
-		ORDER BY o.first_record_at ASC
-		LIMIT ?
-	`, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list pending: %w", err)
-	}
-	defer rows.Close()
-	var out []PendingAIPreview
-	for rows.Next() {
-		var p PendingAIPreview
-		if err := rows.Scan(&p.UserID, &p.RecordID, &p.Content); err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
-}
-
-// GetOldestRecord returns the id and content of the user's oldest record.
-// Returns sql.ErrNoRows if the user has no records.
-func (s *Store) GetOldestRecord(ctx context.Context, userID string) (recordID, content string, err error) {
-	err = s.DB.QueryRowContext(ctx, `
-		SELECT id, content FROM records
-		WHERE user_id = ?
-		ORDER BY created_at ASC
-		LIMIT 1
-	`, userID).Scan(&recordID, &content)
-	return
 }
 
 // UpsertCaseA atomically replaces the user's fetuses with the provided list
