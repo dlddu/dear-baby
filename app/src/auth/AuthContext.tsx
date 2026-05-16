@@ -14,7 +14,6 @@ import {
 } from '../api/records';
 import type { Record, Session, User } from '../api/types';
 import {
-  patchMe,
   submitOnboardingCaseA as apiSubmitCaseA,
   submitOnboardingCaseB as apiSubmitCaseB,
   submitOnboardingCaseC as apiSubmitCaseC,
@@ -45,7 +44,6 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   setSession: (session: Session) => Promise<void>;
-  completeOnboarding: (dueDate: string | null) => Promise<void>;
   /**
    * Case A 결말 — 첫 태아 dueDate + 모든 태아 행(각 행에 동일 purposes 복제)을
    * 백엔드에 영속화하고 onboarded_at 을 스탬프한다.
@@ -63,14 +61,12 @@ type AuthContextValue = {
    * due_date 는 null 로, onboarded_at 만 스탬프한다.
    */
   completeOnboardingCaseC: (payload: CaseCPayload) => Promise<void>;
-  dismissVoiceCoachmark: () => Promise<void>;
   createTextRecord: (content: string, questionText?: string) => Promise<void>;
   // createVoiceRecord saves the transcript with source="voice". The
   // returned Record is what the caller needs to either move on or
   // kick off the audio upload pipeline (record.id is the key for the
   // draft store + presigned URL).
   createVoiceRecord: (content: string, questionText?: string) => Promise<Record>;
-  applyAiPreview: (preview: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -88,9 +84,7 @@ function cacheFromUser(u: User) {
   return setCachedOnboarding(
     u.onboarded_at,
     u.due_date,
-    u.voice_coachmark_dismissed_at,
     u.first_record_at,
-    u.ai_preview,
   );
 }
 
@@ -144,17 +138,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheFromUser(session.user);
   }, []);
 
-  const completeOnboarding = useCallback(async (dueDate: string | null) => {
-    const updated = await patchMe({ due_date: dueDate });
-    setUser(updated);
-    setStatus(statusForUser(updated));
-    await cacheFromUser(updated);
-    // 백엔드 onboarded_at 이 스탬프되었으니 진행 중 입력 슬롯도 정리한다.
-    // OnboardingProvider 가 unmount 되면서 자체 cleanup 도 하지만, 모드 전환
-    // 타이밍의 누수를 막기 위해 여기서도 한 번 더 정리.
-    await clearOnboardingDraft();
-  }, []);
-
   const completeOnboardingCaseA = useCallback(async (payload: CaseAPayload) => {
     const updated = await apiSubmitCaseA(payload);
     setUser(updated);
@@ -177,16 +160,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus(statusForUser(updated));
     await cacheFromUser(updated);
     await clearOnboardingDraft();
-  }, []);
-
-  // dismissVoiceCoachmark is called when the user taps the close button on
-  // the home-screen voice-record coachmark. The backend stamps a timestamp
-  // that persists across devices; we also optimistically update local state
-  // so the coachmark vanishes immediately without waiting on the response.
-  const dismissVoiceCoachmark = useCallback(async () => {
-    const updated = await patchMe({ dismiss_voice_coachmark: true });
-    setUser(updated);
-    await cacheFromUser(updated);
   }, []);
 
   // createTextRecord saves a text entry and refreshes local user state.
@@ -219,18 +192,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  // applyAiPreview is called by the home screen when the SSE stream
-  // delivers a `ready` event. It merges the new preview text into the
-  // current user without hitting /me again.
-  const applyAiPreview = useCallback(async (preview: string) => {
-    setUser((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev, ai_preview: preview };
-      void cacheFromUser(next);
-      return next;
-    });
-  }, []);
-
   const signOut = useCallback(async () => {
     const refresh = await getRefreshToken();
     if (refresh) {
@@ -247,28 +208,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       setSession,
-      completeOnboarding,
       completeOnboardingCaseA,
       completeOnboardingCaseB,
       completeOnboardingCaseC,
-      dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
-      applyAiPreview,
       signOut,
     }),
     [
       status,
       user,
       setSession,
-      completeOnboarding,
       completeOnboardingCaseA,
       completeOnboardingCaseB,
       completeOnboardingCaseC,
-      dismissVoiceCoachmark,
       createTextRecord,
       createVoiceRecord,
-      applyAiPreview,
       signOut,
     ],
   );

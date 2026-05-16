@@ -36,7 +36,6 @@ export default function OnboardingLayout() {
         <Stack.Screen name="c1" />
         <Stack.Screen name="c2" />
         <Stack.Screen name="c3" />
-        <Stack.Screen name="not-ready" />
       </Stack>
     </OnboardingProvider>
   );

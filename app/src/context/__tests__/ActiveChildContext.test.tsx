@@ -50,9 +50,7 @@ const baseUser = {
   name: 'Mom',
   picture_url: '',
   onboarded_at: '2026-05-01T00:00:00Z',
-  voice_coachmark_dismissed_at: null,
   first_record_at: null,
-  ai_preview: null,
   due_date: null,
   fetuses: [],
   children: [],
@@ -65,23 +63,17 @@ describe('buildActiveChildren — 정규화 규칙', () => {
     expect(buildActiveChildren(null)).toEqual([]);
   });
 
-  it('synthesizes one fetus row when arrays are empty but due_date is set (legacy compat)', () => {
-    const list = buildActiveChildren({
-      ...baseUser,
-      due_date: '2026-09-01',
-    });
-    expect(list).toHaveLength(1);
-    expect(list[0]).toEqual({
-      kind: 'fetus',
-      ordinal: 1,
-      dueOrBirthDate: '2026-09-01',
-      displayName: '우리 아이',
-      profileImageUrl: null,
-    });
+  it('returns empty when arrays empty (cold post-signin state)', () => {
+    expect(buildActiveChildren(baseUser)).toEqual([]);
   });
 
-  it('returns empty when arrays empty AND due_date null (cold post-signin state)', () => {
-    expect(buildActiveChildren(baseUser)).toEqual([]);
+  it('returns empty even when only due_date is set — backfill migration guarantees fetuses row', () => {
+    expect(
+      buildActiveChildren({
+        ...baseUser,
+        due_date: '2026-09-01',
+      }),
+    ).toEqual([]);
   });
 
   it('orders children before fetuses, each by ordinal ascending', () => {
