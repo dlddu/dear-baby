@@ -21,12 +21,11 @@ name: Closed Beta Submission
 #                        actually changed.
 #   3. android / ios   — rebuild against the production backend URL
 #                        and upload to Play Store closed (alpha) /
-#                        TestFlight. The PR-preview builds from ci.yml
-#                        are pinned to the staging API URL, so external
-#                        testers need fresh builds.
-#   4. ios-submit      — promote the TestFlight build to the external
-#                        group and file it for Beta App Review.
-#   5. pin-prod-image  — write the head SHA into the dear-baby-prod-app
+#                        TestFlight (external distribution + Beta App
+#                        Review submission). The PR-preview builds from
+#                        ci.yml are pinned to the staging API URL, so
+#                        external testers need fresh builds.
+#   4. pin-prod-image  — write the head SHA into the dear-baby-prod-app
 #                        Flux Kustomization in flux-cd-apps so prod
 #                        runs the exact backend + worker images the
 #                        external testers' app was built against. The
@@ -36,7 +35,7 @@ name: Closed Beta Submission
 #                        overrides whatever
 #                        k8s/overlays/production/kustomization.yaml
 #                        sets here.
-#   6. auto-merge     —  enable squash auto-merge so the PR lands as
+#   5. auto-merge     —  enable squash auto-merge so the PR lands as
 #                        soon as required checks are green.
 #
 # A future App Store / Play production-track release should use a
@@ -125,60 +124,18 @@ jobs:
     secrets: inherit
 
   ios:
-    name: Build iOS (production)
+    name: Build & submit iOS (closed)
     needs: ci-gate
     uses: ./.github/workflows/build-ios-testflight.yml
     with:
       expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_PRODUCTION }}
       ref: ${{ github.event.pull_request.head.sha }}
+      lane: tf_external
     secrets: inherit
-
-  ios-submit:
-    name: Submit iOS to TestFlight Beta Review
-    needs: ios
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    defaults:
-      run:
-        working-directory: app
-    env:
-      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
-      TESTFLIGHT_EXTERNAL_GROUP: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP }}
-      TESTFLIGHT_BETA_CONTACT_FIRST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_FIRST_NAME }}
-      TESTFLIGHT_BETA_CONTACT_LAST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_LAST_NAME }}
-      TESTFLIGHT_BETA_FEEDBACK_EMAIL: ${{ vars.TESTFLIGHT_BETA_FEEDBACK_EMAIL }}
-      TESTFLIGHT_BETA_PRIVACY_URL: ${{ vars.TESTFLIGHT_BETA_PRIVACY_URL }}
-      TESTFLIGHT_BETA_APP_DESCRIPTION: ${{ vars.TESTFLIGHT_BETA_APP_DESCRIPTION }}
-      TESTFLIGHT_BETA_CONTACT_EMAIL: ${{ secrets.TESTFLIGHT_BETA_CONTACT_EMAIL }}
-      TESTFLIGHT_BETA_CONTACT_PHONE: ${{ secrets.TESTFLIGHT_BETA_CONTACT_PHONE }}
-      TESTFLIGHT_DEMO_ACCOUNT_EMAIL: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_EMAIL }}
-      TESTFLIGHT_DEMO_ACCOUNT_PASSWORD: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_PASSWORD }}
-      TESTFLIGHT_REVIEW_LOCALE: ${{ vars.TESTFLIGHT_REVIEW_LOCALE }}
-      GIT_SHA: ${{ github.event.pull_request.head.sha }}
-      TESTFLIGHT_BUILD_NUMBER: ${{ needs.ios.outputs.build-number }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-          bundler-cache: true
-          working-directory: app
-
-      - name: Fastlane external_beta
-        run: bundle exec fastlane external_beta
 
   pin-prod-image:
     name: Pin prod backend + worker images to head SHA (flux-cd-apps)
-    needs: [backend-image, worker-image, android, ios-submit]
+    needs: [backend-image, worker-image, android, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:

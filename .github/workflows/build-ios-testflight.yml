@@ -1,10 +1,11 @@
 name: Build iOS for TestFlight
 
 # Reusable workflow that bakes a Release IPA, signs it, and uploads it
-# to TestFlight via Fastlane's `:beta` lane. Callers select which
-# backend the build talks to by passing `expo-public-api-url` —
-# staging from the PR-preview path (deploy-testflight.yml) and
-# production from the external-beta path (closed-beta.yml's ios job).
+# to TestFlight via the Fastlane iOS lane selected by `lane`
+# (`tf_internal` for PR previews against staging, `tf_external` for
+# closed-beta builds against production with external distribution).
+# Callers select which backend the build talks to by passing
+# `expo-public-api-url`. Mirrors build-android-play.yml on the iOS side.
 #
 # `build-number` mirrors the run number that `app/app.config.ts` stamps
 # into Info.plist's CFBundleVersion, so callers can promote the upload
@@ -22,6 +23,10 @@ on:
         required: false
         default: ""
         description: Git ref to check out. Empty checks out the workflow's default ref.
+      lane:
+        type: string
+        required: true
+        description: Fastlane iOS lane to invoke (e.g. tf_internal, tf_external).
     outputs:
       build-number:
         description: TestFlight buildNumber stamped into the IPA.
@@ -29,7 +34,7 @@ on:
 
 jobs:
   build:
-    name: Build & upload to TestFlight
+    name: Build & upload to TestFlight (${{ inputs.lane }})
     runs-on: macos-26
     timeout-minutes: 60
     defaults:
@@ -47,6 +52,20 @@ jobs:
       IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
       IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
       IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      # Review metadata for `tf_external`'s external-group distribution.
+      # `tf_internal` doesn't read these and is unaffected when they're
+      # absent (PR-preview path doesn't configure them).
+      TESTFLIGHT_EXTERNAL_GROUP: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP }}
+      TESTFLIGHT_BETA_CONTACT_FIRST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_FIRST_NAME }}
+      TESTFLIGHT_BETA_CONTACT_LAST_NAME: ${{ vars.TESTFLIGHT_BETA_CONTACT_LAST_NAME }}
+      TESTFLIGHT_BETA_FEEDBACK_EMAIL: ${{ vars.TESTFLIGHT_BETA_FEEDBACK_EMAIL }}
+      TESTFLIGHT_BETA_PRIVACY_URL: ${{ vars.TESTFLIGHT_BETA_PRIVACY_URL }}
+      TESTFLIGHT_BETA_APP_DESCRIPTION: ${{ vars.TESTFLIGHT_BETA_APP_DESCRIPTION }}
+      TESTFLIGHT_BETA_CONTACT_EMAIL: ${{ secrets.TESTFLIGHT_BETA_CONTACT_EMAIL }}
+      TESTFLIGHT_BETA_CONTACT_PHONE: ${{ secrets.TESTFLIGHT_BETA_CONTACT_PHONE }}
+      TESTFLIGHT_DEMO_ACCOUNT_EMAIL: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_EMAIL }}
+      TESTFLIGHT_DEMO_ACCOUNT_PASSWORD: ${{ secrets.TESTFLIGHT_DEMO_ACCOUNT_PASSWORD }}
+      TESTFLIGHT_REVIEW_LOCALE: ${{ vars.TESTFLIGHT_REVIEW_LOCALE }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
       GIT_SHA: ${{ github.event.pull_request.head.sha }}
 
@@ -101,8 +120,8 @@ jobs:
         working-directory: app/ios
         run: pod install --repo-update
 
-      - name: Fastlane beta
-        run: bundle exec fastlane beta
+      - name: Fastlane ${{ inputs.lane }}
+        run: bundle exec fastlane ${{ inputs.lane }}
 
       - name: Upload build artifacts on failure
         if: failure()
