@@ -13,7 +13,6 @@ export type CaseAFetusPayload = {
 };
 
 export type CaseAPayload = {
-  due_date: string | null;
   fetuses: CaseAFetusPayload[];
 };
 
@@ -37,14 +36,13 @@ export type CaseBChildPayload = CaseCChildPayload;
 export type CaseBFetusPayload = CaseAFetusPayload;
 
 export type CaseBPayload = {
-  due_date: string | null;
   children: CaseBChildPayload[];
   fetuses: CaseBFetusPayload[];
 };
 
 // submitOnboardingCaseA finalizes Case A onboarding — persists the
-// fetuses + due_date, stamps onboarded_at, and returns the refreshed
-// /me Profile. Called from `OnboardingContext.completeAsA`.
+// fetuses, stamps onboarded_at, and returns the refreshed /me Profile.
+// Called from `OnboardingContext.completeAsA`.
 export async function submitOnboardingCaseA(
   payload: CaseAPayload,
 ): Promise<User> {
@@ -59,8 +57,7 @@ export async function submitOnboardingCaseA(
 }
 
 // submitOnboardingCaseC finalizes Case C onboarding — persists children
-// rows, stamps onboarded_at with due_date null, and returns the
-// refreshed /me Profile.
+// rows, stamps onboarded_at, and returns the refreshed /me Profile.
 export async function submitOnboardingCaseC(
   payload: CaseCPayload,
 ): Promise<User> {

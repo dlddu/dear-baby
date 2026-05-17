@@ -22,7 +22,6 @@ export function useAnalyticsIdentity(): void {
       lastIdentifiedRef.current = user.id;
       posthog.identify(user.id, {
         onboarded: user.onboarded_at != null,
-        has_due_date: user.due_date != null,
         has_first_record: user.first_record_at != null,
       });
       return;

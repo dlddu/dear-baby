@@ -30,7 +30,6 @@ CREATE TABLE users (
 );
 CREATE TABLE onboarding (
   user_id         TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  due_date        TEXT,
   onboarded_at    TEXT,
   first_record_at TEXT,
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -80,6 +79,21 @@ func seedUserWithOnboarding(t *testing.T, db *sql.DB, id, email string) {
 	}
 }
 
+// readOnboardingRow reads the post-drop onboarding row via SQL so tests
+// don't depend on a Go-side accessor. Returns a row that lets callers
+// check stamping behaviour without exposing the dropped `due_date` column.
+func readOnboardingRow(t *testing.T, db *sql.DB, userID string) (onboardedAt sql.NullString, firstRecordAt sql.NullString) {
+	t.Helper()
+	var updatedAt string
+	if err := db.QueryRow(
+		`SELECT onboarded_at, first_record_at, updated_at FROM onboarding WHERE user_id = ?`,
+		userID,
+	).Scan(&onboardedAt, &firstRecordAt, &updatedAt); err != nil {
+		t.Fatalf("read onboarding row for %s: %v", userID, err)
+	}
+	return onboardedAt, firstRecordAt
+}
+
 func TestResetUserByEmail(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
@@ -111,7 +125,7 @@ func TestResetUserByEmail(t *testing.T) {
 	store := &Store{DB: db}
 	ctx := context.Background()
 	if _, err := db.ExecContext(ctx, `
-		UPDATE onboarding SET due_date = '2025-09-15', onboarded_at = datetime('now') WHERE user_id = ?
+		UPDATE onboarding SET onboarded_at = datetime('now') WHERE user_id = ?
 	`, "u1"); err != nil {
 		t.Fatalf("stamp onboarding: %v", err)
 	}
@@ -119,12 +133,9 @@ func TestResetUserByEmail(t *testing.T) {
 		t.Fatalf("reset: %v", err)
 	}
 
-	o, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if o.DueDate != nil || o.OnboardedAt != nil {
-		t.Errorf("reset should clear onboarding fields: got due=%v onb=%v", o.DueDate, o.OnboardedAt)
+	onboardedAt, firstRecordAt := readOnboardingRow(t, db, "u1")
+	if onboardedAt.Valid || firstRecordAt.Valid {
+		t.Errorf("reset should clear onboarding fields: got onb=%v first=%v", onboardedAt, firstRecordAt)
 	}
 
 	countByUser := func(table, userID string) int {
@@ -149,7 +160,7 @@ func TestResetUserByEmail(t *testing.T) {
 
 func TestResetUserByEmail_OnboardingRowAutoCreated(t *testing.T) {
 	// 어떤 이유로 onboarding 행이 없는 사용자도 reset 후엔 깨끗한 행 한 줄이
-	// 보장돼 다음 로그인 / GetByID 가 깨지지 않는다.
+	// 보장돼 다음 로그인이 깨지지 않는다.
 	db := newTestDB(t)
 	defer db.Close()
 	if _, err := db.Exec(`INSERT INTO users (id, email) VALUES (?, ?)`, "u1", "a@b.com"); err != nil {
@@ -160,8 +171,12 @@ func TestResetUserByEmail_OnboardingRowAutoCreated(t *testing.T) {
 	if err := store.ResetUserByEmail(context.Background(), "a@b.com"); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
-	if _, err := store.GetByID(context.Background(), "u1"); err != nil {
-		t.Fatalf("get: %v", err)
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM onboarding WHERE user_id = ?`, "u1").Scan(&n); err != nil {
+		t.Fatalf("count onboarding: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("onboarding row: got %d want 1", n)
 	}
 }
 
@@ -223,18 +238,12 @@ func TestUpsertCaseA_InsertsAndStamps(t *testing.T) {
 		{Nickname: ptrStr("콩이"), Gender: ptrStr("unknown"), PregnancyWeek: ptrInt(17), DueDate: &due, Purposes: []string{"매일의 마음", "몸의 변화"}},
 		{Nickname: ptrStr("쪼이"), Gender: ptrStr("female"), PregnancyWeek: ptrInt(17), DueDate: &due, Purposes: []string{"매일의 마음", "몸의 변화"}},
 	}
-	if err := store.UpsertCaseA(ctx, "u1", &due, fetuses); err != nil {
+	if err := store.UpsertCaseA(ctx, "u1", fetuses); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	o, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if o.DueDate == nil || *o.DueDate != due {
-		t.Errorf("due_date: got %v want %s", o.DueDate, due)
-	}
-	if o.OnboardedAt == nil {
+	onboardedAt, _ := readOnboardingRow(t, db, "u1")
+	if !onboardedAt.Valid {
 		t.Error("onboarded_at should be set")
 	}
 
@@ -251,6 +260,9 @@ func TestUpsertCaseA_InsertsAndStamps(t *testing.T) {
 	if got[0].Nickname == nil || *got[0].Nickname != "콩이" {
 		t.Errorf("nickname[0]: got %v", got[0].Nickname)
 	}
+	if got[0].DueDate == nil || *got[0].DueDate != due {
+		t.Errorf("per-fetus due_date: got %v want %s", got[0].DueDate, due)
+	}
 	if len(got[0].Purposes) != 2 || got[0].Purposes[0] != "매일의 마음" {
 		t.Errorf("purposes: got %+v", got[0].Purposes)
 	}
@@ -263,10 +275,9 @@ func TestUpsertCaseA_ReplacesExisting(t *testing.T) {
 
 	store := &Store{DB: db}
 	ctx := context.Background()
-	due := "2025-09-15"
 
 	// First upsert with 2 fetuses.
-	if err := store.UpsertCaseA(ctx, "u1", &due, []Fetus{
+	if err := store.UpsertCaseA(ctx, "u1", []Fetus{
 		{Nickname: ptrStr("콩이"), Purposes: []string{"매일의 마음"}},
 		{Nickname: ptrStr("쪼이"), Purposes: []string{"매일의 마음"}},
 	}); err != nil {
@@ -274,7 +285,7 @@ func TestUpsertCaseA_ReplacesExisting(t *testing.T) {
 	}
 
 	// Second upsert with 1 fetus — old rows should be deleted.
-	if err := store.UpsertCaseA(ctx, "u1", &due, []Fetus{
+	if err := store.UpsertCaseA(ctx, "u1", []Fetus{
 		{Nickname: ptrStr("새콩"), Purposes: []string{"몸의 변화"}},
 	}); err != nil {
 		t.Fatalf("second upsert: %v", err)
@@ -295,24 +306,18 @@ func TestUpsertCaseA_ReplacesExisting(t *testing.T) {
 	}
 }
 
-func TestUpsertCaseA_NullDueDate(t *testing.T) {
+func TestUpsertCaseA_StampsOnboardedAtWithoutDueDate(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUserWithOnboarding(t, db, "u1", "a@b.com")
 
 	store := &Store{DB: db}
 	ctx := context.Background()
-	if err := store.UpsertCaseA(ctx, "u1", nil, []Fetus{{Purposes: []string{}}}); err != nil {
+	if err := store.UpsertCaseA(ctx, "u1", []Fetus{{Purposes: []string{}}}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
-	o, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if o.DueDate != nil {
-		t.Errorf("due_date should be null: got %v", *o.DueDate)
-	}
-	if o.OnboardedAt == nil {
+	onboardedAt, _ := readOnboardingRow(t, db, "u1")
+	if !onboardedAt.Valid {
 		t.Error("onboarded_at should be set")
 	}
 }
@@ -322,7 +327,7 @@ func TestUpsertCaseA_UserNotFound(t *testing.T) {
 	defer db.Close()
 
 	store := &Store{DB: db}
-	err := store.UpsertCaseA(context.Background(), "missing", nil, []Fetus{{Purposes: []string{}}})
+	err := store.UpsertCaseA(context.Background(), "missing", []Fetus{{Purposes: []string{}}})
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("err: got %v want ErrNotFound", err)
 	}
@@ -343,14 +348,8 @@ func TestUpsertCaseC_InsertsAndStamps(t *testing.T) {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	o, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if o.DueDate != nil {
-		t.Errorf("due_date should be null for Case C: got %v", *o.DueDate)
-	}
-	if o.OnboardedAt == nil {
+	onboardedAt, _ := readOnboardingRow(t, db, "u1")
+	if !onboardedAt.Valid {
 		t.Error("onboarded_at should be set")
 	}
 
@@ -422,18 +421,12 @@ func TestUpsertCaseB_InsertsBothAndStamps(t *testing.T) {
 	fetuses := []Fetus{
 		{Nickname: ptrStr("콩이"), Gender: ptrStr("unknown"), PregnancyWeek: ptrInt(17), DueDate: &due, Purposes: []string{"매일의 마음", "몸의 변화"}},
 	}
-	if err := store.UpsertCaseB(ctx, "u1", &due, children, fetuses); err != nil {
+	if err := store.UpsertCaseB(ctx, "u1", children, fetuses); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	o, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if o.DueDate == nil || *o.DueDate != due {
-		t.Errorf("due_date: got %v want %s", o.DueDate, due)
-	}
-	if o.OnboardedAt == nil {
+	onboardedAt, _ := readOnboardingRow(t, db, "u1")
+	if !onboardedAt.Valid {
 		t.Error("onboarded_at should be set")
 	}
 
@@ -455,32 +448,29 @@ func TestUpsertCaseB_InsertsBothAndStamps(t *testing.T) {
 	if len(gotFetuses) != 1 || gotFetuses[0].Nickname == nil || *gotFetuses[0].Nickname != "콩이" {
 		t.Errorf("fetuses: got %+v", gotFetuses)
 	}
+	if gotFetuses[0].DueDate == nil || *gotFetuses[0].DueDate != due {
+		t.Errorf("per-fetus due_date: got %v want %s", gotFetuses[0].DueDate, due)
+	}
 	if len(gotFetuses[0].Purposes) != 2 || gotFetuses[0].Purposes[0] != "매일의 마음" {
 		t.Errorf("fetus purposes: got %+v", gotFetuses[0].Purposes)
 	}
 }
 
-func TestUpsertCaseB_NullDueDate(t *testing.T) {
+func TestUpsertCaseB_StampsOnboardedAtWithoutDueDate(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 	seedUserWithOnboarding(t, db, "u1", "a@b.com")
 
 	store := &Store{DB: db}
 	ctx := context.Background()
-	if err := store.UpsertCaseB(ctx, "u1", nil,
+	if err := store.UpsertCaseB(ctx, "u1",
 		[]Child{{Name: ptrStr("서연"), Purposes: []string{}}},
 		[]Fetus{{Purposes: []string{}}},
 	); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
-	o, err := store.GetByID(ctx, "u1")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if o.DueDate != nil {
-		t.Errorf("due_date should be null: got %v", *o.DueDate)
-	}
-	if o.OnboardedAt == nil {
+	onboardedAt, _ := readOnboardingRow(t, db, "u1")
+	if !onboardedAt.Valid {
 		t.Error("onboarded_at should be set")
 	}
 }
@@ -492,10 +482,9 @@ func TestUpsertCaseB_ReplacesExisting(t *testing.T) {
 
 	store := &Store{DB: db}
 	ctx := context.Background()
-	due := "2025-09-15"
 
 	// First upsert: 2 children, 2 fetuses
-	if err := store.UpsertCaseB(ctx, "u1", &due,
+	if err := store.UpsertCaseB(ctx, "u1",
 		[]Child{
 			{Name: ptrStr("서연"), Purposes: []string{"일상의 발견"}},
 			{Name: ptrStr("이서"), Purposes: []string{"일상의 발견"}},
@@ -509,7 +498,7 @@ func TestUpsertCaseB_ReplacesExisting(t *testing.T) {
 	}
 
 	// Second upsert: 1 of each — old rows must be deleted.
-	if err := store.UpsertCaseB(ctx, "u1", &due,
+	if err := store.UpsertCaseB(ctx, "u1",
 		[]Child{{Name: ptrStr("새이름"), Purposes: []string{"음식·취향"}}},
 		[]Fetus{{Nickname: ptrStr("새콩"), Purposes: []string{"몸의 변화"}}},
 	); err != nil {
@@ -536,7 +525,7 @@ func TestUpsertCaseB_UserNotFound(t *testing.T) {
 	defer db.Close()
 
 	store := &Store{DB: db}
-	err := store.UpsertCaseB(context.Background(), "missing", nil,
+	err := store.UpsertCaseB(context.Background(), "missing",
 		[]Child{{Purposes: []string{}}},
 		[]Fetus{{Purposes: []string{}}},
 	)

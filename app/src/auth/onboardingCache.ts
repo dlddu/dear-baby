@@ -14,8 +14,10 @@ import type {
 // cache is only a graceful-fallback hint.
 
 const ONBOARDED_AT_KEY = 'db_onboarded_at';
-const DUE_DATE_KEY = 'db_due_date';
 const FIRST_RECORD_AT_KEY = 'db_first_record_at';
+// 이전 빌드에서 쓰던 `db_due_date` 키. 이미 설치된 디바이스에 남아 있을 수
+// 있어 부팅 시 한 번 정리한다 (`cleanupLegacyDueDateKey`).
+const LEGACY_DUE_DATE_KEY = 'db_due_date';
 
 // Draft keys — 진행 중인 온보딩 입력의 영속화. 위의 `db_*` 키와 의미가
 // 다르므로 (백엔드 응답 미러 vs. 진행 중 입력) 별도 네임스페이스를 쓴다.
@@ -33,28 +35,18 @@ export async function getCachedOnboardedAt(): Promise<string | null> {
   return SecureStore.getItemAsync(ONBOARDED_AT_KEY);
 }
 
-export async function getCachedDueDate(): Promise<string | null> {
-  return SecureStore.getItemAsync(DUE_DATE_KEY);
-}
-
 export async function getCachedFirstRecordAt(): Promise<string | null> {
   return SecureStore.getItemAsync(FIRST_RECORD_AT_KEY);
 }
 
 export async function setCachedOnboarding(
   onboardedAt: string | null,
-  dueDate: string | null,
   firstRecordAt: string | null,
 ): Promise<void> {
   if (onboardedAt) {
     await SecureStore.setItemAsync(ONBOARDED_AT_KEY, onboardedAt);
   } else {
     await SecureStore.deleteItemAsync(ONBOARDED_AT_KEY);
-  }
-  if (dueDate) {
-    await SecureStore.setItemAsync(DUE_DATE_KEY, dueDate);
-  } else {
-    await SecureStore.deleteItemAsync(DUE_DATE_KEY);
   }
   if (firstRecordAt) {
     await SecureStore.setItemAsync(FIRST_RECORD_AT_KEY, firstRecordAt);
@@ -65,8 +57,15 @@ export async function setCachedOnboarding(
 
 export async function clearOnboardingCache(): Promise<void> {
   await SecureStore.deleteItemAsync(ONBOARDED_AT_KEY);
-  await SecureStore.deleteItemAsync(DUE_DATE_KEY);
   await SecureStore.deleteItemAsync(FIRST_RECORD_AT_KEY);
+}
+
+// cleanupLegacyDueDateKey 는 이전 빌드에서 SecureStore 에 저장하던
+// `db_due_date` 키를 부팅 시 한 번 지운다. 데이터는 더 이상 읽히지 않으므로
+// 보안·디스크 위생 차원의 1회 cleanup 이다. 다음 메이저 정리 때 호출 자체를
+// 제거할 수 있다.
+export async function cleanupLegacyDueDateKey(): Promise<void> {
+  await SecureStore.deleteItemAsync(LEGACY_DUE_DATE_KEY);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

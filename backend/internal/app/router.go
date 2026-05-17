@@ -152,7 +152,7 @@ type onboardingAdapter struct {
 	store *onboarding.Store
 }
 
-func (a *onboardingAdapter) UpsertCaseA(ctx context.Context, userID string, dueDate *string, fetuses []users.OnboardingFetus) error {
+func (a *onboardingAdapter) UpsertCaseA(ctx context.Context, userID string, fetuses []users.OnboardingFetus) error {
 	out := make([]onboarding.Fetus, len(fetuses))
 	for i, f := range fetuses {
 		out[i] = onboarding.Fetus{
@@ -163,10 +163,10 @@ func (a *onboardingAdapter) UpsertCaseA(ctx context.Context, userID string, dueD
 			Purposes:      f.Purposes,
 		}
 	}
-	return a.store.UpsertCaseA(ctx, userID, dueDate, out)
+	return a.store.UpsertCaseA(ctx, userID, out)
 }
 
-func (a *onboardingAdapter) UpsertCaseB(ctx context.Context, userID string, dueDate *string, children []users.OnboardingChild, fetuses []users.OnboardingFetus) error {
+func (a *onboardingAdapter) UpsertCaseB(ctx context.Context, userID string, children []users.OnboardingChild, fetuses []users.OnboardingFetus) error {
 	outChildren := make([]onboarding.Child, len(children))
 	for i, c := range children {
 		outChildren[i] = onboarding.Child{
@@ -187,7 +187,7 @@ func (a *onboardingAdapter) UpsertCaseB(ctx context.Context, userID string, dueD
 			Purposes:      f.Purposes,
 		}
 	}
-	return a.store.UpsertCaseB(ctx, userID, dueDate, outChildren, outFetuses)
+	return a.store.UpsertCaseB(ctx, userID, outChildren, outFetuses)
 }
 
 func (a *onboardingAdapter) UpsertCaseC(ctx context.Context, userID string, children []users.OnboardingChild) error {

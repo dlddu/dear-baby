@@ -34,7 +34,6 @@ CREATE TABLE oauth_accounts (
 );
 CREATE TABLE onboarding (
   user_id         TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  due_date        TEXT,
   onboarded_at    TEXT,
   first_record_at TEXT,
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -128,7 +127,7 @@ func TestGetProfile_MergesOnboardingFields(t *testing.T) {
 	seedUser(t, db, "u1", "a@b.com")
 
 	if _, err := db.Exec(`
-		UPDATE onboarding SET due_date = '2025-09-15', onboarded_at = datetime('now')
+		UPDATE onboarding SET onboarded_at = datetime('now')
 		WHERE user_id = 'u1'
 	`); err != nil {
 		t.Fatalf("stamp onboarding: %v", err)
@@ -138,9 +137,6 @@ func TestGetProfile_MergesOnboardingFields(t *testing.T) {
 	p, err := store.GetProfile(context.Background(), "u1")
 	if err != nil {
 		t.Fatalf("get profile: %v", err)
-	}
-	if p.DueDate == nil || *p.DueDate != "2025-09-15" {
-		t.Errorf("due_date: got %v", p.DueDate)
 	}
 	if p.OnboardedAt == nil {
 		t.Error("onboarded_at should be set")
@@ -159,7 +155,7 @@ func TestGetProfile_NilOnboardingFieldsWhenRowMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get profile: %v", err)
 	}
-	if p.DueDate != nil || p.OnboardedAt != nil || p.FirstRecordAt != nil {
+	if p.OnboardedAt != nil || p.FirstRecordAt != nil {
 		t.Errorf("missing onboarding row should give all-nil onboarding fields: got %+v", p)
 	}
 }

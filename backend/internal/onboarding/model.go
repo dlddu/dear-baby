@@ -1,19 +1,5 @@
 package onboarding
 
-import "time"
-
-// Onboarding is a row in the `onboarding` table. All fields except UserID
-// are nullable — they are stamped incrementally as the user progresses
-// through Stage 1 (DueDate, OnboardedAt) and on the first record
-// (FirstRecordAt).
-type Onboarding struct {
-	UserID        string
-	DueDate       *string
-	OnboardedAt   *time.Time
-	FirstRecordAt *time.Time
-	UpdatedAt     time.Time
-}
-
 // Fetus is a row in the `fetuses` table. Holds per-태아 input from Case A
 // (and the 임신 부분 of Case B). Purposes are the 기록 목적 칩 labels —
 // the Korean strings the user selected on A3 — stored verbatim. The client
