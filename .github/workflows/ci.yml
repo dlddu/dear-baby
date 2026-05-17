@@ -44,9 +44,7 @@ jobs:
             # maestro-only 변경 시 deploy-testflight/play 가 자연스럽게 스킵된다.
             app:
               - 'app/**'
-              - '.github/workflows/deploy-testflight.yml'
               - '.github/workflows/build-ios-testflight.yml'
-              - '.github/workflows/deploy-play-internal.yml'
               - '.github/workflows/build-android-play.yml'
               - '.github/actions/setup-js/**'
             k8s:
@@ -137,16 +135,30 @@ jobs:
         working-directory: backend
         run: make test
 
-  build-image:
-    name: Build & Push Backend Image
-    needs: [integration, e2e-ios, e2e-android, backend-unit-tests, changes]
+  # Single gate that absorbs the !failure() && !cancelled() check and
+  # the `result != 'cancelled'` checks for every precheck. Downstream
+  # build/deploy jobs depend on this instead of repeating the same
+  # expression four times. When a precheck fails or is cancelled this
+  # job skips, which transitively skips all four downstream jobs since
+  # their `needs:` is no longer satisfied.
+  prechecks-passed:
+    name: All prechecks passed
+    needs: [changes, integration, e2e-ios, e2e-android, app-unit-tests, backend-unit-tests]
     if: >-
       !failure() && !cancelled() &&
       needs.integration.result != 'cancelled' &&
       needs.e2e-ios.result != 'cancelled' &&
       needs.e2e-android.result != 'cancelled' &&
-      needs.backend-unit-tests.result != 'cancelled' &&
-      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true')
+      needs.app-unit-tests.result != 'cancelled' &&
+      needs.backend-unit-tests.result != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "All prechecks passed or were skipped."
+
+  build-image:
+    name: Build & Push Backend Image
+    needs: [prechecks-passed, changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true'
     uses: ./.github/workflows/backend-image.yml
     permissions:
       contents: read
@@ -155,13 +167,8 @@ jobs:
 
   build-worker-image:
     name: Build & Push Worker Image
-    needs: [integration, e2e-ios, e2e-android, changes]
-    if: >-
-      !failure() && !cancelled() &&
-      needs.integration.result != 'cancelled' &&
-      needs.e2e-ios.result != 'cancelled' &&
-      needs.e2e-android.result != 'cancelled' &&
-      (needs.changes.outputs.worker == 'true' || needs.changes.outputs.ci == 'true')
+    needs: [prechecks-passed, changes]
+    if: needs.changes.outputs.worker == 'true' || needs.changes.outputs.ci == 'true'
     uses: ./.github/workflows/worker-image.yml
     permissions:
       contents: read
@@ -170,34 +177,28 @@ jobs:
 
   deploy-testflight:
     name: Deploy iOS to TestFlight
-    needs: [integration, e2e-ios, e2e-android, app-unit-tests, changes]
+    needs: [prechecks-passed, changes]
     if: >-
-      !failure() && !cancelled() &&
-      needs.integration.result != 'cancelled' &&
-      needs.e2e-ios.result != 'cancelled' &&
-      needs.e2e-android.result != 'cancelled' &&
-      needs.app-unit-tests.result != 'cancelled' &&
       github.event_name == 'pull_request' &&
       (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
-    uses: ./.github/workflows/deploy-testflight.yml
+    uses: ./.github/workflows/build-ios-testflight.yml
     with:
+      expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
       ref: ${{ github.event.pull_request.head.sha }}
+      lane: tf_internal
     secrets: inherit
 
   deploy-play-internal:
     name: Deploy Android to Play Store (Internal)
-    needs: [integration, e2e-ios, e2e-android, app-unit-tests, changes]
+    needs: [prechecks-passed, changes]
     if: >-
-      !failure() && !cancelled() &&
-      needs.integration.result != 'cancelled' &&
-      needs.e2e-ios.result != 'cancelled' &&
-      needs.e2e-android.result != 'cancelled' &&
-      needs.app-unit-tests.result != 'cancelled' &&
       github.event_name == 'pull_request' &&
       (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
-    uses: ./.github/workflows/deploy-play-internal.yml
+    uses: ./.github/workflows/build-android-play.yml
     with:
+      expo-public-api-url: ${{ vars.EXPO_PUBLIC_API_URL_STAGING }}
       ref: ${{ github.event.pull_request.head.sha }}
+      lane: play_internal
     secrets: inherit
 
   ci-success:
@@ -209,6 +210,7 @@ jobs:
       - e2e-android
       - app-unit-tests
       - backend-unit-tests
+      - prechecks-passed
       - build-image
       - build-worker-image
       - deploy-testflight

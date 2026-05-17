@@ -1,0 +1,104 @@
+name: Pin prod images (flux-cd-apps)
+
+# Reusable workflow that pins the dear-baby-prod-app Flux Kustomization
+# in dlddu/flux-cd-apps to a specific backend + worker image SHA. Lives
+# in flux-cd-apps (not this repo) because Flux's images: transformation
+# is applied on top of the kustomize build and overrides whatever
+# k8s/overlays/production/kustomization.yaml sets here.
+#
+# Pulled out of closed-beta.yml so the orchestration there reads as a
+# straight list of build/submit/pin steps without a 60-line inline
+# block in the middle.
+
+on:
+  workflow_call:
+    inputs:
+      head-sha:
+        type: string
+        required: true
+        description: Backend + worker image SHA to pin (newTag value).
+
+jobs:
+  pin:
+    name: Pin prod backend + worker images to head SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HEAD_SHA: ${{ inputs.head-sha }}
+    steps:
+      - name: Checkout flux-cd-apps
+        # FLUX_CD_APPS_TOKEN is a PAT with contents:write on
+        # dlddu/flux-cd-apps; the default GITHUB_TOKEN is scoped to
+        # this repo only and can't push to a different one. Cloning
+        # into ./flux-cd-apps keeps the working tree off the dear-baby
+        # checkout root so future steps in this workflow that assume a
+        # plain dear-baby layout stay unaffected.
+        uses: actions/checkout@v4
+        with:
+          repository: dlddu/flux-cd-apps
+          ref: main
+          token: ${{ secrets.FLUX_CD_APPS_TOKEN }}
+          path: flux-cd-apps
+
+      - name: "Pin newTag on dear-baby-prod-app Kustomization"
+        # The Flux Kustomization at cluster/dear-baby-prod.yaml owns
+        # the images: transformation applied on top of the dear-baby
+        # kustomize build, so setting newTag here is what actually
+        # pins prod — anything written into this repo's
+        # k8s/overlays/production/kustomization.yaml would be silently
+        # overridden by this block. The yq selector targets only the
+        # dear-baby-prod-app document in the multi-doc YAML (which
+        # also contains a Namespace, a GitRepository, and the
+        # -configs Kustomization), and the post-write verification
+        # catches structural drift (image name renamed, Kustomization
+        # renamed, image entry removed, etc.) that would otherwise
+        # leave prod on newTag: main while the workflow looked green.
+        # Backend and worker share a SHA because they're built from
+        # the same commit by the build-image jobs above.
+        working-directory: flux-cd-apps
+        run: |
+          set -euo pipefail
+          yq -i '
+            (select(.kind == "Kustomization" and .metadata.name == "dear-baby-prod-app")
+             | .spec.images[]
+             | select(.name == "ghcr.io/dlddu/dear-baby" or .name == "ghcr.io/dlddu/dear-baby-worker")
+             | .newTag) = strenv(HEAD_SHA)
+          ' cluster/dear-baby-prod.yaml
+          for image in ghcr.io/dlddu/dear-baby ghcr.io/dlddu/dear-baby-worker; do
+            actual=$(IMAGE="$image" yq '
+              select(.kind == "Kustomization" and .metadata.name == "dear-baby-prod-app")
+              | .spec.images[] | select(.name == strenv(IMAGE)) | .newTag
+            ' cluster/dear-baby-prod.yaml)
+            if [ "$actual" != "$HEAD_SHA" ]; then
+              echo "::error::Expected newTag=$HEAD_SHA for $image, got '$actual' — the dear-baby-prod-app Kustomization or its image entry in cluster/dear-baby-prod.yaml has likely been renamed or removed; update the yq selector."
+              exit 1
+            fi
+          done
+
+      - name: Commit and push to flux-cd-apps main
+        # Plain (non-force) push so we can only fast-forward on top of
+        # whatever's on flux-cd-apps' main right now; if a concurrent
+        # commit landed since our checkout the push fails, the retry
+        # loop fetches and rebases the pin commit onto the new tip,
+        # then tries again.
+        working-directory: flux-cd-apps
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- cluster/dear-baby-prod.yaml; then
+            echo "dear-baby-prod-app already pinned to $HEAD_SHA — nothing to commit."
+            exit 0
+          fi
+          git add cluster/dear-baby-prod.yaml
+          git commit -m "chore(dear-baby): pin prod backend + worker images to $HEAD_SHA"
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; fetching and rebasing on main..."
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "::error::Failed to push pin commit to flux-cd-apps main after 3 attempts."
+          exit 1
