@@ -24,8 +24,6 @@ type fakeOnboardingUpdater struct {
 	caseACalled       int
 	caseBCalled       int
 	caseCCalled       int
-	lastCaseADue      *string
-	lastCaseBDue      *string
 	lastFetuses       []OnboardingFetus
 	lastChildren      []OnboardingChild
 	lastCaseBChildren []OnboardingChild
@@ -34,20 +32,15 @@ type fakeOnboardingUpdater struct {
 
 var fakeNotFound = errors.New("fake onboarding not found")
 
-func (f *fakeOnboardingUpdater) UpsertCaseA(ctx context.Context, userID string, dueDate *string, fetuses []OnboardingFetus) error {
+func (f *fakeOnboardingUpdater) UpsertCaseA(ctx context.Context, userID string, fetuses []OnboardingFetus) error {
 	f.caseACalled++
-	f.lastCaseADue = dueDate
 	f.lastFetuses = fetuses
 	if f.errCaseA != nil {
 		return f.errCaseA
 	}
-	var dueArg any
-	if dueDate != nil {
-		dueArg = *dueDate
-	}
 	if _, err := f.db.ExecContext(ctx, `
-		UPDATE onboarding SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now') WHERE user_id = ?
-	`, dueArg, userID); err != nil {
+		UPDATE onboarding SET onboarded_at = datetime('now'), updated_at = datetime('now') WHERE user_id = ?
+	`, userID); err != nil {
 		return err
 	}
 	if _, err := f.db.ExecContext(ctx, `DELETE FROM fetuses WHERE user_id = ?`, userID); err != nil {
@@ -68,21 +61,16 @@ func (f *fakeOnboardingUpdater) UpsertCaseA(ctx context.Context, userID string, 
 	return nil
 }
 
-func (f *fakeOnboardingUpdater) UpsertCaseB(ctx context.Context, userID string, dueDate *string, children []OnboardingChild, fetuses []OnboardingFetus) error {
+func (f *fakeOnboardingUpdater) UpsertCaseB(ctx context.Context, userID string, children []OnboardingChild, fetuses []OnboardingFetus) error {
 	f.caseBCalled++
-	f.lastCaseBDue = dueDate
 	f.lastCaseBChildren = children
 	f.lastCaseBFetuses = fetuses
 	if f.errCaseB != nil {
 		return f.errCaseB
 	}
-	var dueArg any
-	if dueDate != nil {
-		dueArg = *dueDate
-	}
 	if _, err := f.db.ExecContext(ctx, `
-		UPDATE onboarding SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now') WHERE user_id = ?
-	`, dueArg, userID); err != nil {
+		UPDATE onboarding SET onboarded_at = datetime('now'), updated_at = datetime('now') WHERE user_id = ?
+	`, userID); err != nil {
 		return err
 	}
 	if _, err := f.db.ExecContext(ctx, `DELETE FROM children WHERE user_id = ?`, userID); err != nil {
@@ -125,7 +113,7 @@ func (f *fakeOnboardingUpdater) UpsertCaseC(ctx context.Context, userID string, 
 		return f.errCaseC
 	}
 	if _, err := f.db.ExecContext(ctx, `
-		UPDATE onboarding SET due_date = NULL, onboarded_at = datetime('now'), updated_at = datetime('now') WHERE user_id = ?
+		UPDATE onboarding SET onboarded_at = datetime('now'), updated_at = datetime('now') WHERE user_id = ?
 	`, userID); err != nil {
 		return err
 	}
@@ -195,7 +183,6 @@ func TestPostOnboardingCaseA_OK(t *testing.T) {
 	defer cleanup()
 
 	body := `{
-		"due_date": "2025-09-15",
 		"fetuses": [
 			{"nickname": "콩이", "gender": "unknown", "pregnancy_week": 17, "due_date": "2025-09-15", "purposes": ["매일의 마음", "몸의 변화"]}
 		]
@@ -218,42 +205,17 @@ func TestPostOnboardingCaseA_OK(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.DueDate == nil || *got.DueDate != "2025-09-15" {
-		t.Errorf("due_date: got %v", got.DueDate)
-	}
 	if got.OnboardedAt == nil {
 		t.Error("onboarded_at should be set")
 	}
 	if len(got.Fetuses) != 1 {
 		t.Fatalf("fetuses: got %d want 1", len(got.Fetuses))
 	}
+	if got.Fetuses[0].DueDate == nil || *got.Fetuses[0].DueDate != "2025-09-15" {
+		t.Errorf("fetus due_date: got %v", got.Fetuses[0].DueDate)
+	}
 	if len(got.Fetuses[0].Purposes) != 2 || got.Fetuses[0].Purposes[0] != "매일의 마음" {
 		t.Errorf("purposes: got %+v", got.Fetuses[0].Purposes)
-	}
-}
-
-func TestPostOnboardingCaseA_NullDueDate(t *testing.T) {
-	h, _, cleanup := newHandlersFor(t, "u1")
-	defer cleanup()
-
-	body := `{"due_date": null, "fetuses": [{"purposes": ["매일의 마음"]}]}`
-	req := withUser(httptest.NewRequest(http.MethodPost, "/me/onboarding/case-a",
-		strings.NewReader(body)), "u1")
-	rec := httptest.NewRecorder()
-	h.PostOnboardingCaseA(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
-	}
-	var got Profile
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if got.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *got.DueDate)
-	}
-	if got.OnboardedAt == nil {
-		t.Error("onboarded_at should be set")
 	}
 }
 
@@ -262,12 +224,11 @@ func TestPostOnboardingCaseA_InvalidBody(t *testing.T) {
 	defer cleanup()
 
 	cases := []string{
-		`{"fetuses": []}`,                                                                             // empty
-		`{"fetuses": [{"due_date": "2025/09/15", "purposes": []}]}`,                                   // bad fetus date
-		`{"due_date": "2025-09-31", "fetuses": [{"purposes": []}]}`,                                   // bad top-level date
-		`{"fetuses": [{"purposes": [""]}]}`,                                                           // empty purpose label
-		`{"fetuses": [{"purposes": ["` + strings.Repeat("ㅇ", 101) + `"]}]}`,                         // too long
-		`{"fetuses": [{"purposes": ["x"]}], "extra": 1}`,                                              // unknown field
+		`{"fetuses": []}`,                                                          // empty
+		`{"fetuses": [{"due_date": "2025/09/15", "purposes": []}]}`,                // bad fetus date
+		`{"fetuses": [{"purposes": [""]}]}`,                                        // empty purpose label
+		`{"fetuses": [{"purposes": ["` + strings.Repeat("ㅇ", 101) + `"]}]}`,        // too long
+		`{"fetuses": [{"purposes": ["x"]}], "extra": 1}`,                           // unknown field
 	}
 	for _, body := range cases {
 		req := withUser(httptest.NewRequest(http.MethodPost, "/me/onboarding/case-a",
@@ -284,7 +245,7 @@ func TestPostOnboardingCaseA_UserNotFound(t *testing.T) {
 	h, _, cleanup := newHandlersFor(t, "")
 	defer cleanup()
 
-	body := `{"due_date": "2025-09-15", "fetuses": [{"purposes": []}]}`
+	body := `{"fetuses": [{"purposes": []}]}`
 	req := withUser(httptest.NewRequest(http.MethodPost, "/me/onboarding/case-a",
 		strings.NewReader(body)), "missing")
 	rec := httptest.NewRecorder()
@@ -335,9 +296,6 @@ func TestPostOnboardingCaseC_OK(t *testing.T) {
 	var got Profile
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
-	}
-	if got.DueDate != nil {
-		t.Errorf("due_date should be null for Case C: got %v", *got.DueDate)
 	}
 	if got.OnboardedAt == nil {
 		t.Error("onboarded_at should be set")
@@ -394,7 +352,6 @@ func TestPostOnboardingCaseB_OK(t *testing.T) {
 	defer cleanup()
 
 	body := `{
-		"due_date": "2025-09-15",
 		"children": [
 			{"name": "서연", "gender": "female", "birth_date": "2023-04-01", "bio": "활발한 둘째", "purposes": ["일상의 발견", "말과 행동의 성장"]}
 		],
@@ -426,43 +383,14 @@ func TestPostOnboardingCaseB_OK(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.DueDate == nil || *got.DueDate != "2025-09-15" {
-		t.Errorf("due_date: got %v", got.DueDate)
-	}
 	if got.OnboardedAt == nil {
 		t.Error("onboarded_at should be set")
 	}
 	if len(got.Children) != 1 || len(got.Fetuses) != 1 {
 		t.Fatalf("profile rows: got %d children, %d fetuses", len(got.Children), len(got.Fetuses))
 	}
-}
-
-func TestPostOnboardingCaseB_NullDueDate(t *testing.T) {
-	h, _, cleanup := newHandlersFor(t, "u1")
-	defer cleanup()
-
-	body := `{
-		"due_date": null,
-		"children": [{"name": "민준", "purposes": ["일상의 발견"]}],
-		"fetuses": [{"purposes": ["매일의 마음"]}]
-	}`
-	req := withUser(httptest.NewRequest(http.MethodPost, "/me/onboarding/case-b",
-		strings.NewReader(body)), "u1")
-	rec := httptest.NewRecorder()
-	h.PostOnboardingCaseB(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
-	}
-	var got Profile
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if got.DueDate != nil {
-		t.Errorf("due_date: got %v want nil", *got.DueDate)
-	}
-	if got.OnboardedAt == nil {
-		t.Error("onboarded_at should be set")
+	if got.Fetuses[0].DueDate == nil || *got.Fetuses[0].DueDate != "2025-09-15" {
+		t.Errorf("fetus due_date: got %v", got.Fetuses[0].DueDate)
 	}
 }
 
@@ -479,8 +407,6 @@ func TestPostOnboardingCaseB_InvalidBody(t *testing.T) {
 		`{"children": [{"birth_date": "1999/01/01", "purposes": []}], "fetuses": [{"purposes": []}]}`,
 		// bad fetus due date
 		`{"children": [{"purposes": []}], "fetuses": [{"due_date": "2025/09/15", "purposes": []}]}`,
-		// bad top-level due date
-		`{"due_date": "2025-09-31", "children": [{"purposes": []}], "fetuses": [{"purposes": []}]}`,
 		// empty child purpose label
 		`{"children": [{"purposes": [""]}], "fetuses": [{"purposes": []}]}`,
 		// empty fetus purpose label

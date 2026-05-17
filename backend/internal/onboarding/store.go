@@ -6,22 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 )
 
 // ErrNotFound is returned when no onboarding row matches the given user id.
 var ErrNotFound = errors.New("onboarding row not found")
 
-// sqliteTimeLayout is the format SQLite emits for datetime('now').
-const sqliteTimeLayout = "2006-01-02 15:04:05"
-
 // Store is a data-access layer over the onboarding table.
 type Store struct {
 	DB *sql.DB
-}
-
-type rowScanner interface {
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
 // EnsureRowTx inserts an empty onboarding row for the given user if one
@@ -35,48 +27,6 @@ func (s *Store) EnsureRowTx(ctx context.Context, tx *sql.Tx, userID string) erro
 		return fmt.Errorf("ensure onboarding row: %w", err)
 	}
 	return nil
-}
-
-// GetByID returns the onboarding row for the given user.
-func (s *Store) GetByID(ctx context.Context, userID string) (*Onboarding, error) {
-	return getByID(ctx, s.DB, userID)
-}
-
-// GetByIDTx returns the onboarding row inside an existing transaction.
-func (s *Store) GetByIDTx(ctx context.Context, tx *sql.Tx, userID string) (*Onboarding, error) {
-	return getByID(ctx, tx, userID)
-}
-
-func getByID(ctx context.Context, q rowScanner, userID string) (*Onboarding, error) {
-	o := &Onboarding{UserID: userID}
-	var dueDate, onboardedAt, firstRecordAt sql.NullString
-	var updatedAt string
-	err := q.QueryRowContext(ctx, `
-		SELECT due_date, onboarded_at, first_record_at, updated_at
-		FROM onboarding WHERE user_id = ?
-	`, userID).Scan(&dueDate, &onboardedAt, &firstRecordAt, &updatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("select onboarding: %w", err)
-	}
-	if dueDate.Valid {
-		s := dueDate.String
-		o.DueDate = &s
-	}
-	if onboardedAt.Valid {
-		if t, err := time.Parse(sqliteTimeLayout, onboardedAt.String); err == nil {
-			o.OnboardedAt = &t
-		}
-	}
-	if firstRecordAt.Valid {
-		if t, err := time.Parse(sqliteTimeLayout, firstRecordAt.String); err == nil {
-			o.FirstRecordAt = &t
-		}
-	}
-	o.UpdatedAt, _ = time.Parse(sqliteTimeLayout, updatedAt)
-	return o, nil
 }
 
 // ResetUserByEmail wipes all per-user state used by the onboarding e2e
@@ -127,8 +77,7 @@ func (s *Store) ResetUserByEmail(ctx context.Context, email string) error {
 	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE onboarding
-		SET due_date = NULL,
-		    onboarded_at = NULL,
+		SET onboarded_at = NULL,
 		    first_record_at = NULL,
 		    updated_at = datetime('now')
 		WHERE user_id = ?
@@ -143,12 +92,12 @@ func (s *Store) ResetUserByEmail(ctx context.Context, email string) error {
 }
 
 // UpsertCaseA atomically replaces the user's fetuses with the provided list
-// and stamps onboarded_at + due_date in a single transaction. The client is
+// and stamps onboarded_at in a single transaction. The client is
 // responsible for replicating the chosen purposes to every fetus before
 // calling — the server stores what it receives. Existing fetus rows for
 // this user are deleted before the new rows are inserted, so the call is
 // idempotent across retries.
-func (s *Store) UpsertCaseA(ctx context.Context, userID string, dueDate *string, fetuses []Fetus) error {
+func (s *Store) UpsertCaseA(ctx context.Context, userID string, fetuses []Fetus) error {
 	if err := s.ensureRow(ctx, userID); err != nil {
 		return err
 	}
@@ -158,15 +107,11 @@ func (s *Store) UpsertCaseA(ctx context.Context, userID string, dueDate *string,
 	}
 	defer tx.Rollback()
 
-	var dueArg any
-	if dueDate != nil {
-		dueArg = *dueDate
-	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE onboarding
-		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
+		SET onboarded_at = datetime('now'), updated_at = datetime('now')
 		WHERE user_id = ?
-	`, dueArg, userID); err != nil {
+	`, userID); err != nil {
 		return fmt.Errorf("update onboarding: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM fetuses WHERE user_id = ?`, userID); err != nil {
@@ -191,11 +136,10 @@ func (s *Store) UpsertCaseA(ctx context.Context, userID string, dueDate *string,
 }
 
 // UpsertCaseB atomically replaces the user's children + fetuses with the
-// provided lists in a single transaction, copies dueDate into
-// onboarding.due_date, and stamps onboarded_at. Unlike Case A·C, the
-// caller provides per-child / per-fetus purposes (B2-purpose 1:1, B6
-// 일괄) — the server stores what it receives.
-func (s *Store) UpsertCaseB(ctx context.Context, userID string, dueDate *string, children []Child, fetuses []Fetus) error {
+// provided lists in a single transaction and stamps onboarded_at. Unlike
+// Case A·C, the caller provides per-child / per-fetus purposes
+// (B2-purpose 1:1, B6 일괄) — the server stores what it receives.
+func (s *Store) UpsertCaseB(ctx context.Context, userID string, children []Child, fetuses []Fetus) error {
 	if err := s.ensureRow(ctx, userID); err != nil {
 		return err
 	}
@@ -205,15 +149,11 @@ func (s *Store) UpsertCaseB(ctx context.Context, userID string, dueDate *string,
 	}
 	defer tx.Rollback()
 
-	var dueArg any
-	if dueDate != nil {
-		dueArg = *dueDate
-	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE onboarding
-		SET due_date = ?, onboarded_at = datetime('now'), updated_at = datetime('now')
+		SET onboarded_at = datetime('now'), updated_at = datetime('now')
 		WHERE user_id = ?
-	`, dueArg, userID); err != nil {
+	`, userID); err != nil {
 		return fmt.Errorf("update onboarding: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM children WHERE user_id = ?`, userID); err != nil {
@@ -253,8 +193,8 @@ func (s *Store) UpsertCaseB(ctx context.Context, userID string, dueDate *string,
 }
 
 // UpsertCaseC atomically replaces the user's children with the provided
-// list and stamps onboarded_at (with due_date null since Case C has no
-// pregnancy). Same purposes-replication contract as UpsertCaseA.
+// list and stamps onboarded_at. Same purposes-replication contract as
+// UpsertCaseA.
 func (s *Store) UpsertCaseC(ctx context.Context, userID string, children []Child) error {
 	if err := s.ensureRow(ctx, userID); err != nil {
 		return err
@@ -267,7 +207,7 @@ func (s *Store) UpsertCaseC(ctx context.Context, userID string, children []Child
 
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE onboarding
-		SET due_date = NULL, onboarded_at = datetime('now'), updated_at = datetime('now')
+		SET onboarded_at = datetime('now'), updated_at = datetime('now')
 		WHERE user_id = ?
 	`, userID); err != nil {
 		return fmt.Errorf("update onboarding: %w", err)

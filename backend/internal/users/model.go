@@ -3,8 +3,8 @@ package users
 import "time"
 
 // User represents a row in the users table. Core identity only — all
-// onboarding-related state (due_date, onboarded_at, first_record_at) lives
-// in the `onboarding` table and is merged into Profile for the /me response.
+// onboarding-related state (onboarded_at, first_record_at) lives in the
+// `onboarding` table and is merged into Profile for the /me response.
 type User struct {
 	ID         string    `json:"id"`
 	Email      string    `json:"email"`
@@ -44,7 +44,6 @@ type Profile struct {
 	Email         string         `json:"email"`
 	Name          string         `json:"name"`
 	PictureURL    string         `json:"picture_url"`
-	DueDate       *string        `json:"due_date"`
 	OnboardedAt   *time.Time     `json:"onboarded_at"`
 	FirstRecordAt *time.Time     `json:"first_record_at"`
 	Fetuses       []FetusProfile `json:"fetuses"`

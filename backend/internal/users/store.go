@@ -193,17 +193,17 @@ func (s *Store) GetProfileTx(ctx context.Context, tx *sql.Tx, id string) (*Profi
 
 func getProfile(ctx context.Context, q rowScanner, id string) (*Profile, error) {
 	p := &Profile{}
-	var name, picture, dueDate, onboardedAt, firstRecordAt sql.NullString
+	var name, picture, onboardedAt, firstRecordAt sql.NullString
 	var createdAt, updatedAt string
 	err := q.QueryRowContext(ctx, `
 		SELECT u.id, u.email, u.name, u.picture_url,
-		       o.due_date, o.onboarded_at, o.first_record_at,
+		       o.onboarded_at, o.first_record_at,
 		       u.created_at, u.updated_at
 		FROM users u
 		LEFT JOIN onboarding o ON o.user_id = u.id
 		WHERE u.id = ?
 	`, id).Scan(&p.ID, &p.Email, &name, &picture,
-		&dueDate, &onboardedAt, &firstRecordAt,
+		&onboardedAt, &firstRecordAt,
 		&createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -213,10 +213,6 @@ func getProfile(ctx context.Context, q rowScanner, id string) (*Profile, error) 
 	}
 	p.Name = name.String
 	p.PictureURL = picture.String
-	if dueDate.Valid {
-		v := dueDate.String
-		p.DueDate = &v
-	}
 	if onboardedAt.Valid {
 		if t, err := time.Parse(sqliteTimeLayout, onboardedAt.String); err == nil {
 			p.OnboardedAt = &t

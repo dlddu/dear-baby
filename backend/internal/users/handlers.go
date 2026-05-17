@@ -17,8 +17,8 @@ import (
 // not import the onboarding package. The router wires in the concrete
 // *onboarding.Store.
 type OnboardingUpdater interface {
-	UpsertCaseA(ctx context.Context, userID string, dueDate *string, fetuses []OnboardingFetus) error
-	UpsertCaseB(ctx context.Context, userID string, dueDate *string, children []OnboardingChild, fetuses []OnboardingFetus) error
+	UpsertCaseA(ctx context.Context, userID string, fetuses []OnboardingFetus) error
+	UpsertCaseB(ctx context.Context, userID string, children []OnboardingChild, fetuses []OnboardingFetus) error
 	UpsertCaseC(ctx context.Context, userID string, children []OnboardingChild) error
 }
 
@@ -71,8 +71,9 @@ func (h *Handlers) Me(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, p)
 }
 
-// isoDateRe matches the YYYY-MM-DD shape we accept for due_date; we also
-// validate the date is real (e.g., rejects 2025-02-31) below via time.Parse.
+// isoDateRe matches the YYYY-MM-DD shape we accept for the per-fetus
+// due_date / per-child birth_date; we also validate the date is real
+// (e.g., rejects 2025-02-31) below via time.Parse.
 var isoDateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 func isOnboardingNotFound(err error, sentinel error) bool {
@@ -93,7 +94,6 @@ type caseAFetusBody struct {
 }
 
 type caseABody struct {
-	DueDate *string          `json:"due_date"`
 	Fetuses []caseAFetusBody `json:"fetuses"`
 }
 
@@ -116,15 +116,14 @@ type caseBChildBody = caseCChildBody
 type caseBFetusBody = caseAFetusBody
 
 type caseBBody struct {
-	DueDate  *string          `json:"due_date"`
 	Children []caseBChildBody `json:"children"`
 	Fetuses  []caseBFetusBody `json:"fetuses"`
 }
 
-// PostOnboardingCaseA persists the Case A onboarding payload — the
-// chosen due date plus one row per fetus — and stamps onboarded_at. The
-// client is expected to replicate the chosen purposes to every fetus
-// (다태에서도 1회만 묻는 UX); the server stores what it receives.
+// PostOnboardingCaseA persists the Case A onboarding payload — one row
+// per fetus — and stamps onboarded_at. The client is expected to
+// replicate the chosen purposes to every fetus (다태에서도 1회만 묻는
+// UX); the server stores what it receives.
 func (h *Handlers) PostOnboardingCaseA(w http.ResponseWriter, r *http.Request) {
 	id, ok := h.UserIDFromCtxFn(r)
 	if !ok {
@@ -141,10 +140,6 @@ func (h *Handlers) PostOnboardingCaseA(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(body.Fetuses) == 0 {
 		httpx.WriteError(w, http.StatusBadRequest, "fetuses required")
-		return
-	}
-	if body.DueDate != nil && !validDate(*body.DueDate) {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid date")
 		return
 	}
 	for _, f := range body.Fetuses {
@@ -177,7 +172,7 @@ func (h *Handlers) PostOnboardingCaseA(w http.ResponseWriter, r *http.Request) {
 			Purposes:      ensureStringSlice(f.Purposes),
 		})
 	}
-	if err := h.Onboarding.UpsertCaseA(r.Context(), id, body.DueDate, fetuses); err != nil {
+	if err := h.Onboarding.UpsertCaseA(r.Context(), id, fetuses); err != nil {
 		if isOnboardingNotFound(err, h.OnboardingErrNotFound) {
 			httpx.WriteError(w, http.StatusNotFound, "user not found")
 			return
@@ -195,10 +190,9 @@ func (h *Handlers) PostOnboardingCaseA(w http.ResponseWriter, r *http.Request) {
 }
 
 // PostOnboardingCaseB persists the Case B onboarding payload — children
-// + fetuses + due_date — and stamps onboarded_at, all in a single
-// transaction at the store layer. Each child / fetus carries its own
-// purposes selection (B2-purpose 1:1, B6 일괄); the server stores what
-// it receives.
+// + fetuses — and stamps onboarded_at, all in a single transaction at
+// the store layer. Each child / fetus carries its own purposes selection
+// (B2-purpose 1:1, B6 일괄); the server stores what it receives.
 func (h *Handlers) PostOnboardingCaseB(w http.ResponseWriter, r *http.Request) {
 	id, ok := h.UserIDFromCtxFn(r)
 	if !ok {
@@ -219,10 +213,6 @@ func (h *Handlers) PostOnboardingCaseB(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(body.Fetuses) == 0 {
 		httpx.WriteError(w, http.StatusBadRequest, "fetuses required")
-		return
-	}
-	if body.DueDate != nil && !validDate(*body.DueDate) {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid date")
 		return
 	}
 	for _, c := range body.Children {
@@ -275,7 +265,7 @@ func (h *Handlers) PostOnboardingCaseB(w http.ResponseWriter, r *http.Request) {
 			Purposes:      ensureStringSlice(f.Purposes),
 		})
 	}
-	if err := h.Onboarding.UpsertCaseB(r.Context(), id, body.DueDate, children, fetuses); err != nil {
+	if err := h.Onboarding.UpsertCaseB(r.Context(), id, children, fetuses); err != nil {
 		if isOnboardingNotFound(err, h.OnboardingErrNotFound) {
 			httpx.WriteError(w, http.StatusNotFound, "user not found")
 			return
@@ -293,7 +283,7 @@ func (h *Handlers) PostOnboardingCaseB(w http.ResponseWriter, r *http.Request) {
 }
 
 // PostOnboardingCaseC persists the Case C onboarding payload — one row
-// per child — and stamps onboarded_at with due_date null.
+// per child — and stamps onboarded_at.
 func (h *Handlers) PostOnboardingCaseC(w http.ResponseWriter, r *http.Request) {
 	id, ok := h.UserIDFromCtxFn(r)
 	if !ok {
