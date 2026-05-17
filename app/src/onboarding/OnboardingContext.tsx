@@ -91,21 +91,20 @@ type OnboardingContextValue = {
    */
   togglePurposeForChild: (index: number, label: string) => void;
   /**
-   * Case A 결말 — 모든 태아 행(각 행에 동일 purposes 복제)과 첫 태아의 dueDate 를
-   * 백엔드에 영속화하고 onboarded_at 을 스탬프한다.
+   * Case A 결말 — 모든 태아 행(각 행에 동일 purposes 복제)을 백엔드에
+   * 영속화하고 onboarded_at 을 스탬프한다.
    */
   completeAsA: () => Promise<void>;
   /**
    * Case B 결말 — 양육 아이는 B2-purpose 에서 1:1 로 채운 child.purposes 를
    * 그대로, 태아는 B6 에서 단일 슬롯에 받은 purposes 를 모든 태아 행에
-   * 복제하여 영속화한다 (Case A 와 같은 모델). 첫 태아의 dueDate 가
-   * onboarding.due_date 로도 복사된다.
+   * 복제하여 영속화한다 (Case A 와 같은 모델).
    */
   completeAsB: () => Promise<void>;
   /**
    * Case C 결말 — 양육 아이는 c3 에서 1:1 로 채운 child.purposes 를 그대로
-   * 영속화하고 due_date 는 null 로, onboarded_at 만 스탬프한다. 빈 슬롯에는
-   * 양육 톤 기본 칩을 채워 보낸다 (Case B 와 같은 모델).
+   * 영속화하고 onboarded_at 만 스탬프한다. 빈 슬롯에는 양육 톤 기본 칩을
+   * 채워 보낸다 (Case B 와 같은 모델).
    */
   completeAsC: () => Promise<void>;
 };
@@ -286,7 +285,6 @@ export function OnboardingProvider({
   );
 
   const completeAsA = useCallback(async () => {
-    const firstDueDate = fetuses[0]?.dueDate ?? null;
     // 다태에서도 1회만 묻는 UX 이므로 같은 purposes 를 모든 태아 행에 복제한다.
     // 백엔드는 받은 그대로 저장 — 복제 책임은 클라이언트 측.
     const total = fetusCount ?? Math.max(fetuses.length, 1);
@@ -295,7 +293,6 @@ export function OnboardingProvider({
       slots.push(fetuses[i] ?? {});
     }
     await completeOnboardingCaseA({
-      due_date: firstDueDate,
       fetuses: slots.map((f) => ({
         nickname: f.nickname ?? null,
         gender: f.gender ?? null,
@@ -342,9 +339,7 @@ export function OnboardingProvider({
     for (let i = 0; i < fetusTotal; i += 1) {
       fetusSlots.push(fetuses[i] ?? {});
     }
-    const firstDueDate = fetusSlots[0]?.dueDate ?? null;
     await completeOnboardingCaseB({
-      due_date: firstDueDate,
       children: childSlots.map((c) => ({
         name: c.name ?? null,
         gender: c.gender ?? null,

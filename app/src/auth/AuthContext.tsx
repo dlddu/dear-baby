@@ -22,6 +22,7 @@ import {
   type CaseCPayload,
 } from '../api/users';
 import {
+  cleanupLegacyDueDateKey,
   clearOnboardingCache,
   clearOnboardingDraft,
   getCachedOnboardedAt,
@@ -45,20 +46,20 @@ type AuthContextValue = {
   user: User | null;
   setSession: (session: Session) => Promise<void>;
   /**
-   * Case A 결말 — 첫 태아 dueDate + 모든 태아 행(각 행에 동일 purposes 복제)을
-   * 백엔드에 영속화하고 onboarded_at 을 스탬프한다.
+   * Case A 결말 — 모든 태아 행(각 행에 동일 purposes 복제)을 백엔드에
+   * 영속화하고 onboarded_at 을 스탬프한다.
    */
   completeOnboardingCaseA: (payload: CaseAPayload) => Promise<void>;
   /**
-   * Case B 결말 — 양육 아이 + 태아 양쪽 행을 한 번의 트랜잭션으로 영속화하고,
-   * 첫 태아의 dueDate 를 onboarding.due_date 로 복사한 뒤 onboarded_at 을
-   * 스탬프한다. 양육 아이의 purposes 는 슬롯별로 다르게, 태아의 purposes 는
-   * 모든 행에 동일하게 복제되어 있다 (클라이언트가 보낸 그대로 저장).
+   * Case B 결말 — 양육 아이 + 태아 양쪽 행을 한 번의 트랜잭션으로 영속화하고
+   * onboarded_at 을 스탬프한다. 양육 아이의 purposes 는 슬롯별로 다르게,
+   * 태아의 purposes 는 모든 행에 동일하게 복제되어 있다 (클라이언트가 보낸
+   * 그대로 저장).
    */
   completeOnboardingCaseB: (payload: CaseBPayload) => Promise<void>;
   /**
-   * Case C 결말 — 모든 아이 행(각 행에 동일 purposes 복제)을 백엔드에 영속화하고
-   * due_date 는 null 로, onboarded_at 만 스탬프한다.
+   * Case C 결말 — 모든 아이 행(각 행에 동일 purposes 복제)을 백엔드에
+   * 영속화하고 onboarded_at 을 스탬프한다.
    */
   completeOnboardingCaseC: (payload: CaseCPayload) => Promise<void>;
   createTextRecord: (content: string, questionText?: string) => Promise<void>;
@@ -74,18 +75,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // statusForUser decides whether a signed-in user should be directed to the
 // onboarding funnel or straight to the app. `onboarded_at` is the backend's
-// completion marker — we check that rather than `due_date` because the
-// escape-hatch path intentionally leaves due_date null.
+// completion marker.
 function statusForUser(u: User): AuthStatus {
   return u.onboarded_at ? 'authenticated' : 'onboarding';
 }
 
 function cacheFromUser(u: User) {
-  return setCachedOnboarding(
-    u.onboarded_at,
-    u.due_date,
-    u.first_record_at,
-  );
+  return setCachedOnboarding(u.onboarded_at, u.first_record_at);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -100,6 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // 이전 빌드의 stale `db_due_date` SecureStore 키를 부팅 시 1회 정리.
+      void cleanupLegacyDueDateKey();
       const access = await getAccessToken();
       if (!access) {
         if (!cancelled) setStatus('unauthenticated');

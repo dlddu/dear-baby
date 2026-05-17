@@ -1,6 +1,6 @@
 // PRD-007 AC-007-02 — 활성 아이 컨텍스트의 정규화·영속화 잠금.
-// (1) buildActiveChildren 의 합성 규칙(단일·다자녀·임신·양육 혼합·due_date
-// fallback), (2) AsyncStorage hydrate 후 마지막 활성 인덱스가 복원되는지를
+// (1) buildActiveChildren 의 합성 규칙(단일·다자녀·임신·양육 혼합),
+// (2) AsyncStorage hydrate 후 마지막 활성 인덱스가 복원되는지를
 // 단위 레벨에서 고정한다. next/prev 의 회전 동작은 HomeHeader 통합 테스트가
 // 다룬다.
 
@@ -51,7 +51,6 @@ const baseUser = {
   picture_url: '',
   onboarded_at: '2026-05-01T00:00:00Z',
   first_record_at: null,
-  due_date: null,
   fetuses: [],
   children: [],
   created_at: '2026-05-01T00:00:00Z',
@@ -67,19 +66,9 @@ describe('buildActiveChildren — 정규화 규칙', () => {
     expect(buildActiveChildren(baseUser)).toEqual([]);
   });
 
-  it('returns empty even when only due_date is set — backfill migration guarantees fetuses row', () => {
-    expect(
-      buildActiveChildren({
-        ...baseUser,
-        due_date: '2026-09-01',
-      }),
-    ).toEqual([]);
-  });
-
   it('orders children before fetuses, each by ordinal ascending', () => {
     const list = buildActiveChildren({
       ...baseUser,
-      due_date: '2026-09-01',
       fetuses: [
         {
           ordinal: 2,
