@@ -90,10 +90,6 @@ type OnboardingContextValue = {
    * 슬롯이 비어 있으면 양육 톤의 기본 칩으로 초기화 후 토글한다.
    */
   togglePurposeForChild: (index: number, label: string) => void;
-  /** 현재 답변 조합으로 결정된 Case. 둘 다 입력되지 않았으면 null. */
-  caseDecision: () => OnboardingCase | null;
-  /** Case B/C 결말에서 "홈으로 시작하기" 처리 — onboarded_at 만 스탬프, due_date 는 null. */
-  completeAsBC: () => Promise<void>;
   /**
    * Case A 결말 — 모든 태아 행(각 행에 동일 purposes 복제)과 첫 태아의 dueDate 를
    * 백엔드에 영속화하고 onboarded_at 을 스탬프한다.
@@ -112,8 +108,6 @@ type OnboardingContextValue = {
    * 양육 톤 기본 칩을 채워 보낸다 (Case B 와 같은 모델).
    */
   completeAsC: () => Promise<void>;
-  /** 진행 중 입력 초기화. 비상 상황·디버그 용도. */
-  resetOnboardingDraft: () => Promise<void>;
 };
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
@@ -135,7 +129,6 @@ export function OnboardingProvider({
   children: ReactNode;
 }) {
   const {
-    completeOnboarding,
     completeOnboardingCaseA,
     completeOnboardingCaseB,
     completeOnboardingCaseC,
@@ -292,16 +285,6 @@ export function OnboardingProvider({
     [],
   );
 
-  const caseDecision = useCallback(
-    () => decide(q1Pregnant, q2HasChildren),
-    [q1Pregnant, q2HasChildren],
-  );
-
-  const completeAsBC = useCallback(async () => {
-    await completeOnboarding(null);
-    await clearOnboardingDraft();
-  }, [completeOnboarding]);
-
   const completeAsA = useCallback(async () => {
     const firstDueDate = fetuses[0]?.dueDate ?? null;
     // 다태에서도 1회만 묻는 UX 이므로 같은 purposes 를 모든 태아 행에 복제한다.
@@ -380,19 +363,6 @@ export function OnboardingProvider({
     await clearOnboardingDraft();
   }, [completeOnboardingCaseB, childCount, children, fetusCount, fetuses, purposes]);
 
-  const resetOnboardingDraft = useCallback(async () => {
-    setQ1Pregnant(null);
-    setQ2HasChildren(null);
-    setFetusCountState(null);
-    setFetuses([]);
-    setCurrentFetusIndexState(0);
-    setChildCountState(null);
-    setChildren([]);
-    setCurrentChildIndexState(0);
-    setPurposes([]);
-    await clearOnboardingDraft();
-  }, []);
-
   const value = useMemo<OnboardingContextValue>(
     () => ({
       hydrating,
@@ -415,12 +385,9 @@ export function OnboardingProvider({
       setCurrentChildIndex,
       togglePurpose,
       togglePurposeForChild,
-      caseDecision,
-      completeAsBC,
       completeAsA,
       completeAsB,
       completeAsC,
-      resetOnboardingDraft,
     }),
     [
       hydrating,
@@ -443,12 +410,9 @@ export function OnboardingProvider({
       setCurrentChildIndex,
       togglePurpose,
       togglePurposeForChild,
-      caseDecision,
-      completeAsBC,
       completeAsA,
       completeAsB,
       completeAsC,
-      resetOnboardingDraft,
     ],
   );
 

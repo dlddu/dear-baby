@@ -15,9 +15,7 @@ import type {
 
 const ONBOARDED_AT_KEY = 'db_onboarded_at';
 const DUE_DATE_KEY = 'db_due_date';
-const VOICE_COACHMARK_DISMISSED_AT_KEY = 'db_voice_coachmark_dismissed_at';
 const FIRST_RECORD_AT_KEY = 'db_first_record_at';
-const AI_PREVIEW_KEY = 'db_ai_preview';
 
 // Draft keys — 진행 중인 온보딩 입력의 영속화. 위의 `db_*` 키와 의미가
 // 다르므로 (백엔드 응답 미러 vs. 진행 중 입력) 별도 네임스페이스를 쓴다.
@@ -39,24 +37,14 @@ export async function getCachedDueDate(): Promise<string | null> {
   return SecureStore.getItemAsync(DUE_DATE_KEY);
 }
 
-export async function getCachedVoiceCoachmarkDismissedAt(): Promise<string | null> {
-  return SecureStore.getItemAsync(VOICE_COACHMARK_DISMISSED_AT_KEY);
-}
-
 export async function getCachedFirstRecordAt(): Promise<string | null> {
   return SecureStore.getItemAsync(FIRST_RECORD_AT_KEY);
-}
-
-export async function getCachedAiPreview(): Promise<string | null> {
-  return SecureStore.getItemAsync(AI_PREVIEW_KEY);
 }
 
 export async function setCachedOnboarding(
   onboardedAt: string | null,
   dueDate: string | null,
-  voiceCoachmarkDismissedAt: string | null,
   firstRecordAt: string | null,
-  aiPreview: string | null,
 ): Promise<void> {
   if (onboardedAt) {
     await SecureStore.setItemAsync(ONBOARDED_AT_KEY, onboardedAt);
@@ -68,32 +56,17 @@ export async function setCachedOnboarding(
   } else {
     await SecureStore.deleteItemAsync(DUE_DATE_KEY);
   }
-  if (voiceCoachmarkDismissedAt) {
-    await SecureStore.setItemAsync(
-      VOICE_COACHMARK_DISMISSED_AT_KEY,
-      voiceCoachmarkDismissedAt,
-    );
-  } else {
-    await SecureStore.deleteItemAsync(VOICE_COACHMARK_DISMISSED_AT_KEY);
-  }
   if (firstRecordAt) {
     await SecureStore.setItemAsync(FIRST_RECORD_AT_KEY, firstRecordAt);
   } else {
     await SecureStore.deleteItemAsync(FIRST_RECORD_AT_KEY);
-  }
-  if (aiPreview) {
-    await SecureStore.setItemAsync(AI_PREVIEW_KEY, aiPreview);
-  } else {
-    await SecureStore.deleteItemAsync(AI_PREVIEW_KEY);
   }
 }
 
 export async function clearOnboardingCache(): Promise<void> {
   await SecureStore.deleteItemAsync(ONBOARDED_AT_KEY);
   await SecureStore.deleteItemAsync(DUE_DATE_KEY);
-  await SecureStore.deleteItemAsync(VOICE_COACHMARK_DISMISSED_AT_KEY);
   await SecureStore.deleteItemAsync(FIRST_RECORD_AT_KEY);
-  await SecureStore.deleteItemAsync(AI_PREVIEW_KEY);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

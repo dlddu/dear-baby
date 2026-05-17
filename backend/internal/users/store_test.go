@@ -33,13 +33,11 @@ CREATE TABLE oauth_accounts (
   PRIMARY KEY (provider, provider_user_id)
 );
 CREATE TABLE onboarding (
-  user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  due_date                     TEXT,
-  onboarded_at                 TEXT,
-  voice_coachmark_dismissed_at TEXT,
-  first_record_at              TEXT,
-  ai_preview                   TEXT,
-  updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
+  user_id         TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  due_date        TEXT,
+  onboarded_at    TEXT,
+  first_record_at TEXT,
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (
   id         TEXT PRIMARY KEY,
@@ -161,7 +159,7 @@ func TestGetProfile_NilOnboardingFieldsWhenRowMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get profile: %v", err)
 	}
-	if p.DueDate != nil || p.OnboardedAt != nil || p.VoiceCoachmarkDismissedAt != nil || p.FirstRecordAt != nil || p.AIPreview != nil {
+	if p.DueDate != nil || p.OnboardedAt != nil || p.FirstRecordAt != nil {
 		t.Errorf("missing onboarding row should give all-nil onboarding fields: got %+v", p)
 	}
 }

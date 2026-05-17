@@ -8,9 +8,9 @@
 // 유저 ID 로 prefix 한다. 로그아웃 시 별도 cleanup 은 하지 않는다 (다음 로그인 시
 // 자기 키만 hydrate 하면 되므로 stale 데이터가 보이지 않는다).
 //
-// 단일 fetus only (구 `completeOnboarding(dueDate)` 경로) 호환: fetuses·children
-// 모두 비어 있고 user.due_date 만 있는 경우 `due_date` 기반 가상 행을 한 개
-// 합성한다. Case A/B/C 완료 사용자는 정상적으로 백엔드 row 를 사용한다.
+// Case A/B/C 완료 사용자는 정상적으로 백엔드 row 를 사용한다. 레거시
+// `completeOnboarding(dueDate)` 경로의 단일-fetus 호환 분기는 0009 마이그레이션
+// (`backfill_legacy_fetuses`) 이후 도달 불가가 되어 제거됨.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
@@ -70,7 +70,6 @@ function childDisplayName(c: ChildProfile): string {
 
 // buildActiveChildren — User → ActiveChild[] 정규화.
 // 순서: 양육 아이(생년월일 빠른 = ordinal 작은 순) 먼저, 그 다음 태아.
-// 호환 경로: fetuses·children 모두 비어 있고 user.due_date 만 있으면 가상 행 1개.
 export function buildActiveChildren(user: User | null): ActiveChild[] {
   if (!user) return [];
   const children: ActiveChild[] = (user.children ?? [])
@@ -93,19 +92,7 @@ export function buildActiveChildren(user: User | null): ActiveChild[] {
       displayName: fetusDisplayName(f),
       profileImageUrl: null,
     }));
-  const merged = [...children, ...fetuses];
-  if (merged.length === 0 && user.due_date) {
-    return [
-      {
-        kind: 'fetus',
-        ordinal: 1,
-        dueOrBirthDate: user.due_date,
-        displayName: '우리 아이',
-        profileImageUrl: null,
-      },
-    ];
-  }
-  return merged;
+  return [...children, ...fetuses];
 }
 
 function clampIndex(idx: number, length: number): number {

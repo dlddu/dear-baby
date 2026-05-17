@@ -39,13 +39,11 @@ CREATE TABLE users (
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE onboarding (
-  user_id                      TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  due_date                     TEXT,
-  onboarded_at                 TEXT,
-  voice_coachmark_dismissed_at TEXT,
-  first_record_at              TEXT,
-  ai_preview                   TEXT,
-  updated_at                   TEXT NOT NULL DEFAULT (datetime('now'))
+  user_id         TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  due_date        TEXT,
+  onboarded_at    TEXT,
+  first_record_at TEXT,
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE records (
   id            TEXT PRIMARY KEY,

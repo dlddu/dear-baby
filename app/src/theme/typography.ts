@@ -119,7 +119,7 @@ export const typography = {
     fontWeight: '400',
     lineHeight: 20,
   },
-  /** 도입부 히어로 이모지 — 48/64. 온보딩 b0·b3·not-ready 의 큰 이모지 한 글자용. */
+  /** 도입부 히어로 이모지 — 48/64. 온보딩 b0·b3 의 큰 이모지 한 글자용. */
   iconHero: {
     fontFamily: fontFamilies.emotion,
     fontSize: 48,
