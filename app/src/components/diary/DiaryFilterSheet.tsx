@@ -76,9 +76,12 @@ export function DiaryFilterSheet({
       transparent
       animationType="slide"
       onRequestClose={onClose}
-      testID="diary-filter-sheet"
     >
-      <Pressable style={styles.scrim} onPress={onClose}>
+      <Pressable
+        style={styles.scrim}
+        onPress={onClose}
+        testID="diary-filter-sheet"
+      >
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.dragHandle} />
           <View style={styles.headerRow}>

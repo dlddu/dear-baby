@@ -36,9 +36,12 @@ export function DiaryActionSheet({
       transparent
       animationType="slide"
       onRequestClose={onClose}
-      testID="diary-action-sheet"
     >
-      <Pressable style={styles.scrim} onPress={onClose} testID="diary-action-scrim">
+      <Pressable
+        style={styles.scrim}
+        onPress={onClose}
+        testID="diary-action-sheet"
+      >
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.dragHandle} />
           <Text variant="micro" color="muted" style={styles.title}>

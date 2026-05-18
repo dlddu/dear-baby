@@ -30,9 +30,12 @@ export function DeleteConfirmModal({
       transparent
       animationType="slide"
       onRequestClose={onCancel}
-      testID="diary-delete-confirm"
     >
-      <Pressable style={styles.scrim} onPress={onCancel}>
+      <Pressable
+        style={styles.scrim}
+        onPress={onCancel}
+        testID="diary-delete-confirm"
+      >
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.dragHandle} />
           <View style={styles.warningIcon}>
