@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/google/uuid"
 )
 
 // ErrNotFound is returned when no onboarding row matches the given user id.
@@ -31,9 +33,10 @@ func (s *Store) EnsureRowTx(ctx context.Context, tx *sql.Tx, userID string) erro
 
 // ResetUserByEmail wipes all per-user state used by the onboarding e2e
 // suite — onboarding flags, the per-fetus / per-child onboarding rows,
-// and the user's record history — so the next session lands on a fresh
-// funnel. The users row itself, plus auth artifacts (oauth_accounts,
-// refresh_tokens), are untouched so the test account can still log in.
+// the user's record history, and any record_subjects pointing at them —
+// so the next session lands on a fresh funnel. The users row itself,
+// plus auth artifacts (oauth_accounts, refresh_tokens), are untouched
+// so the test account can still log in.
 //
 // Intended for CI between maestro runs and ops break-glass. Returns
 // ErrNotFound if no user matches the given email.
@@ -59,9 +62,12 @@ func (s *Store) ResetUserByEmail(ctx context.Context, email string) error {
 	// 시나리오의 home-feed 어셋션이 직전 run 의 voice fixture 와 섞이지
 	// 않도록 함께 wipe.
 	for _, stmt := range []string{
-		`DELETE FROM children WHERE user_id = ?`,
-		`DELETE FROM fetuses  WHERE user_id = ?`,
-		`DELETE FROM records  WHERE user_id = ?`,
+		// records 먼저 — record_subjects FK 에 의존하므로 record_subjects 보다
+		// 앞서 지워야 한다.
+		`DELETE FROM records         WHERE user_id = ?`,
+		`DELETE FROM record_subjects WHERE user_id = ?`,
+		`DELETE FROM children        WHERE user_id = ?`,
+		`DELETE FROM fetuses         WHERE user_id = ?`,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt, userID); err != nil {
 			return fmt.Errorf("reset user (%s): %w", stmt, err)
@@ -97,6 +103,13 @@ func (s *Store) ResetUserByEmail(ctx context.Context, email string) error {
 // calling — the server stores what it receives. Existing fetus rows for
 // this user are deleted before the new rows are inserted, so the call is
 // idempotent across retries.
+//
+// record_subjects rows are reused across upserts when (user_id, kind,
+// ordinal) matches — this preserves records.subject_id pointers when
+// the user merely tweaks per-fetus details without adding/removing
+// rows. When the user shrinks the list, leftover record_subjects rows
+// are kept (orphaned) so any existing records pointing at them remain
+// addressable.
 func (s *Store) UpsertCaseA(ctx context.Context, userID string, fetuses []Fetus) error {
 	if err := s.ensureRow(ctx, userID); err != nil {
 		return err
@@ -118,14 +131,7 @@ func (s *Store) UpsertCaseA(ctx context.Context, userID string, fetuses []Fetus)
 		return fmt.Errorf("delete fetuses: %w", err)
 	}
 	for i, f := range fetuses {
-		purposes, err := json.Marshal(f.Purposes)
-		if err != nil {
-			return fmt.Errorf("marshal purposes: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO fetuses (user_id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, userID, i, nullableString(f.Nickname), nullableString(f.Gender), nullableInt(f.PregnancyWeek), nullableString(f.DueDate), string(purposes)); err != nil {
+		if err := insertFetusTx(ctx, tx, userID, i, f); err != nil {
 			return fmt.Errorf("insert fetus %d: %w", i, err)
 		}
 	}
@@ -160,14 +166,7 @@ func (s *Store) UpsertCaseB(ctx context.Context, userID string, children []Child
 		return fmt.Errorf("delete children: %w", err)
 	}
 	for i, c := range children {
-		purposes, err := json.Marshal(c.Purposes)
-		if err != nil {
-			return fmt.Errorf("marshal purposes: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO children (user_id, ordinal, name, gender, birth_date, bio, purposes_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, userID, i, nullableString(c.Name), nullableString(c.Gender), nullableString(c.BirthDate), nullableString(c.Bio), string(purposes)); err != nil {
+		if err := insertChildTx(ctx, tx, userID, i, c); err != nil {
 			return fmt.Errorf("insert child %d: %w", i, err)
 		}
 	}
@@ -175,14 +174,7 @@ func (s *Store) UpsertCaseB(ctx context.Context, userID string, children []Child
 		return fmt.Errorf("delete fetuses: %w", err)
 	}
 	for i, f := range fetuses {
-		purposes, err := json.Marshal(f.Purposes)
-		if err != nil {
-			return fmt.Errorf("marshal purposes: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO fetuses (user_id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, userID, i, nullableString(f.Nickname), nullableString(f.Gender), nullableInt(f.PregnancyWeek), nullableString(f.DueDate), string(purposes)); err != nil {
+		if err := insertFetusTx(ctx, tx, userID, i, f); err != nil {
 			return fmt.Errorf("insert fetus %d: %w", i, err)
 		}
 	}
@@ -216,19 +208,73 @@ func (s *Store) UpsertCaseC(ctx context.Context, userID string, children []Child
 		return fmt.Errorf("delete children: %w", err)
 	}
 	for i, c := range children {
-		purposes, err := json.Marshal(c.Purposes)
-		if err != nil {
-			return fmt.Errorf("marshal purposes: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO children (user_id, ordinal, name, gender, birth_date, bio, purposes_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, userID, i, nullableString(c.Name), nullableString(c.Gender), nullableString(c.BirthDate), nullableString(c.Bio), string(purposes)); err != nil {
+		if err := insertChildTx(ctx, tx, userID, i, c); err != nil {
 			return fmt.Errorf("insert child %d: %w", i, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
+// ensureSubjectIDTx returns the record_subjects.id for (userID, kind,
+// ordinal), creating the row with a fresh uuid when missing. Used by the
+// fetus/child insert helpers so a re-onboarding sequence preserves the
+// stable subject id any historical records point at.
+func ensureSubjectIDTx(ctx context.Context, tx *sql.Tx, userID string, kind SubjectKind, ordinal int) (string, error) {
+	var id string
+	err := tx.QueryRowContext(ctx, `
+		SELECT id FROM record_subjects
+		WHERE user_id = ? AND kind = ? AND ordinal = ?
+	`, userID, string(kind), ordinal).Scan(&id)
+	if err == nil {
+		return id, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("lookup record_subject: %w", err)
+	}
+	id = uuid.NewString()
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO record_subjects (id, user_id, kind, ordinal) VALUES (?, ?, ?, ?)
+	`, id, userID, string(kind), ordinal); err != nil {
+		return "", fmt.Errorf("insert record_subject: %w", err)
+	}
+	return id, nil
+}
+
+func insertFetusTx(ctx context.Context, tx *sql.Tx, userID string, ordinal int, f Fetus) error {
+	subjectID, err := ensureSubjectIDTx(ctx, tx, userID, SubjectKindFetus, ordinal)
+	if err != nil {
+		return err
+	}
+	purposes, err := json.Marshal(f.Purposes)
+	if err != nil {
+		return fmt.Errorf("marshal purposes: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO fetuses (id, user_id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, subjectID, userID, ordinal, nullableString(f.Nickname), nullableString(f.Gender), nullableInt(f.PregnancyWeek), nullableString(f.DueDate), string(purposes)); err != nil {
+		return fmt.Errorf("insert fetus: %w", err)
+	}
+	return nil
+}
+
+func insertChildTx(ctx context.Context, tx *sql.Tx, userID string, ordinal int, c Child) error {
+	subjectID, err := ensureSubjectIDTx(ctx, tx, userID, SubjectKindChild, ordinal)
+	if err != nil {
+		return err
+	}
+	purposes, err := json.Marshal(c.Purposes)
+	if err != nil {
+		return fmt.Errorf("marshal purposes: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO children (id, user_id, ordinal, name, gender, birth_date, bio, purposes_json)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, subjectID, userID, ordinal, nullableString(c.Name), nullableString(c.Gender), nullableString(c.BirthDate), nullableString(c.Bio), string(purposes)); err != nil {
+		return fmt.Errorf("insert child: %w", err)
 	}
 	return nil
 }

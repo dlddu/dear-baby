@@ -42,11 +42,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // signed-in UX, so AuthGate treats them as equivalent to `(tabs)` — we
     // must not redirect back to the home tab or the modal would close
     // immediately after `router.push`.
+    //
+    // 'diary' covers diary/[id] + diary/[id]/edit — diary 상세·편집은
+    // 풀스크린 push 라 (tabs) 밖에 살지만 인증된 사용자의 UX 의 연장이다.
     const inAuthedModal =
       root === 'record-text' ||
       root === 'record-audio' ||
       root === 'record-audio-review' ||
-      root === 'drafts';
+      root === 'drafts' ||
+      root === 'diary';
     if (status === 'authenticated' && !inTabs && !inAuthedModal) {
       router.replace('/(tabs)');
     } else if (status === 'onboarding' && !inOnboarding) {
@@ -110,6 +114,8 @@ export default function RootLayout() {
                   name="drafts"
                   options={{ presentation: 'modal', headerShown: false }}
                 />
+                <Stack.Screen name="diary/[id]" />
+                <Stack.Screen name="diary/[id]/edit" />
               </Stack>
             </AuthGate>
           </ActiveChildProvider>

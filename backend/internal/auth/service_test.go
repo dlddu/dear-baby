@@ -48,13 +48,24 @@ CREATE TABLE refresh_tokens (
   revoked_at  TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE TABLE records (
+CREATE TABLE record_subjects (
   id         TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  content    TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  kind       TEXT NOT NULL CHECK(kind IN ('fetus','child')),
+  ordinal    INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, kind, ordinal)
+);
+CREATE TABLE records (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_id    TEXT NOT NULL REFERENCES record_subjects(id) ON DELETE CASCADE,
+  content       TEXT NOT NULL,
+  visibility    TEXT NOT NULL CHECK(visibility IN ('private','public')),
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE fetuses (
+  id             TEXT,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   ordinal        INTEGER NOT NULL,
   nickname       TEXT,
@@ -65,7 +76,9 @@ CREATE TABLE fetuses (
   updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, ordinal)
 );
+CREATE UNIQUE INDEX idx_fetuses_id ON fetuses(id);
 CREATE TABLE children (
+  id             TEXT,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   ordinal        INTEGER NOT NULL,
   name           TEXT,
@@ -76,6 +89,7 @@ CREATE TABLE children (
   updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, ordinal)
 );
+CREATE UNIQUE INDEX idx_children_id ON children(id);
 `
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatalf("schema: %v", err)

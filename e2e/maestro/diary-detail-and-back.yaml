@@ -1,0 +1,52 @@
+appId: com.dlddu.dearbaby
+---
+# Diary detail — open a card, verify detail content, return to list
+# (PRD-008 AC-008-04).
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "home-tab"
+- tapOn: "일기"
+- assertVisible:
+    id: "diary-tab"
+
+# Open the first seeded fixture record (id "diary-r1"). seed-diary
+# pins this row's content; assertions check the detail screen surfaces it.
+- tapOn:
+    id: "diary-list-card-diary-r1"
+- assertVisible:
+    id: "diary-detail"
+
+# Detail header chrome + record meta.
+- assertVisible:
+    id: "diary-detail-back"
+- assertVisible:
+    id: "diary-detail-more"
+- assertVisible:
+    id: "diary-detail-subject"
+- assertVisible:
+    id: "diary-detail-visibility"
+- assertVisible: "콩이"
+
+# Body text from the seed fixture (substring match — RN renders the full
+# string but maestro's `assertVisible: "<text>"` does substring).
+- assertVisible: "회의 중에 갑자기 뱃속이"
+
+# Back via the topbar arrow returns to the list.
+- tapOn:
+    id: "diary-detail-back"
+- assertVisible:
+    id: "diary-tab"
+- assertVisible:
+    id: "diary-list-card-diary-r1"

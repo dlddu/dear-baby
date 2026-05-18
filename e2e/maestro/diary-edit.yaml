@@ -1,0 +1,57 @@
+appId: com.dlddu.dearbaby
+---
+# Diary edit — open ⋯ → 편집, change body, save, verify the list and detail
+# reflect the new body (PRD-008 AC-008-05).
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "home-tab"
+- tapOn: "일기"
+- assertVisible:
+    id: "diary-tab"
+
+- tapOn:
+    id: "diary-list-card-diary-r1"
+- assertVisible:
+    id: "diary-detail"
+
+# Open the action sheet, choose 편집.
+- tapOn:
+    id: "diary-detail-more"
+- assertVisible:
+    id: "diary-action-sheet"
+- tapOn:
+    id: "diary-action-edit"
+- assertVisible:
+    id: "diary-edit"
+
+# Replace the body with new text and save.
+- tapOn:
+    id: "diary-edit-input"
+- eraseText: 200
+- inputText: "수정한 답변이에요"
+- tapOn:
+    id: "diary-edit-save"
+
+# Save returns to detail; detail body is the updated text.
+- assertVisible:
+    id: "diary-detail"
+- assertVisible: "수정한 답변이에요"
+
+# Back to list — card preview also reflects the new body.
+- tapOn:
+    id: "diary-detail-back"
+- assertVisible:
+    id: "diary-tab"
+- assertVisible: "수정한 답변이에요"

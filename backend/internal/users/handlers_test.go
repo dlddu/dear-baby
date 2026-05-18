@@ -5,11 +5,26 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+// seedSubject mirrors the real onboarding store's ensureSubjectIDTx — fake
+// upserts call this so the post-write /me round-trip can scan fetuses.id /
+// children.id back as a real subject_id.
+func seedSubject(ctx context.Context, db *sql.DB, userID, kind string, ordinal int) (string, error) {
+	id := fmt.Sprintf("subj-%s-%s-%d", userID, kind, ordinal)
+	if _, err := db.ExecContext(ctx,
+		`INSERT OR IGNORE INTO record_subjects (id, user_id, kind, ordinal) VALUES (?, ?, ?, ?)`,
+		id, userID, kind, ordinal,
+	); err != nil {
+		return "", err
+	}
+	return id, nil
+}
 
 var _ OnboardingUpdater = (*fakeOnboardingUpdater)(nil)
 
@@ -51,10 +66,14 @@ func (f *fakeOnboardingUpdater) UpsertCaseA(ctx context.Context, userID string, 
 		if err != nil {
 			return err
 		}
+		subj, err := seedSubject(ctx, f.db, userID, "fetus", i)
+		if err != nil {
+			return err
+		}
 		if _, err := f.db.ExecContext(ctx, `
-			INSERT INTO fetuses (user_id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, userID, i, nullStr(fe.Nickname), nullStr(fe.Gender), nullInt(fe.PregnancyWeek), nullStr(fe.DueDate), string(purposes)); err != nil {
+			INSERT INTO fetuses (id, user_id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, subj, userID, i, nullStr(fe.Nickname), nullStr(fe.Gender), nullInt(fe.PregnancyWeek), nullStr(fe.DueDate), string(purposes)); err != nil {
 			return err
 		}
 	}
@@ -81,10 +100,14 @@ func (f *fakeOnboardingUpdater) UpsertCaseB(ctx context.Context, userID string, 
 		if err != nil {
 			return err
 		}
+		subj, err := seedSubject(ctx, f.db, userID, "child", i)
+		if err != nil {
+			return err
+		}
 		if _, err := f.db.ExecContext(ctx, `
-			INSERT INTO children (user_id, ordinal, name, gender, birth_date, bio, purposes_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, userID, i, nullStr(c.Name), nullStr(c.Gender), nullStr(c.BirthDate), nullStr(c.Bio), string(purposes)); err != nil {
+			INSERT INTO children (id, user_id, ordinal, name, gender, birth_date, bio, purposes_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, subj, userID, i, nullStr(c.Name), nullStr(c.Gender), nullStr(c.BirthDate), nullStr(c.Bio), string(purposes)); err != nil {
 			return err
 		}
 	}
@@ -96,10 +119,14 @@ func (f *fakeOnboardingUpdater) UpsertCaseB(ctx context.Context, userID string, 
 		if err != nil {
 			return err
 		}
+		subj, err := seedSubject(ctx, f.db, userID, "fetus", i)
+		if err != nil {
+			return err
+		}
 		if _, err := f.db.ExecContext(ctx, `
-			INSERT INTO fetuses (user_id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, userID, i, nullStr(fe.Nickname), nullStr(fe.Gender), nullInt(fe.PregnancyWeek), nullStr(fe.DueDate), string(purposes)); err != nil {
+			INSERT INTO fetuses (id, user_id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, subj, userID, i, nullStr(fe.Nickname), nullStr(fe.Gender), nullInt(fe.PregnancyWeek), nullStr(fe.DueDate), string(purposes)); err != nil {
 			return err
 		}
 	}
@@ -125,10 +152,14 @@ func (f *fakeOnboardingUpdater) UpsertCaseC(ctx context.Context, userID string, 
 		if err != nil {
 			return err
 		}
+		subj, err := seedSubject(ctx, f.db, userID, "child", i)
+		if err != nil {
+			return err
+		}
 		if _, err := f.db.ExecContext(ctx, `
-			INSERT INTO children (user_id, ordinal, name, gender, birth_date, bio, purposes_json)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, userID, i, nullStr(c.Name), nullStr(c.Gender), nullStr(c.BirthDate), nullStr(c.Bio), string(purposes)); err != nil {
+			INSERT INTO children (id, user_id, ordinal, name, gender, birth_date, bio, purposes_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, subj, userID, i, nullStr(c.Name), nullStr(c.Gender), nullStr(c.BirthDate), nullStr(c.Bio), string(purposes)); err != nil {
 			return err
 		}
 	}

@@ -1,0 +1,62 @@
+appId: com.dlddu.dearbaby
+---
+# Diary delete — open ⋯ → 삭제 → confirm modal → delete (PRD-008 AC-008-06).
+# After delete the user returns to the list and the deleted card is gone.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "home-tab"
+- tapOn: "일기"
+- assertVisible:
+    id: "diary-tab"
+
+- tapOn:
+    id: "diary-list-card-diary-r1"
+- assertVisible:
+    id: "diary-detail"
+
+# Open the action sheet, choose 삭제 — surfaces the confirm modal.
+- tapOn:
+    id: "diary-detail-more"
+- assertVisible:
+    id: "diary-action-sheet"
+- tapOn:
+    id: "diary-action-delete"
+- assertVisible:
+    id: "diary-delete-confirm"
+- assertVisible: "이 기록을 정말 삭제할까요?"
+
+# Cancel is a no-op (assertion: modal closes, detail still visible).
+- tapOn:
+    id: "diary-delete-cancel"
+- assertNotVisible:
+    id: "diary-delete-confirm"
+- assertVisible:
+    id: "diary-detail"
+
+# Re-open and confirm delete.
+- tapOn:
+    id: "diary-detail-more"
+- tapOn:
+    id: "diary-action-delete"
+- assertVisible:
+    id: "diary-delete-confirm"
+- tapOn:
+    id: "diary-delete-confirm-button"
+
+# Returns to list automatically; the deleted card is gone.
+- assertVisible:
+    id: "diary-tab"
+- assertNotVisible:
+    id: "diary-list-card-diary-r1"

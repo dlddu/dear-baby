@@ -1,4 +1,6 @@
 /server
+/reset-user
+/seed-diary
 *.exe
 dear-baby.db
 dear-baby.db-*

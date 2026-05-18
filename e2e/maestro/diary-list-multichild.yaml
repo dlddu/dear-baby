@@ -1,0 +1,49 @@
+appId: com.dlddu.dearbaby
+---
+# Diary list — multi-child integrated view (PRD-008 AC-008-01·02·03·10).
+#
+# Setup: seed_diary has installed a fixture user with 1 fetus (콩이) + 1
+# child (하준) + 5 records spanning two months. The diary tab integrates
+# all records regardless of active child (AC-008-01) — assertions verify
+# cards from both children appear in the same list.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# After tester-login, the AuthGate observes the seeded onboarded_at and
+# routes straight to the home tab. Navigate to diary.
+- assertVisible:
+    id: "home-tab"
+- tapOn: "일기"
+- assertVisible:
+    id: "diary-tab"
+
+# Diary-tab header has the title and notification bell, but NOT the
+# left/right arrows the home header uses (AC-008-10).
+- assertVisible:
+    id: "diary-header"
+- assertVisible: "일기"
+- assertVisible:
+    id: "diary-header-bell"
+- assertNotVisible:
+    id: "home-header-prev"
+- assertNotVisible:
+    id: "home-header-next"
+
+# Records from both children appear — fixture seeds 콩이 (fetus) and
+# 하준 (child). The card chip labels are part of the card content.
+- assertVisible: "콩이"
+- assertVisible: "하준"
+
+# Both month groups are sticky-headered ("📅 2026년 5월" + "2026년 4월").
+- assertVisible: "2026년 5월"
+- assertVisible: "2026년 4월"

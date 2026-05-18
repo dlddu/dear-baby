@@ -16,8 +16,10 @@ type User struct {
 
 // FetusProfile is the per-태아 row attached to Profile.Fetuses. Mirrors the
 // onboarding.Fetus shape but lives here so the users package owns the
-// /me response wire format.
+// /me response wire format. `SubjectID` is the stable record_subjects.id
+// the client passes back as `subject_id` on POST /records.
 type FetusProfile struct {
+	SubjectID     string   `json:"subject_id"`
 	Ordinal       int      `json:"ordinal"`
 	Nickname      *string  `json:"nickname"`
 	Gender        *string  `json:"gender"`
@@ -28,6 +30,7 @@ type FetusProfile struct {
 
 // ChildProfile is the per-아이 row attached to Profile.Children.
 type ChildProfile struct {
+	SubjectID string   `json:"subject_id"`
 	Ordinal   int      `json:"ordinal"`
 	Name      *string  `json:"name"`
 	Gender    *string  `json:"gender"`

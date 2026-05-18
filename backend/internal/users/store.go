@@ -250,7 +250,7 @@ func loadProfileFetuses(ctx context.Context, q rowScanner, userID string) ([]Fet
 		return []FetusProfile{}, nil
 	}
 	rows, err := qu.QueryContext(ctx, `
-		SELECT ordinal, nickname, gender, pregnancy_week, due_date, purposes_json
+		SELECT id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json
 		FROM fetuses WHERE user_id = ? ORDER BY ordinal ASC
 	`, userID)
 	if err != nil {
@@ -263,7 +263,7 @@ func loadProfileFetuses(ctx context.Context, q rowScanner, userID string) ([]Fet
 		var nickname, gender, dd sql.NullString
 		var week sql.NullInt64
 		var purposesJSON string
-		if err := rows.Scan(&f.Ordinal, &nickname, &gender, &week, &dd, &purposesJSON); err != nil {
+		if err := rows.Scan(&f.SubjectID, &f.Ordinal, &nickname, &gender, &week, &dd, &purposesJSON); err != nil {
 			return nil, fmt.Errorf("scan fetus: %w", err)
 		}
 		if nickname.Valid {
@@ -294,7 +294,7 @@ func loadProfileChildren(ctx context.Context, q rowScanner, userID string) ([]Ch
 		return []ChildProfile{}, nil
 	}
 	rows, err := qu.QueryContext(ctx, `
-		SELECT ordinal, name, gender, birth_date, bio, purposes_json
+		SELECT id, ordinal, name, gender, birth_date, bio, purposes_json
 		FROM children WHERE user_id = ? ORDER BY ordinal ASC
 	`, userID)
 	if err != nil {
@@ -306,7 +306,7 @@ func loadProfileChildren(ctx context.Context, q rowScanner, userID string) ([]Ch
 		var c ChildProfile
 		var nm, gender, bd, bio sql.NullString
 		var purposesJSON string
-		if err := rows.Scan(&c.Ordinal, &nm, &gender, &bd, &bio, &purposesJSON); err != nil {
+		if err := rows.Scan(&c.SubjectID, &c.Ordinal, &nm, &gender, &bd, &bio, &purposesJSON); err != nil {
 			return nil, fmt.Errorf("scan child: %w", err)
 		}
 		if nm.Valid {
