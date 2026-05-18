@@ -23,11 +23,17 @@ export function ChildContextChip({
   contextLabel,
   testID,
 }: ChildContextChipProps) {
+  // 한 줄로 합쳐서 단일 string 자식으로 넘긴다 — RN 의 Text 가 여러 children
+  // 을 받으면 Android 접근성 트리에서 별도 span 으로 분리돼 Maestro 의 text
+  // matcher 가 "콩이" 같은 부분 문자열을 찾지 못한다.
+  const label =
+    contextLabel != null
+      ? `${emoji} ${name} · ${contextLabel}`
+      : `${emoji} ${name}`;
   return (
     <View style={styles.chip} testID={testID}>
       <Text variant="micro" color="primary">
-        {emoji} {name}
-        {contextLabel ? ` · ${contextLabel}` : ''}
+        {label}
       </Text>
     </View>
   );

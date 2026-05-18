@@ -169,7 +169,7 @@ export default function DiaryDetailScreen() {
         {record.question_text ? (
           <View style={styles.quote}>
             <Text variant="micro" color="secondary">
-              Q. {subj.name}가 엄마에게
+              {`Q. ${subj.name}가 엄마에게`}
             </Text>
             <Text variant="body" color="primary" style={styles.quoteText}>
               {record.question_text}

@@ -167,7 +167,7 @@ export default function DiaryEditScreen() {
           {record.question_text ? (
             <View style={styles.quote}>
               <Text variant="micro" color="muted">
-                Q. {subj.name}가 엄마에게 🔒
+                {`Q. ${subj.name}가 엄마에게 🔒`}
               </Text>
               <Text variant="body" color="secondary" style={styles.quoteText}>
                 {record.question_text}

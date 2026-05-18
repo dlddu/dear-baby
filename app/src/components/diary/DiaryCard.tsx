@@ -63,10 +63,7 @@ export function DiaryCard({
           numberOfLines={1}
           style={styles.question}
         >
-          <Text variant="bodySmall" color="muted" style={styles.qLabel}>
-            Q.{' '}
-          </Text>
-          {question}
+          {`Q. ${question}`}
         </Text>
       ) : null}
       <Text
@@ -75,10 +72,7 @@ export function DiaryCard({
         numberOfLines={2}
         style={styles.answer}
       >
-        <Text variant="body" color="primary" style={styles.aLabel}>
-          A.{' '}
-        </Text>
-        {answerPreview}
+        {`A. ${answerPreview}`}
       </Text>
     </Pressable>
   );
@@ -104,7 +98,5 @@ const styles = StyleSheet.create({
     gap: spacing[1],
   },
   question: { marginTop: spacing[2] },
-  qLabel: { fontWeight: '600' },
   answer: { marginTop: spacing[1] },
-  aLabel: { fontWeight: '600' },
 });

@@ -100,6 +100,10 @@ export function DiaryFilterSheet({
                 <View style={styles.chips}>
                   {childOptions.map((c) => {
                     const active = draft.subjectIds.includes(c.subjectId);
+                    // 단일 string 으로 합쳐 Android 접근성 트리에서 한 노드
+                    // 로 노출되도록 한다 — `assertVisible: "하준"` 같은
+                    // text matcher 가 정상 동작.
+                    const label = `${c.emoji} ${c.name}${active ? ' ✓' : ''}`;
                     return (
                       <Pressable
                         key={c.subjectId}
@@ -116,8 +120,7 @@ export function DiaryFilterSheet({
                           color={active ? 'onPrimary' : 'primary'}
                           style={styles.chipText}
                         >
-                          {c.emoji} {c.name}
-                          {active ? ' ✓' : ''}
+                          {label}
                         </Text>
                       </Pressable>
                     );
