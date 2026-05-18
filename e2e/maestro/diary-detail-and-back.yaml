@@ -36,8 +36,11 @@ appId: com.dlddu.dearbaby
     id: "diary-detail-more"
 - assertVisible:
     id: "diary-detail-subject"
+# diary-r1 시드 데이터의 visibility 는 'private'. VisibilityBadge 는 base
+# testID 에 -<visibility> 접미사를 자동 부여한다 (diary-visibility-toggle
+# 플로우에서 두 상태 분기하려고 추가했음).
 - assertVisible:
-    id: "diary-detail-visibility"
+    id: "diary-detail-visibility-private"
 - assertVisible:
     id: "diary-detail-content"
 
