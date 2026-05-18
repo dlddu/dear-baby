@@ -23,7 +23,8 @@ appId: com.dlddu.dearbaby
 # routes straight to the home tab. Navigate to diary.
 - assertVisible:
     id: "home-tab"
-- tapOn: "일기"
+- tapOn:
+    id: "tab-button-diary"
 - assertVisible:
     id: "diary-tab"
 

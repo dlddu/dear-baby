@@ -25,7 +25,8 @@ appId: com.dlddu.dearbaby
 # Navigate to the diary tab from home (PRD-007 AC-007-10 tab bar).
 - assertVisible:
     id: "home-tab"
-- tapOn: "일기"
+- tapOn:
+    id: "tab-button-diary"
 - assertVisible:
     id: "diary-tab"
 

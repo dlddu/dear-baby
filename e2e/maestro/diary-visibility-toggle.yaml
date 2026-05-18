@@ -18,7 +18,8 @@ appId: com.dlddu.dearbaby
 
 - assertVisible:
     id: "home-tab"
-- tapOn: "일기"
+- tapOn:
+    id: "tab-button-diary"
 - assertVisible:
     id: "diary-tab"
 
