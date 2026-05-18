@@ -295,11 +295,31 @@ jobs:
           access_token=$(echo "$session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
           echo "::endgroup::"
 
+          # PRD-008 makes records.subject_id a required field, so the script
+          # has to walk Case A onboarding to materialise a fetus row (and
+          # the matching record_subjects row) before posting a record. /me
+          # then surfaces the subject_id we hand to POST /records.
+          echo "::group::onboarding case A"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"fetuses":[{"nickname":"콩이","gender":"unknown","pregnancy_week":17,"due_date":"2027-01-15","purposes":["매일의 마음"]}]}' \
+            http://127.0.0.1:18080/v1/me/onboarding/case-a >/dev/null
+          curl -fsS \
+            -H "Authorization: Bearer $access_token" \
+            http://127.0.0.1:18080/v1/me >/tmp/me.json
+          subject_id=$(python3 -c 'import json; print(json.load(open("/tmp/me.json"))["fetuses"][0]["subject_id"])')
+          if [ -z "$subject_id" ] || [ "$subject_id" = "None" ]; then
+            echo "expected subject_id on /me fetus, got $subject_id"; exit 1
+          fi
+          echo "subject_id=$subject_id"
+          echo "::endgroup::"
+
           echo "::group::create voice record"
           curl -fsS -X POST \
             -H "Authorization: Bearer $access_token" \
             -H 'Content-Type: application/json' \
-            -d '{"content":"오늘 처음으로 너의 발길질을 느꼈어","source":"voice"}' \
+            -d "{\"content\":\"오늘 처음으로 너의 발길질을 느꼈어\",\"source\":\"voice\",\"subject_id\":\"$subject_id\"}" \
             http://127.0.0.1:18080/v1/records >/tmp/voice-rec.json
           record_id=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["id"])')
           source=$(python3 -c 'import json; print(json.load(open("/tmp/voice-rec.json"))["record"]["source"])')
