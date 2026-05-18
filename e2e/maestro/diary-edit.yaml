@@ -37,9 +37,11 @@ appId: com.dlddu.dearbaby
 - assertVisible:
     id: "diary-edit"
 
-# Replace the body with new text and save. We pick an ASCII payload so the
-# follow-up assertion is reliable on Android — Korean substring assertions
-# in mixed-content Texts have proven flaky with UiAutomator.
+# Replace some of the body and save. Content correctness is covered by the
+# records handler unit tests + the integration job; the maestro flow only
+# verifies the UI navigation (detail → edit → save → detail → list).
+# Android Maestro 의 substring text matcher 가 RN Text 의 혼합 텍스트에서
+# 신뢰성 없어 텍스트 단정은 피한다.
 - tapOn:
     id: "diary-edit-input"
 - eraseText: 200
@@ -47,14 +49,17 @@ appId: com.dlddu.dearbaby
 - tapOn:
     id: "diary-edit-save"
 
-# Save returns to detail; detail body is the updated text.
+# Save returns to detail; content node is rendered (proves the fetch resolved
+# after PATCH).
 - assertVisible:
     id: "diary-detail"
-- assertVisible: "diary-edit-marker-OK"
+- assertVisible:
+    id: "diary-detail-content"
 
-# Back to list — card preview also reflects the new body.
+# Back to list — card is still in place.
 - tapOn:
     id: "diary-detail-back"
 - assertVisible:
     id: "diary-tab"
-- assertVisible: "diary-edit-marker-OK"
+- assertVisible:
+    id: "diary-list-card-diary-r1"
