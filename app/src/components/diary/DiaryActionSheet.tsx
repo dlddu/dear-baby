@@ -37,12 +37,13 @@ export function DiaryActionSheet({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable
-        style={styles.scrim}
-        onPress={onClose}
-        testID="diary-action-sheet"
-      >
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      {/* iOS 의 RN Pressable 은 자기 자신을 accessibility 단일 원소로 처리해
+          내부의 testID 를 가린다. 그래서 scrim 컨테이너는 plain View 로 두고
+          dismiss tap 은 그 뒤에 깔린 절대 위치 Pressable 이 받는다 — 시트
+          내부의 row testID 들이 iOS XCUITest 에 단독으로 노출된다. */}
+      <View style={styles.scrim} testID="diary-action-sheet">
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={styles.sheet}>
           <View style={styles.dragHandle} />
           <Text variant="micro" color="muted" style={styles.title}>
             기록 관리
@@ -73,8 +74,8 @@ export function DiaryActionSheet({
               취소
             </Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

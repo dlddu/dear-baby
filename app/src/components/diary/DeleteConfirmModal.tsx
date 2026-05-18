@@ -31,12 +31,11 @@ export function DeleteConfirmModal({
       animationType="slide"
       onRequestClose={onCancel}
     >
-      <Pressable
-        style={styles.scrim}
-        onPress={onCancel}
-        testID="diary-delete-confirm"
-      >
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      {/* iOS 의 outer Pressable 이 내부 testID 를 가리는 문제 회피 — scrim 은
+          plain View, dismiss tap 은 절대 위치 Pressable. */}
+      <View style={styles.scrim} testID="diary-delete-confirm">
+        <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
+        <View style={styles.sheet}>
           <View style={styles.dragHandle} />
           <View style={styles.warningIcon}>
             <Text style={styles.warningGlyph}>🗑️</Text>
@@ -82,8 +81,8 @@ export function DeleteConfirmModal({
               </Text>
             </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
