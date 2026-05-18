@@ -3,8 +3,13 @@ appId: com.dlddu.dearbaby
 # Diary filter — 다자녀 사용자가 아이 칩을 사용해 특정 아이 기록만 본다
 # (PRD-008 AC-008-08).
 #
-# seed_diary 는 콩이(fetus) + 하준(child) 두 아이 + 5개 기록을 시드한다.
-# 필터 시트에서 하준만 선택 → 목록에 콩이 기록이 사라지고 하준 카드만 남는다.
+# seed_diary 는 콩이(fetus, subject_id="seed-fetus-1") + 하준(child,
+# subject_id="seed-child-1") + 5개 기록을 시드한다. 필터 시트에서 하준만
+# 선택 → 목록에 콩이 카드(diary-r1·r2·r4) 가 사라지고 하준 카드(diary-r3·r5)
+# 만 남는다.
+#
+# 모든 assertion 은 testID 기반 — Android Maestro 가 emoji+Korean 혼합
+# 텍스트의 부분 매칭에서 실패하는 경우가 있어 text matcher 를 피한다.
 
 - clearKeychain
 - launchApp:
@@ -25,9 +30,11 @@ appId: com.dlddu.dearbaby
 - assertVisible:
     id: "diary-tab"
 
-# 초기 상태: 두 아이 모두 노출.
-- assertVisible: "콩이"
-- assertVisible: "하준"
+# 초기 상태: 두 아이 카드 모두 노출.
+- assertVisible:
+    id: "diary-list-card-diary-r1"
+- assertVisible:
+    id: "diary-list-card-diary-r3"
 
 # 필터 시트 열기.
 - tapOn:
@@ -36,15 +43,18 @@ appId: com.dlddu.dearbaby
     id: "diary-filter-sheet"
 
 # 하준 칩 탭 → 적용.
-- tapOn: "👶 하준"
+- tapOn:
+    id: "diary-filter-child-seed-child-1"
 - tapOn:
     id: "diary-filter-apply"
 
 # 필터 적용 후: 하준 기록만 남고 콩이 카드는 사라진다.
 - assertVisible:
     id: "diary-tab"
-- assertVisible: "하준"
-- assertNotVisible: "콩이"
+- assertVisible:
+    id: "diary-list-card-diary-r3"
+- assertNotVisible:
+    id: "diary-list-card-diary-r1"
 
 # 필터 활성 표시 점이 헤더에 노출됨.
 - assertVisible:
@@ -57,5 +67,7 @@ appId: com.dlddu.dearbaby
     id: "diary-filter-reset"
 - tapOn:
     id: "diary-filter-apply"
-- assertVisible: "콩이"
-- assertVisible: "하준"
+- assertVisible:
+    id: "diary-list-card-diary-r1"
+- assertVisible:
+    id: "diary-list-card-diary-r3"

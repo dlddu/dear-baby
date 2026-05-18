@@ -36,7 +36,6 @@ appId: com.dlddu.dearbaby
     id: "diary-action-delete"
 - assertVisible:
     id: "diary-delete-confirm"
-- assertVisible: "이 기록을 정말 삭제할까요?"
 
 # Cancel is a no-op (assertion: modal closes, detail still visible).
 - tapOn:

@@ -104,10 +104,17 @@ func seed(ctx context.Context, d *sql.DB, userID string) error {
 
 	// (1) Multi-child fixture — 1 fetus + 1 child so the diary tab tests
 	// the multi-subject path (헤더에 좌우 화살표는 없지만 카드 chip 은
-	// 두 종류).
+	// 두 종류). Subject IDs are pinned (not uuid.NewString) so e2e
+	// maestro flows can target the filter chip's testID directly —
+	// `diary-filter-child-seed-fetus-1` / `…seed-child-1` — without
+	// having to read /me first.
 	purposes, _ := json.Marshal([]string{"매일의 마음"})
 
-	fetusSubj := uuid.NewString()
+	const (
+		fetusSubj = "seed-fetus-1"
+		childSubj = "seed-child-1"
+	)
+	_ = uuid.NewString // keep the import; future fixture rows may want random ids
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO record_subjects (id, user_id, kind, ordinal) VALUES (?, ?, 'fetus', 0)
 	`, fetusSubj, userID); err != nil {
@@ -120,7 +127,6 @@ func seed(ctx context.Context, d *sql.DB, userID string) error {
 		return fmt.Errorf("seed fetus: %w", err)
 	}
 
-	childSubj := uuid.NewString()
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO record_subjects (id, user_id, kind, ordinal) VALUES (?, ?, 'child', 0)
 	`, childSubj, userID); err != nil {

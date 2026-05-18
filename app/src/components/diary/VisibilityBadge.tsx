@@ -14,11 +14,15 @@ export type VisibilityBadgeProps = {
 
 export function VisibilityBadge({ visibility, testID }: VisibilityBadgeProps) {
   const isPublic = visibility === 'public';
+  // Suffix the testID with the visibility state so e2e flows can assert
+  // which state the badge is in without text matching (Android Maestro 가
+  // 이모지 + Korean 혼합 텍스트의 부분 매칭에서 자주 실패).
+  const stateTestID = testID ? `${testID}-${visibility}` : undefined;
   return (
     <Text
       variant="micro"
       style={[styles.label, { color: isPublic ? colors.accent.sage : colors.text.muted }]}
-      testID={testID}
+      testID={stateTestID}
     >
       {isPublic ? '🌐 공개' : '🔒 비공개'}
     </Text>

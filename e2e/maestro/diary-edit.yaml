@@ -37,22 +37,24 @@ appId: com.dlddu.dearbaby
 - assertVisible:
     id: "diary-edit"
 
-# Replace the body with new text and save.
+# Replace the body with new text and save. We pick an ASCII payload so the
+# follow-up assertion is reliable on Android — Korean substring assertions
+# in mixed-content Texts have proven flaky with UiAutomator.
 - tapOn:
     id: "diary-edit-input"
 - eraseText: 200
-- inputText: "수정한 답변이에요"
+- inputText: "diary-edit-marker-OK"
 - tapOn:
     id: "diary-edit-save"
 
 # Save returns to detail; detail body is the updated text.
 - assertVisible:
     id: "diary-detail"
-- assertVisible: "수정한 답변이에요"
+- assertVisible: "diary-edit-marker-OK"
 
 # Back to list — card preview also reflects the new body.
 - tapOn:
     id: "diary-detail-back"
 - assertVisible:
     id: "diary-tab"
-- assertVisible: "수정한 답변이에요"
+- assertVisible: "diary-edit-marker-OK"

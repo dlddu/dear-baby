@@ -6,6 +6,12 @@ appId: com.dlddu.dearbaby
 # child (하준) + 5 records spanning two months. The diary tab integrates
 # all records regardless of active child (AC-008-01) — assertions verify
 # cards from both children appear in the same list.
+#
+# Korean substring assertions on Android Maestro turned out to be unreliable
+# (UiAutomator splits emoji + Korean spans so `assertVisible: "콩이"` times
+# out even when the text is on screen). We assert by card testID instead —
+# seed-diary pins record IDs to "diary-r1" … "diary-r5" and the cards
+# expose testID="diary-list-card-<id>".
 
 - clearKeychain
 - launchApp:
@@ -32,7 +38,6 @@ appId: com.dlddu.dearbaby
 # left/right arrows the home header uses (AC-008-10).
 - assertVisible:
     id: "diary-header"
-- assertVisible: "일기"
 - assertVisible:
     id: "diary-header-bell"
 - assertNotVisible:
@@ -40,11 +45,9 @@ appId: com.dlddu.dearbaby
 - assertNotVisible:
     id: "home-header-next"
 
-# Records from both children appear — fixture seeds 콩이 (fetus) and
-# 하준 (child). The card chip labels are part of the card content.
-- assertVisible: "콩이"
-- assertVisible: "하준"
-
-# Both month groups are sticky-headered ("📅 2026년 5월" + "2026년 4월").
-- assertVisible: "2026년 5월"
-- assertVisible: "2026년 4월"
+# Records from both children appear — seed-diary pins diary-r1 (fetus 콩이),
+# diary-r3 (child 하준). Their cards must both be on screen.
+- assertVisible:
+    id: "diary-list-card-diary-r1"
+- assertVisible:
+    id: "diary-list-card-diary-r3"

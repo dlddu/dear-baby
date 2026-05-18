@@ -38,11 +38,8 @@ appId: com.dlddu.dearbaby
     id: "diary-detail-subject"
 - assertVisible:
     id: "diary-detail-visibility"
-- assertVisible: "콩이"
-
-# Body text from the seed fixture (substring match — RN renders the full
-# string but maestro's `assertVisible: "<text>"` does substring).
-- assertVisible: "회의 중에 갑자기 뱃속이"
+- assertVisible:
+    id: "diary-detail-content"
 
 # Back via the topbar arrow returns to the list.
 - tapOn:

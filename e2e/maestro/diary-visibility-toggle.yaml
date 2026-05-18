@@ -2,7 +2,11 @@ appId: com.dlddu.dearbaby
 ---
 # Diary visibility toggle — ⋯ 액션 시트의 공개·비공개 전환 (PRD-008
 # AC-008-07). diary-r1 은 fixture 상 private 으로 시드되므로 토글 후
-# 상세 배지 / 카드 배지가 "🌐 공개" 로 바뀐다.
+# 상세 배지 testID 가 "diary-detail-visibility-public" 로 바뀐다.
+#
+# VisibilityBadge 는 base testID 에 -<visibility> 접미사를 붙여 두 상태
+# 를 testID 만으로 구분할 수 있게 한다 — 이모지 + Korean 텍스트 매칭은
+# Android Maestro 에서 신뢰성이 낮다.
 
 - clearKeychain
 - launchApp:
@@ -29,7 +33,8 @@ appId: com.dlddu.dearbaby
     id: "diary-detail"
 
 # 초기 상태: 비공개.
-- assertVisible: "🔒 비공개"
+- assertVisible:
+    id: "diary-detail-visibility-private"
 
 # 액션 시트 → 공개로 전환.
 - tapOn:
@@ -40,12 +45,15 @@ appId: com.dlddu.dearbaby
 # 토글 후 상세 화면 배지가 공개로 갱신.
 - assertVisible:
     id: "diary-detail"
-- assertVisible: "🌐 공개"
-- assertNotVisible: "🔒 비공개"
+- assertVisible:
+    id: "diary-detail-visibility-public"
+- assertNotVisible:
+    id: "diary-detail-visibility-private"
 
 # 다시 토글 → 비공개.
 - tapOn:
     id: "diary-detail-more"
 - tapOn:
     id: "diary-action-visibility"
-- assertVisible: "🔒 비공개"
+- assertVisible:
+    id: "diary-detail-visibility-private"
