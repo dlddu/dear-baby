@@ -50,6 +50,9 @@ import {
   M37_DiaryListMulti,
   M38_DiaryDetail,
   M39_DiaryEmpty,
+  M40_DiaryEdit,
+  M41_DiaryDeleteConfirm,
+  M42_DiaryFilterSheet,
 } from "@/screens/Diary"
 
 export default function App() {
@@ -110,6 +113,9 @@ export default function App() {
       {screen === "M37" && Phone(M37_DiaryListMulti)}
       {screen === "M38" && Phone(M38_DiaryDetail)}
       {screen === "M39" && Phone(M39_DiaryEmpty)}
+      {screen === "M40" && Phone(M40_DiaryEdit)}
+      {screen === "M41" && Phone(M41_DiaryDeleteConfirm)}
+      {screen === "M42" && Phone(M42_DiaryFilterSheet)}
     </div>
   )
 }
