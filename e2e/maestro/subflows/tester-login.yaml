@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Reusable tester-login subflow. Caller must launch the app and arrive
 # at the landing screen first. Drives the secret tap pattern (top-left

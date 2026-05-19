@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Diary delete — open ⋯ → 삭제 → confirm modal → delete (PRD-008 AC-008-06).
 # After delete the user returns to the list and the deleted card is gone.

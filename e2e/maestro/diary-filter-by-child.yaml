@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Diary filter — 다자녀 사용자가 아이 칩을 사용해 특정 아이 기록만 본다
 # (PRD-008 AC-008-08).

@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # PRD-007 TC-007-07 — 홈 책 진행도 (AC-007-07).
 #

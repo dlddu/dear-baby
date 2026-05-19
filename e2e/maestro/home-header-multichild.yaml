@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # PRD-007 TC-007-02-B — 헤더 다자녀 전환.
 #

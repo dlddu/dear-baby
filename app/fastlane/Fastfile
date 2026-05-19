@@ -1,17 +1,16 @@
-require "json"
 require "base64"
 require "google/apis/androidpublisher_v3"
 
 default_platform(:ios)
 
-# Single source of truth for the Apple Team ID lives in app.json under
-# ios.appleTeamId — Expo prebuild reads it from there to stamp
-# DEVELOPMENT_TEAM into the Xcode project, so this lane reuses the same
-# value to avoid drift between TestFlight and prebuild.
-APP_JSON = JSON.parse(File.read(File.expand_path("../app.json", __dir__))).fetch("expo").freeze
-APPLE_TEAM_ID = APP_JSON.fetch("ios").fetch("appleTeamId").freeze
-BUNDLE_IDENTIFIER = APP_JSON.fetch("ios").fetch("bundleIdentifier").freeze
-ANDROID_PACKAGE_NAME = APP_JSON.fetch("android").fetch("package").freeze
+# Build identifiers come from the environment — same source app.config.ts
+# reads at Expo prebuild time, so TestFlight / Play uploads and the
+# generated native projects stamp matching DEVELOPMENT_TEAM /
+# PRODUCT_BUNDLE_IDENTIFIER / android package values. See
+# app/.env.example for the full list and how local + CI inject them.
+APPLE_TEAM_ID = ENV.fetch("APPLE_TEAM_ID").freeze
+BUNDLE_IDENTIFIER = ENV.fetch("APP_BUNDLE_IDENTIFIER").freeze
+ANDROID_PACKAGE_NAME = ENV.fetch("APP_ANDROID_PACKAGE").freeze
 
 platform :ios do
   desc "Build the iOS app and upload it to TestFlight (internal testers only)"

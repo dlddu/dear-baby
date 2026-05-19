@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # PRD-007 AC-007-08·09 — 타인 기록 피드 섹션.
 #

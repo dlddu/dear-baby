@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Home 1인칭 질문 카드 e2e — 홈 카드/CTA 의 렌더 회로.
 #

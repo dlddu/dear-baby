@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Diary list — empty state (PRD-008 AC-008-09 + AC-008-10).
 #

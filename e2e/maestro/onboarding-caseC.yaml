@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Onboarding Case C — 양육자(임신 X · 양육 O) full flow.
 #

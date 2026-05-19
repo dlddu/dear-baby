@@ -1,36 +1,71 @@
 import type { ExpoConfig, ConfigContext } from "expo/config";
 
-// Extends the static config in `app.json` with dynamic fields that have to
-// be resolved at prebuild time — `ios.buildNumber` and `android.versionCode`,
-// which must be monotonically increasing across TestFlight / Play Store
-// uploads respectively. CI computes the next number (latest store build + 1)
-// and exports it as `IOS_BUILD_NUMBER` / `ANDROID_VERSION_CODE` before this
-// prebuild runs; `GITHUB_RUN_NUMBER` is kept as a fallback for legacy local
-// invocations only.
+// Extends the static config in `app.json` with dynamic fields resolved at
+// prebuild time from the environment:
 //
-// Static iOS / Android values (appleTeamId, package, etc.) live in app.json
-// so the Fastfile can parse them too — keep this file for things that
-// truly depend on the build environment.
+// - Build identifiers (Apple team id, iOS bundle id, Android package, the
+//   Google iOS reversed-client-id URL scheme) live in `app/.env` and
+//   `app/.env.local` rather than `app.json` so the same values can be
+//   shared with Fastlane / Maestro / CI workflows without each tool
+//   having to parse JSON. See `app/.env.example` for the full list.
+// - `ios.buildNumber` and `android.versionCode` must be monotonically
+//   increasing across TestFlight / Play Store uploads. CI computes the
+//   next number (latest store build + 1) and exports it as
+//   `IOS_BUILD_NUMBER` / `ANDROID_VERSION_CODE` before prebuild runs;
+//   `GITHUB_RUN_NUMBER` is kept as a fallback for legacy local
+//   invocations only.
+const requireEnv = (key: string): string => {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(
+      `Missing required env: ${key}. See app/.env.example for the full list of build identifiers.`,
+    );
+  }
+  return value;
+};
+
 const parseVersionCode = (value: string | undefined): number => {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 };
 
-export default ({ config }: ConfigContext): ExpoConfig => ({
-  ...config,
-  // `config.name` / `config.slug` are guaranteed by app.json, but
-  // ExpoConfig requires them to be non-optional, so re-assert.
-  name: config.name ?? "dear-baby",
-  slug: config.slug ?? "dear-baby",
-  ios: {
-    ...config.ios,
-    buildNumber:
-      process.env.IOS_BUILD_NUMBER ?? process.env.GITHUB_RUN_NUMBER ?? "1",
-  },
-  android: {
-    ...config.android,
-    versionCode: parseVersionCode(
-      process.env.ANDROID_VERSION_CODE ?? process.env.GITHUB_RUN_NUMBER,
-    ),
-  },
-});
+export default ({ config }: ConfigContext): ExpoConfig => {
+  const bundleIdentifier = requireEnv("APP_BUNDLE_IDENTIFIER");
+  const androidPackage = requireEnv("APP_ANDROID_PACKAGE");
+  const appleTeamId = requireEnv("APPLE_TEAM_ID");
+  const googleIosUrlScheme = requireEnv("GOOGLE_IOS_URL_SCHEME");
+
+  const googleSigninPlugin = "@react-native-google-signin/google-signin";
+  const plugins: ExpoConfig["plugins"] = (config.plugins ?? []).map(
+    (plugin) => {
+      const name = Array.isArray(plugin) ? plugin[0] : plugin;
+      if (name !== googleSigninPlugin) return plugin;
+      const existing = Array.isArray(plugin) ? plugin[1] ?? {} : {};
+      return [
+        googleSigninPlugin,
+        { ...existing, iosUrlScheme: googleIosUrlScheme },
+      ];
+    },
+  );
+
+  return {
+    ...config,
+    name: config.name ?? "dear-baby",
+    slug: config.slug ?? "dear-baby",
+    ios: {
+      ...config.ios,
+      bundleIdentifier,
+      appleTeamId,
+      buildNumber:
+        process.env.IOS_BUILD_NUMBER ?? process.env.GITHUB_RUN_NUMBER ?? "1",
+    },
+    android: {
+      ...config.android,
+      package: androidPackage,
+      versionCode: parseVersionCode(
+        process.env.ANDROID_VERSION_CODE ?? process.env.GITHUB_RUN_NUMBER,
+      ),
+    },
+    plugins,
+  };
+};

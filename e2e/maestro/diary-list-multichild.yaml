@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Diary list — multi-child integrated view (PRD-008 AC-008-01·02·03·10).
 #

@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # PRD-007 TC-007-10 — 5탭 고정 네비게이션.
 #

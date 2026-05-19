@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Diary visibility toggle — ⋯ 액션 시트의 공개·비공개 전환 (PRD-008
 # AC-008-07). diary-r1 은 fixture 상 private 으로 시드되므로 토글 후

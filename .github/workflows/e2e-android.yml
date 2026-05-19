@@ -38,6 +38,13 @@ jobs:
       # MinIO instance set up below, so the records-audio backend
       # contract gets exercised end-to-end in CI.
       EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
+      # Build identifiers — app.config.ts at prebuild time and the
+      # maestro flows below read these. See app/.env.example.
+      APP_BUNDLE_IDENTIFIER: ${{ vars.APP_BUNDLE_IDENTIFIER }}
+      APP_ANDROID_PACKAGE: ${{ vars.APP_ANDROID_PACKAGE }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      GOOGLE_IOS_URL_SCHEME: ${{ vars.GOOGLE_IOS_URL_SCHEME }}
+      APP_ID: ${{ vars.APP_ANDROID_PACKAGE }}
 
     steps:
       - name: Checkout
@@ -170,13 +177,14 @@ jobs:
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
           echo "Installing $APK"
           adb install -r "$APK"
-          adb shell monkey -p com.dlddu.dearbaby -c android.intent.category.LAUNCHER 1
+          adb shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1
           sleep 3
 
           cd "$GITHUB_WORKSPACE/e2e"
 
           run_flow() {
             maestro test \
+              --env APP_ID="$APP_ID" \
               --env MAESTRO_TEST_USER_EMAIL="$MAESTRO_TEST_USER_EMAIL" \
               --env MAESTRO_TEST_USER_PASSWORD="$MAESTRO_TEST_USER_PASSWORD" \
               "$1"
@@ -239,6 +247,7 @@ jobs:
           TEST_USER_EMAIL: ${{ env.TEST_USER_EMAIL }}
           MAESTRO_TEST_USER_EMAIL: ${{ env.MAESTRO_TEST_USER_EMAIL }}
           MAESTRO_TEST_USER_PASSWORD: ${{ env.MAESTRO_TEST_USER_PASSWORD }}
+          APP_ID: ${{ env.APP_ID }}
         with:
           # API 30 + default profile is much more stable than API 34 + pixel_6
           # on a cold-booted emulator — the heavier Pixel Launcher on 34
