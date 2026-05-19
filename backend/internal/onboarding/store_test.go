@@ -34,13 +34,27 @@ CREATE TABLE onboarding (
   first_record_at TEXT,
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE TABLE records (
+CREATE TABLE record_subjects (
   id         TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  content    TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  kind       TEXT NOT NULL CHECK(kind IN ('fetus','child')),
+  ordinal    INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, kind, ordinal)
+);
+CREATE TABLE records (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_id    TEXT NOT NULL REFERENCES record_subjects(id) ON DELETE CASCADE,
+  content       TEXT NOT NULL,
+  source        TEXT NOT NULL DEFAULT 'text' CHECK(source IN ('text','voice')),
+  audio_s3_key  TEXT,
+  question_text TEXT,
+  visibility    TEXT NOT NULL CHECK(visibility IN ('private','public')),
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE fetuses (
+  id             TEXT,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   ordinal        INTEGER NOT NULL,
   nickname       TEXT,
@@ -51,7 +65,9 @@ CREATE TABLE fetuses (
   updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, ordinal)
 );
+CREATE UNIQUE INDEX idx_fetuses_id ON fetuses(id);
 CREATE TABLE children (
+  id             TEXT,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   ordinal        INTEGER NOT NULL,
   name           TEXT,
@@ -62,6 +78,7 @@ CREATE TABLE children (
   updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, ordinal)
 );
+CREATE UNIQUE INDEX idx_children_id ON children(id);
 `
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatalf("schema: %v", err)
@@ -102,22 +119,37 @@ func TestResetUserByEmail(t *testing.T) {
 	seedUserWithOnboarding(t, db, "u2", "other@b.com")
 
 	if _, err := db.Exec(
-		`INSERT INTO children (user_id, ordinal, name, gender) VALUES (?, 0, 'Seoyeon', 'female')`, "u1",
+		`INSERT INTO children (id, user_id, ordinal, name, gender) VALUES ('subj-u1-c0', ?, 0, 'Seoyeon', 'female')`, "u1",
 	); err != nil {
 		t.Fatalf("seed child u1: %v", err)
 	}
 	if _, err := db.Exec(
-		`INSERT INTO fetuses (user_id, ordinal, nickname) VALUES (?, 0, 'Kongi')`, "u1",
+		`INSERT INTO fetuses (id, user_id, ordinal, nickname) VALUES ('subj-u1-f0', ?, 0, 'Kongi')`, "u1",
 	); err != nil {
 		t.Fatalf("seed fetus u1: %v", err)
 	}
 	if _, err := db.Exec(
-		`INSERT INTO records (id, user_id, content) VALUES ('r1', ?, 'mine')`, "u1",
+		`INSERT INTO record_subjects (id, user_id, kind, ordinal) VALUES ('subj-u1-c0', 'u1', 'child', 0)`,
+	); err != nil {
+		t.Fatalf("seed subject u1 child: %v", err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO record_subjects (id, user_id, kind, ordinal) VALUES ('subj-u1-f0', 'u1', 'fetus', 0)`,
+	); err != nil {
+		t.Fatalf("seed subject u1 fetus: %v", err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO record_subjects (id, user_id, kind, ordinal) VALUES ('subj-u2-c0', 'u2', 'child', 0)`,
+	); err != nil {
+		t.Fatalf("seed subject u2: %v", err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO records (id, user_id, subject_id, content, visibility) VALUES ('r1', ?, 'subj-u1-c0', 'mine', 'private')`, "u1",
 	); err != nil {
 		t.Fatalf("seed record u1: %v", err)
 	}
 	if _, err := db.Exec(
-		`INSERT INTO records (id, user_id, content) VALUES ('r2', ?, 'theirs')`, "u2",
+		`INSERT INTO records (id, user_id, subject_id, content, visibility) VALUES ('r2', ?, 'subj-u2-c0', 'theirs', 'private')`, "u2",
 	); err != nil {
 		t.Fatalf("seed record u2: %v", err)
 	}

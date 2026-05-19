@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,11 +47,16 @@ var ErrNotFound = errors.New("record not found")
 // the second cleans up its local copy.
 var ErrAudioAlreadyAttached = errors.New("audio already attached")
 
+// ErrInvalidSubject is returned by Create when subject_id does not exist
+// or does not belong to the calling user. Maps to HTTP 400.
+var ErrInvalidSubject = errors.New("invalid subject")
+
 // Create inserts a record (text or voice) for the given user. For voice
 // records, audio_s3_key starts as null; the device attaches the audio
 // later via PATCH /records/{id}. questionText is optional — pass nil
 // when the caller has no question to associate (e.g. legacy paths or
-// non-home entry points).
+// non-home entry points). subjectID must point to a record_subjects row
+// owned by userID. visibility must be valid; callers default to private.
 //
 // In a single transaction it: (1) ensures the onboarding row exists,
 // (2) inserts the row, (3) re-derives onboarding.first_record_at from
@@ -60,9 +66,15 @@ var ErrAudioAlreadyAttached = errors.New("audio already attached")
 //
 // Returns the new record plus the updated flat profile so callers can
 // skip a /me round-trip.
-func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, content string, source Source, questionText *string) (*CreateResult, error) {
+func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, content string, source Source, questionText *string, subjectID string, visibility Visibility) (*CreateResult, error) {
 	if !source.Valid() {
 		return nil, fmt.Errorf("%w: source", ErrInvalidContent)
+	}
+	if !visibility.Valid() {
+		return nil, fmt.Errorf("%w: visibility", ErrInvalidContent)
+	}
+	if strings.TrimSpace(subjectID) == "" {
+		return nil, fmt.Errorf("%w: subject_id required", ErrInvalidSubject)
 	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -74,6 +86,20 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 	// even if the caller forgot to run auth middleware.
 	if _, err := userStore.GetByIDTx(ctx, tx, userID); err != nil {
 		return nil, err
+	}
+
+	// Verify the subject exists AND belongs to this user — collapse
+	// "no such subject" and "not yours" into a single ErrInvalidSubject so
+	// the API never leaks the existence of another user's subject.
+	var subjectOwner string
+	err = tx.QueryRowContext(ctx, `
+		SELECT user_id FROM record_subjects WHERE id = ?
+	`, subjectID).Scan(&subjectOwner)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && subjectOwner != userID) {
+		return nil, ErrInvalidSubject
+	}
+	if err != nil {
+		return nil, fmt.Errorf("check subject: %w", err)
 	}
 
 	// Record whether this insert is the one that flips first_record_at.
@@ -98,8 +124,9 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 		questionArg = *questionText
 	}
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO records (id, user_id, content, source, question_text) VALUES (?, ?, ?, ?, ?)
-	`, id, userID, content, string(source), questionArg); err != nil {
+		INSERT INTO records (id, user_id, subject_id, content, source, question_text, visibility)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, id, userID, subjectID, content, string(source), questionArg, string(visibility)); err != nil {
 		return nil, fmt.Errorf("insert record: %w", err)
 	}
 
@@ -114,7 +141,15 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 		return nil, fmt.Errorf("stamp first_record_at: %w", err)
 	}
 
-	rec := &Record{ID: id, UserID: userID, Content: content, Source: source, QuestionText: questionText}
+	rec := &Record{
+		ID:           id,
+		UserID:       userID,
+		SubjectID:    subjectID,
+		Content:      content,
+		Source:       source,
+		QuestionText: questionText,
+		Visibility:   visibility,
+	}
 	var createdAt string
 	if err := tx.QueryRowContext(ctx, `
 		SELECT created_at FROM records WHERE id = ?
@@ -142,9 +177,10 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 
 // CreateText is preserved as a convenience for the legacy text-only
 // callers and tests. New code paths should use Create with an explicit
-// source so the intent is visible at the call site.
-func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, content string) (*CreateResult, error) {
-	return s.Create(ctx, userStore, userID, content, SourceText, nil)
+// source so the intent is visible at the call site. Defaults visibility
+// to private.
+func (s *Store) CreateText(ctx context.Context, userStore *users.Store, userID, content, subjectID string) (*CreateResult, error) {
+	return s.Create(ctx, userStore, userID, content, SourceText, nil, subjectID, VisibilityPrivate)
 }
 
 // GetByIDForUser returns the record only if it belongs to userID. The
@@ -159,10 +195,10 @@ func (s *Store) GetByIDForUser(ctx context.Context, userID, recordID string) (*R
 		rec          Record
 	)
 	err := s.DB.QueryRowContext(ctx, `
-		SELECT id, user_id, source, content, question_text, audio_s3_key, created_at
+		SELECT id, user_id, subject_id, source, content, question_text, audio_s3_key, visibility, created_at
 		FROM records
 		WHERE id = ? AND user_id = ?
-	`, recordID, userID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, &createdAt)
+	`, recordID, userID).Scan(&rec.ID, &rec.UserID, &rec.SubjectID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, (*string)(&rec.Visibility), &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -181,6 +217,184 @@ func (s *Store) GetByIDForUser(ctx context.Context, userID, recordID string) (*R
 		rec.CreatedAt = t
 	}
 	return &rec, nil
+}
+
+// ListFilter narrows the diary list. SubjectIDs is OR-ed across the set;
+// empty means "any subject the user owns". Visibility is a single match
+// when set; nil means both private and public. Cursor is opaque (the
+// SQLite created_at of the last item on the previous page) — pagination
+// is keyset, not offset, so adding items at the head doesn't drift pages.
+type ListFilter struct {
+	SubjectIDs []string
+	Visibility *Visibility
+}
+
+// ListForUser returns the user's records newest-first, applying filter and
+// cursor. limit is clamped 1..100. Cursor is the created_at of the last
+// row on the previous page (RFC3339 string from Record.CreatedAt). Empty
+// cursor returns the first page.
+//
+// Returns the page plus the next cursor (empty when there's no next page).
+func (s *Store) ListForUser(ctx context.Context, userID string, filter ListFilter, cursor string, limit int) ([]Record, string, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 30
+	}
+
+	var (
+		args    []any
+		clauses = []string{"user_id = ?"}
+	)
+	args = append(args, userID)
+
+	if len(filter.SubjectIDs) > 0 {
+		placeholders := make([]string, len(filter.SubjectIDs))
+		for i, id := range filter.SubjectIDs {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		clauses = append(clauses, "subject_id IN ("+strings.Join(placeholders, ",")+")")
+	}
+	if filter.Visibility != nil {
+		clauses = append(clauses, "visibility = ?")
+		args = append(args, string(*filter.Visibility))
+	}
+	if cursor != "" {
+		clauses = append(clauses, "created_at < ?")
+		args = append(args, cursor)
+	}
+
+	// Fetch limit+1 so we know whether a next page exists without a
+	// follow-up COUNT.
+	args = append(args, limit+1)
+	q := `
+		SELECT id, user_id, subject_id, source, content, question_text, audio_s3_key, visibility, created_at
+		FROM records
+		WHERE ` + strings.Join(clauses, " AND ") + `
+		ORDER BY created_at DESC, id DESC
+		LIMIT ?
+	`
+	rows, err := s.DB.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, "", fmt.Errorf("list records: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]Record, 0, limit)
+	var lastCreatedAtRaw string
+	for rows.Next() {
+		var (
+			rec          Record
+			audioKey     sql.NullString
+			questionText sql.NullString
+			createdAt    string
+		)
+		if err := rows.Scan(&rec.ID, &rec.UserID, &rec.SubjectID, (*string)(&rec.Source), &rec.Content,
+			&questionText, &audioKey, (*string)(&rec.Visibility), &createdAt); err != nil {
+			return nil, "", fmt.Errorf("scan record: %w", err)
+		}
+		if audioKey.Valid {
+			v := audioKey.String
+			rec.AudioS3Key = &v
+		}
+		if questionText.Valid {
+			v := questionText.String
+			rec.QuestionText = &v
+		}
+		if t, err := time.Parse(sqliteTimeLayout, createdAt); err == nil {
+			rec.CreatedAt = t
+		}
+		if len(out) < limit {
+			out = append(out, rec)
+			lastCreatedAtRaw = createdAt
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("iterate records: %w", err)
+	}
+	// If we saw limit+1 rows the cursor is the last we kept; otherwise
+	// no next page.
+	nextCursor := ""
+	if len(out) == limit {
+		// Detect the (limit+1)th row by checking we filled the slice.
+		// rows.Next() above stopped iterating after the database returned
+		// it, so any extra row was discarded. We use lastCreatedAtRaw as
+		// the cursor; if there's no next page the caller can re-call and
+		// get an empty response — cheap and avoids a second COUNT query.
+		// To distinguish "exactly limit" from "limit+1", we'd need a flag
+		// — keep it simple: if we got `limit` rows, always emit a cursor.
+		nextCursor = lastCreatedAtRaw
+	}
+	return out, nextCursor, nil
+}
+
+// UpdateContent edits the body of a record. Returns ErrNotFound when the
+// record does not exist or does not belong to userID. Empty content is
+// rejected by the caller (handler validates).
+func (s *Store) UpdateContent(ctx context.Context, userID, recordID, content string) (*Record, error) {
+	res, err := s.DB.ExecContext(ctx, `
+		UPDATE records
+		SET content = ?
+		WHERE id = ? AND user_id = ?
+	`, content, recordID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("update record content: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return nil, ErrNotFound
+	}
+	return s.GetByIDForUser(ctx, userID, recordID)
+}
+
+// UpdateVisibility flips a record's visibility. Returns ErrNotFound on
+// missing / cross-user lookups (collapsed for parity with GetByIDForUser).
+func (s *Store) UpdateVisibility(ctx context.Context, userID, recordID string, visibility Visibility) (*Record, error) {
+	if !visibility.Valid() {
+		return nil, fmt.Errorf("%w: visibility", ErrInvalidContent)
+	}
+	res, err := s.DB.ExecContext(ctx, `
+		UPDATE records
+		SET visibility = ?
+		WHERE id = ? AND user_id = ?
+	`, string(visibility), recordID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("update record visibility: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return nil, ErrNotFound
+	}
+	return s.GetByIDForUser(ctx, userID, recordID)
+}
+
+// DeleteForUser hard-deletes the record. Returns ErrNotFound when the row
+// doesn't exist or doesn't belong to userID. The companion S3 audio
+// object is intentionally NOT removed here — a follow-up sweep (or worker)
+// reconciles orphaned audio. Letting the row vanish first keeps the API
+// snappy and avoids leaking S3 failures back through the user-facing
+// DELETE call.
+func (s *Store) DeleteForUser(ctx context.Context, userID, recordID string) error {
+	res, err := s.DB.ExecContext(ctx, `
+		DELETE FROM records
+		WHERE id = ? AND user_id = ?
+	`, recordID, userID)
+	if err != nil {
+		return fmt.Errorf("delete record: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // AttachAudio sets records.audio_s3_key for a record owned by userID,
@@ -230,9 +444,10 @@ func (s *Store) AttachAudio(ctx context.Context, userID, recordID, audioS3Key st
 		rec          Record
 	)
 	if err := tx.QueryRowContext(ctx, `
-		SELECT id, user_id, source, content, question_text, audio_s3_key, created_at
+		SELECT id, user_id, subject_id, source, content, question_text, audio_s3_key, visibility, created_at
 		FROM records WHERE id = ?
-	`, recordID).Scan(&rec.ID, &rec.UserID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, &createdAt); err != nil {
+	`, recordID).Scan(&rec.ID, &rec.UserID, &rec.SubjectID, (*string)(&rec.Source), &rec.Content,
+		&questionText, &audioKey, (*string)(&rec.Visibility), &createdAt); err != nil {
 		return nil, fmt.Errorf("fetch record: %w", err)
 	}
 	if audioKey.Valid {

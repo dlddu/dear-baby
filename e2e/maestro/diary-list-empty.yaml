@@ -1,0 +1,44 @@
+appId: com.dlddu.dearbaby
+---
+# Diary list — empty state (PRD-008 AC-008-09 + AC-008-10).
+#
+# Setup: reset_user → tester-login → Case A onboarding → home. The user has
+# completed onboarding (one fetus) but written zero records, so the diary
+# tab should render the empty state with the "홈으로 가기" CTA.
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseA.yaml
+- runFlow:
+    file: subflows/onboarding-caseA-full.yaml
+
+# Navigate to the diary tab from home (PRD-007 AC-007-10 tab bar).
+- assertVisible:
+    id: "home-tab"
+- tapOn:
+    id: "tab-button-diary"
+- assertVisible:
+    id: "diary-tab"
+
+# Empty state copy + CTA.
+- assertVisible:
+    id: "diary-empty"
+- assertVisible: "아직 첫 기록이 없어요"
+- assertVisible:
+    id: "diary-empty-go-home"
+
+# CTA returns to home tab.
+- tapOn:
+    id: "diary-empty-go-home"
+- assertVisible:
+    id: "home-tab"

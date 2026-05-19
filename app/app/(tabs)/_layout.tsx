@@ -34,23 +34,43 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="memoir"
-        options={{ title: '자서전', tabBarIcon: tabIcon('📖') }}
+        options={{
+          title: '자서전',
+          tabBarIcon: tabIcon('📖'),
+          tabBarButtonTestID: 'tab-button-memoir',
+        }}
       />
       <Tabs.Screen
         name="community"
-        options={{ title: '커뮤니티', tabBarIcon: tabIcon('💬') }}
+        options={{
+          title: '커뮤니티',
+          tabBarIcon: tabIcon('💬'),
+          tabBarButtonTestID: 'tab-button-community',
+        }}
       />
       <Tabs.Screen
         name="index"
-        options={{ title: '홈', tabBarIcon: tabIcon('🏠') }}
+        options={{
+          title: '홈',
+          tabBarIcon: tabIcon('🏠'),
+          tabBarButtonTestID: 'tab-button-home',
+        }}
       />
       <Tabs.Screen
         name="diary"
-        options={{ title: '일기', tabBarIcon: tabIcon('📓') }}
+        options={{
+          title: '일기',
+          tabBarIcon: tabIcon('📓'),
+          tabBarButtonTestID: 'tab-button-diary',
+        }}
       />
       <Tabs.Screen
         name="settings"
-        options={{ title: '설정', tabBarIcon: tabIcon('⚙️') }}
+        options={{
+          title: '설정',
+          tabBarIcon: tabIcon('⚙️'),
+          tabBarButtonTestID: 'tab-button-settings',
+        }}
       />
     </Tabs>
   );

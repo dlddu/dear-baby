@@ -30,6 +30,7 @@ import { Button } from '../src/components/Button';
 import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
 import { useAuth } from '../src/auth/AuthContext';
+import { useActiveChild } from '../src/context/ActiveChildContext';
 import * as draftStore from '../src/drafts/draftStore';
 import { colors } from '../src/theme/colors';
 import { radius } from '../src/theme/radius';
@@ -59,6 +60,7 @@ export default function RecordAudioReviewScreen() {
       : null;
 
   const { createVoiceRecord } = useAuth();
+  const { activeChild } = useActiveChild();
   const [content, setContent] = useState('');
   const [phase, setPhase] = useState<Phase>('transcribing');
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
@@ -129,9 +131,16 @@ export default function RecordAudioReviewScreen() {
 
   const handleSave = useCallback(async () => {
     if (!canSave) return;
+    if (!activeChild) {
+      Alert.alert('저장할 수 없어요', '활성 아이가 설정되지 않았습니다.');
+      return;
+    }
     setPhase('saving');
     try {
-      const record = await createVoiceRecord(trimmed, question || undefined);
+      const record = await createVoiceRecord(trimmed, {
+        subjectId: activeChild.subjectId,
+        questionText: question || undefined,
+      });
       await persistDraftOnSuccess(record.id, record.created_at);
       router.replace('/(tabs)');
     } catch (err) {
@@ -139,13 +148,20 @@ export default function RecordAudioReviewScreen() {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
-  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question]);
+  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question, activeChild]);
 
   const handleSaveAndUpload = useCallback(async () => {
     if (!canSave) return;
+    if (!activeChild) {
+      Alert.alert('저장할 수 없어요', '활성 아이가 설정되지 않았습니다.');
+      return;
+    }
     setPhase('saving_and_uploading');
     try {
-      const record = await createVoiceRecord(trimmed, question || undefined);
+      const record = await createVoiceRecord(trimmed, {
+        subjectId: activeChild.subjectId,
+        questionText: question || undefined,
+      });
       await persistDraftOnSuccess(record.id, record.created_at);
       // Fire the upload — uploadAudio handles its own errors and
       // marks the LocalAudio as 'failed' on the way out, so we don't
@@ -164,7 +180,7 @@ export default function RecordAudioReviewScreen() {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
-  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question]);
+  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question, activeChild]);
 
   const handleCancel = useCallback(() => {
     router.back();

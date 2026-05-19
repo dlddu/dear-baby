@@ -24,3 +24,11 @@ type Child struct {
 	Bio       *string  `json:"bio"`
 	Purposes  []string `json:"purposes"`
 }
+
+// SubjectKind enumerates the two kinds of record_subjects rows.
+type SubjectKind string
+
+const (
+	SubjectKindFetus SubjectKind = "fetus"
+	SubjectKindChild SubjectKind = "child"
+)

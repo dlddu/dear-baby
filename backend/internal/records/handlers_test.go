@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -44,16 +45,27 @@ CREATE TABLE onboarding (
   first_record_at TEXT,
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE record_subjects (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind       TEXT NOT NULL CHECK(kind IN ('fetus','child')),
+  ordinal    INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, kind, ordinal)
+);
 CREATE TABLE records (
   id            TEXT PRIMARY KEY,
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_id    TEXT NOT NULL REFERENCES record_subjects(id) ON DELETE CASCADE,
   content       TEXT NOT NULL,
   source        TEXT NOT NULL DEFAULT 'text' CHECK(source IN ('text','voice')),
   audio_s3_key  TEXT,
   question_text TEXT,
+  visibility    TEXT NOT NULL CHECK(visibility IN ('private','public')),
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE fetuses (
+  id             TEXT,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   ordinal        INTEGER NOT NULL,
   nickname       TEXT,
@@ -64,7 +76,9 @@ CREATE TABLE fetuses (
   updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, ordinal)
 );
+CREATE UNIQUE INDEX idx_fetuses_id ON fetuses(id);
 CREATE TABLE children (
+  id             TEXT,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   ordinal        INTEGER NOT NULL,
   name           TEXT,
@@ -75,6 +89,7 @@ CREATE TABLE children (
   updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, ordinal)
 );
+CREATE UNIQUE INDEX idx_children_id ON children(id);
 `
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatalf("schema: %v", err)
@@ -90,6 +105,17 @@ func seedUser(t *testing.T, db *sql.DB, id, email string) {
 	if _, err := db.Exec(`INSERT INTO onboarding (user_id) VALUES (?)`, id); err != nil {
 		t.Fatalf("seed onboarding: %v", err)
 	}
+	// 모든 records 는 subject 가 있어야 하므로 디폴트 subject 한 개를 함께
+	// 시드한다 (id = "subj-<userID>-0"). 테스트 케이스는 POST body 의
+	// subject_id 로 이 값을 보낸다.
+	subj := defaultSubjectID(id)
+	if _, err := db.Exec(`INSERT INTO record_subjects (id, user_id, kind, ordinal) VALUES (?, ?, 'fetus', 0)`, subj, id); err != nil {
+		t.Fatalf("seed subject: %v", err)
+	}
+}
+
+func defaultSubjectID(userID string) string {
+	return "subj-" + userID + "-0"
 }
 
 // fakeAudio satisfies AudioStorage without touching AWS. It mimics the
@@ -171,13 +197,46 @@ func post(t *testing.T, h *Handlers, uid, body string) *httptest.ResponseRecorde
 	return rec
 }
 
+// withSubject injects the test's default subject_id into a POST body so
+// each existing handler test doesn't have to spell it out. It also
+// preserves the original "no-content" / "invalid JSON" shapes by leaving
+// them unmodified.
+func withSubject(t *testing.T, uid, body string) string {
+	t.Helper()
+	body = strings.TrimSpace(body)
+	if body == "" || body == "not json" {
+		return body
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(body), &m); err != nil {
+		// not valid JSON — return as-is to exercise the 400-on-bad-body
+		// path that the original test intended.
+		return body
+	}
+	if _, ok := m["subject_id"]; !ok {
+		m["subject_id"] = defaultSubjectID(uid)
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return string(out)
+}
+
+// postSubj wraps post() with the default subject injection. Old POST
+// tests call this and remain readable while the new field is required.
+func postSubj(t *testing.T, h *Handlers, uid, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	return post(t, h, uid, withSubject(t, uid, body))
+}
+
 // -- POST /records ----------------------------------------------------------
 
 func TestCreate_HappyPath_StampsFirstRecordAt(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	rec := post(t, h, "u1", `{"content":"엄마가 너에게 전하고 싶은 말"}`)
+	rec := postSubj(t, h, "u1", `{"content":"엄마가 너에게 전하고 싶은 말"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -203,7 +262,7 @@ func TestCreate_VoiceSource_AudioKeyStartsNull(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	rec := post(t, h, "u1", `{"content":"오늘 아기가 처음 움직였어요","source":"voice"}`)
+	rec := postSubj(t, h, "u1", `{"content":"오늘 아기가 처음 움직였어요","source":"voice"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -241,7 +300,7 @@ func TestCreate_QuestionText_PersistedAndEchoed(t *testing.T) {
 		"content":       "오늘 처음으로 태동을 느꼈어요.",
 		"question_text": question,
 	})
-	rec := post(t, h, "u1", string(body))
+	rec := postSubj(t, h, "u1", string(body))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -276,7 +335,7 @@ func TestCreate_VoiceWithQuestion_PersistedAndEchoed(t *testing.T) {
 		"source":        "voice",
 		"question_text": question,
 	})
-	rec := post(t, h, "u1", string(body))
+	rec := postSubj(t, h, "u1", string(body))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -296,7 +355,7 @@ func TestCreate_NoQuestion_QuestionTextIsNull(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	rec := post(t, h, "u1", `{"content":"질문 없이 저장"}`)
+	rec := postSubj(t, h, "u1", `{"content":"질문 없이 저장"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -318,7 +377,7 @@ func TestCreate_QuestionTextTooLong_400(t *testing.T) {
 		"content":       "ok",
 		"question_text": long,
 	})
-	rec := post(t, h, "u1", string(body))
+	rec := postSubj(t, h, "u1", string(body))
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
 	}
@@ -329,7 +388,7 @@ func TestCreate_QuestionTextWhitespaceOnly_StoredAsNull(t *testing.T) {
 	defer db.Close()
 
 	body := `{"content":"ok","question_text":"   \n\t  "}`
-	rec := post(t, h, "u1", body)
+	rec := postSubj(t, h, "u1", body)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -348,13 +407,13 @@ func TestCreate_AfterReset_ReusesOldestExistingRecord(t *testing.T) {
 
 	old := "2023-01-02 03:04:05"
 	if _, err := db.Exec(`
-		INSERT INTO records (id, user_id, content, source, created_at)
-		VALUES ('r0', 'u1', 'old', 'text', ?)
-	`, old); err != nil {
+		INSERT INTO records (id, user_id, subject_id, content, source, visibility, created_at)
+		VALUES ('r0', 'u1', ?, 'old', 'text', 'private', ?)
+	`, defaultSubjectID("u1"), old); err != nil {
 		t.Fatalf("seed old record: %v", err)
 	}
 
-	rec := post(t, h, "u1", `{"content":"new"}`)
+	rec := postSubj(t, h, "u1", `{"content":"new"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -376,7 +435,7 @@ func TestCreate_SecondRecord_PreservesFirstRecordAt(t *testing.T) {
 	h, db, _ := newHandlers(t, "u1")
 	defer db.Close()
 
-	r1 := post(t, h, "u1", `{"content":"one"}`)
+	r1 := postSubj(t, h, "u1", `{"content":"one"}`)
 	if r1.Code != http.StatusCreated {
 		t.Fatalf("first: %d %s", r1.Code, r1.Body.String())
 	}
@@ -386,7 +445,7 @@ func TestCreate_SecondRecord_PreservesFirstRecordAt(t *testing.T) {
 	}
 	stamped := *first.User.FirstRecordAt
 
-	r2 := post(t, h, "u1", `{"content":"two"}`)
+	r2 := postSubj(t, h, "u1", `{"content":"two"}`)
 	if r2.Code != http.StatusCreated {
 		t.Fatalf("second: %d %s", r2.Code, r2.Body.String())
 	}
@@ -409,7 +468,7 @@ func TestCreate_EmptyContent_400(t *testing.T) {
 		`{"content":"   \n\t  "}`,
 	}
 	for _, body := range cases {
-		rec := post(t, h, "u1", body)
+		rec := postSubj(t, h, "u1", body)
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("body %q: got %d want 400", body, rec.Code)
 		}
@@ -422,7 +481,7 @@ func TestCreate_TooLong_400(t *testing.T) {
 
 	long := strings.Repeat("가", 2001)
 	body, _ := json.Marshal(map[string]string{"content": long})
-	rec := post(t, h, "u1", string(body))
+	rec := postSubj(t, h, "u1", string(body))
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
 	}
@@ -469,6 +528,9 @@ func routeWithChi(h *Handlers) http.Handler {
 	r := chi.NewRouter()
 	r.Post("/records/{id}/audio/upload-url", h.CreateAudioUploadURL)
 	r.Patch("/records/{id}", h.Patch)
+	r.Get("/records", h.List)
+	r.Get("/records/{id}", h.Get)
+	r.Delete("/records/{id}", h.Delete)
 	return r
 }
 
@@ -493,16 +555,17 @@ const seededRecordPartition = "year=2026/month=05/day=09"
 // derive the expected time-partitioned S3 key deterministically.
 func seedVoiceRecord(t *testing.T, db *sql.DB, recordID, userID, content string, audioKey *string) {
 	t.Helper()
+	subj := defaultSubjectID(userID)
 	if audioKey == nil {
-		_, err := db.Exec(`INSERT INTO records (id, user_id, content, source, created_at) VALUES (?,?,?,?,?)`,
-			recordID, userID, content, "voice", seededRecordCreatedAtSQL)
+		_, err := db.Exec(`INSERT INTO records (id, user_id, subject_id, content, source, visibility, created_at) VALUES (?,?,?,?,?,?,?)`,
+			recordID, userID, subj, content, "voice", "private", seededRecordCreatedAtSQL)
 		if err != nil {
 			t.Fatalf("seed record: %v", err)
 		}
 		return
 	}
-	_, err := db.Exec(`INSERT INTO records (id, user_id, content, source, audio_s3_key, created_at) VALUES (?,?,?,?,?,?)`,
-		recordID, userID, content, "voice", *audioKey, seededRecordCreatedAtSQL)
+	_, err := db.Exec(`INSERT INTO records (id, user_id, subject_id, content, source, audio_s3_key, visibility, created_at) VALUES (?,?,?,?,?,?,?,?)`,
+		recordID, userID, subj, content, "voice", *audioKey, "private", seededRecordCreatedAtSQL)
 	if err != nil {
 		t.Fatalf("seed record: %v", err)
 	}
@@ -759,5 +822,334 @@ func TestPatch_MissingKey_400(t *testing.T) {
 	rec := runReq(t, h, http.MethodPatch, "/records/rec-1", "u1", `{}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
+
+// -- GET /records (list) ---------------------------------------------------
+
+// seedDiaryRecord inserts a text record with explicit subject_id +
+// visibility + created_at so list/filter tests can assemble a deterministic
+// fixture.
+func seedDiaryRecord(t *testing.T, db *sql.DB, recordID, userID, subjectID, content, visibility, createdAt string) {
+	t.Helper()
+	if _, err := db.Exec(
+		`INSERT INTO records (id, user_id, subject_id, content, source, visibility, created_at) VALUES (?,?,?,?,?,?,?)`,
+		recordID, userID, subjectID, content, "text", visibility, createdAt,
+	); err != nil {
+		t.Fatalf("seed diary record: %v", err)
+	}
+}
+
+// seedExtraSubject inserts a second record_subjects row for a user so
+// subject-filter tests can drive the IN-clause path.
+func seedExtraSubject(t *testing.T, db *sql.DB, userID, subjectID, kind string, ordinal int) {
+	t.Helper()
+	if _, err := db.Exec(
+		`INSERT INTO record_subjects (id, user_id, kind, ordinal) VALUES (?, ?, ?, ?)`,
+		subjectID, userID, kind, ordinal,
+	); err != nil {
+		t.Fatalf("seed extra subject: %v", err)
+	}
+}
+
+func TestList_HappyPath_NewestFirst(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	subj := defaultSubjectID("u1")
+	seedDiaryRecord(t, db, "r1", "u1", subj, "older", "private", "2026-01-01 10:00:00")
+	seedDiaryRecord(t, db, "r2", "u1", subj, "newer", "private", "2026-02-01 10:00:00")
+
+	rec := runReq(t, h, http.MethodGet, "/records", "u1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got listResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Records) != 2 {
+		t.Fatalf("count: got %d", len(got.Records))
+	}
+	if got.Records[0].ID != "r2" {
+		t.Errorf("ordering: got %q want r2 first", got.Records[0].ID)
+	}
+}
+
+func TestList_SubjectFilter_NarrowsByMultipleSubjects(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	subj1 := defaultSubjectID("u1")
+	subj2 := "subj-u1-1"
+	seedExtraSubject(t, db, "u1", subj2, "child", 0)
+	seedDiaryRecord(t, db, "r1", "u1", subj1, "fetus log", "private", "2026-01-01 10:00:00")
+	seedDiaryRecord(t, db, "r2", "u1", subj2, "child log", "private", "2026-01-02 10:00:00")
+
+	rec := runReq(t, h, http.MethodGet, "/records?subject_id="+subj2, "u1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got listResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Records) != 1 || got.Records[0].ID != "r2" {
+		t.Errorf("filtered list: %+v", got.Records)
+	}
+
+	rec = runReq(t, h, http.MethodGet, "/records?subject_id="+subj1+"&subject_id="+subj2, "u1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d", rec.Code)
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Records) != 2 {
+		t.Errorf("union filter count: %d", len(got.Records))
+	}
+}
+
+func TestList_VisibilityFilter(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	subj := defaultSubjectID("u1")
+	seedDiaryRecord(t, db, "r1", "u1", subj, "private one", "private", "2026-01-01 10:00:00")
+	seedDiaryRecord(t, db, "r2", "u1", subj, "public one", "public", "2026-01-02 10:00:00")
+
+	rec := runReq(t, h, http.MethodGet, "/records?visibility=public", "u1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got listResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Records) != 1 || got.Records[0].ID != "r2" {
+		t.Errorf("visibility filter: %+v", got.Records)
+	}
+}
+
+func TestList_DoesNotLeakOtherUsersRecords(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedUser(t, db, "u2", "u2@b.com")
+	seedDiaryRecord(t, db, "r1", "u1", defaultSubjectID("u1"), "mine", "private", "2026-01-01 10:00:00")
+	seedDiaryRecord(t, db, "r2", "u2", defaultSubjectID("u2"), "theirs", "private", "2026-02-01 10:00:00")
+
+	rec := runReq(t, h, http.MethodGet, "/records", "u1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d", rec.Code)
+	}
+	var got listResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Records) != 1 || got.Records[0].ID != "r1" {
+		t.Errorf("user isolation broken: %+v", got.Records)
+	}
+}
+
+func TestList_Pagination_CursorAdvances(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	subj := defaultSubjectID("u1")
+	for i := 0; i < 5; i++ {
+		// older index = older timestamp so newer ids appear first
+		ts := fmt.Sprintf("2026-01-%02d 10:00:00", i+1)
+		seedDiaryRecord(t, db, fmt.Sprintf("r%d", i), "u1", subj, "x", "private", ts)
+	}
+	rec := runReq(t, h, http.MethodGet, "/records?limit=2", "u1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var page listResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(page.Records) != 2 || page.Records[0].ID != "r4" || page.Records[1].ID != "r3" {
+		t.Fatalf("page1: %+v", page.Records)
+	}
+	if page.NextCursor == "" {
+		t.Fatal("expected next cursor on partial page")
+	}
+	rec = runReq(t, h, http.MethodGet, "/records?limit=2&cursor="+url.QueryEscape(page.NextCursor), "u1", "")
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode page2: %v", err)
+	}
+	if len(page.Records) != 2 || page.Records[0].ID != "r2" || page.Records[1].ID != "r1" {
+		t.Errorf("page2: %+v", page.Records)
+	}
+}
+
+func TestList_InvalidVisibility_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	rec := runReq(t, h, http.MethodGet, "/records?visibility=secret", "u1", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: %d", rec.Code)
+	}
+}
+
+// -- GET /records/{id} (detail) --------------------------------------------
+
+func TestGet_HappyPath(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedDiaryRecord(t, db, "r1", "u1", defaultSubjectID("u1"), "hi", "private", "2026-01-01 10:00:00")
+
+	rec := runReq(t, h, http.MethodGet, "/records/r1", "u1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d", rec.Code)
+	}
+	var body struct {
+		Record *Record `json:"record"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Record == nil || body.Record.ID != "r1" {
+		t.Errorf("missing record: %+v", body.Record)
+	}
+	if body.Record.Visibility != VisibilityPrivate {
+		t.Errorf("visibility: got %q", body.Record.Visibility)
+	}
+}
+
+func TestGet_OtherUserRecord_404(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedUser(t, db, "u2", "u2@b.com")
+	seedDiaryRecord(t, db, "r1", "u2", defaultSubjectID("u2"), "theirs", "private", "2026-01-01 10:00:00")
+
+	rec := runReq(t, h, http.MethodGet, "/records/r1", "u1", "")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status: %d", rec.Code)
+	}
+}
+
+// -- DELETE /records/{id} ---------------------------------------------------
+
+func TestDelete_HappyPath(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedDiaryRecord(t, db, "r1", "u1", defaultSubjectID("u1"), "hi", "private", "2026-01-01 10:00:00")
+
+	rec := runReq(t, h, http.MethodDelete, "/records/r1", "u1", "")
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM records WHERE id='r1'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("row still present after delete")
+	}
+}
+
+func TestDelete_OtherUser_404_AndPreservesRow(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedUser(t, db, "u2", "u2@b.com")
+	seedDiaryRecord(t, db, "r1", "u2", defaultSubjectID("u2"), "theirs", "private", "2026-01-01 10:00:00")
+
+	rec := runReq(t, h, http.MethodDelete, "/records/r1", "u1", "")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status: %d", rec.Code)
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM records WHERE id='r1'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("other user's row got deleted: %d", n)
+	}
+}
+
+// -- PATCH content / visibility --------------------------------------------
+
+func TestPatch_Content_Updates(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedDiaryRecord(t, db, "r1", "u1", defaultSubjectID("u1"), "old", "private", "2026-01-01 10:00:00")
+
+	rec := runReq(t, h, http.MethodPatch, "/records/r1", "u1", `{"content":"updated"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got struct {
+		Content string `json:"content"`
+	}
+	if err := db.QueryRow(`SELECT content FROM records WHERE id='r1'`).Scan(&got.Content); err != nil {
+		t.Fatalf("requery: %v", err)
+	}
+	if got.Content != "updated" {
+		t.Errorf("content: got %q", got.Content)
+	}
+}
+
+func TestPatch_Content_EmptyOrTooLong_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedDiaryRecord(t, db, "r1", "u1", defaultSubjectID("u1"), "old", "private", "2026-01-01 10:00:00")
+
+	cases := []string{`{"content":""}`, `{"content":"` + strings.Repeat("가", 2001) + `"}`}
+	for _, b := range cases {
+		rec := runReq(t, h, http.MethodPatch, "/records/r1", "u1", b)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("body %q: status %d", b, rec.Code)
+		}
+	}
+}
+
+func TestPatch_Visibility_FlipsBothWays(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedDiaryRecord(t, db, "r1", "u1", defaultSubjectID("u1"), "x", "private", "2026-01-01 10:00:00")
+
+	rec := runReq(t, h, http.MethodPatch, "/records/r1", "u1", `{"visibility":"public"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var v string
+	if err := db.QueryRow(`SELECT visibility FROM records WHERE id='r1'`).Scan(&v); err != nil {
+		t.Fatalf("requery: %v", err)
+	}
+	if v != "public" {
+		t.Errorf("v=%q", v)
+	}
+
+	rec = runReq(t, h, http.MethodPatch, "/records/r1", "u1", `{"visibility":"private"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status2: %d", rec.Code)
+	}
+	if err := db.QueryRow(`SELECT visibility FROM records WHERE id='r1'`).Scan(&v); err != nil {
+		t.Fatalf("requery: %v", err)
+	}
+	if v != "private" {
+		t.Errorf("v=%q", v)
+	}
+}
+
+func TestPatch_TwoFields_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedDiaryRecord(t, db, "r1", "u1", defaultSubjectID("u1"), "x", "private", "2026-01-01 10:00:00")
+
+	rec := runReq(t, h, http.MethodPatch, "/records/r1", "u1", `{"content":"x","visibility":"public"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: %d", rec.Code)
+	}
+}
+
+// -- Subject ownership on POST /records ------------------------------------
+
+func TestCreate_SubjectFromAnotherUser_400(t *testing.T) {
+	h, db, _ := newHandlers(t, "u1")
+	defer db.Close()
+	seedUser(t, db, "u2", "u2@b.com")
+	body := fmt.Sprintf(`{"content":"x","subject_id":%q}`, defaultSubjectID("u2"))
+	rec := post(t, h, "u1", body)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: %d body=%s", rec.Code, rec.Body.String())
 	}
 }

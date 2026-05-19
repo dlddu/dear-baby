@@ -71,6 +71,7 @@ describe('buildActiveChildren — 정규화 규칙', () => {
       ...baseUser,
       fetuses: [
         {
+          subject_id: 'subj-dungi',
           ordinal: 2,
           nickname: '둥이',
           gender: null,
@@ -79,6 +80,7 @@ describe('buildActiveChildren — 정규화 규칙', () => {
           purposes: [],
         },
         {
+          subject_id: 'subj-kongi',
           ordinal: 1,
           nickname: '콩이',
           gender: null,
@@ -89,6 +91,7 @@ describe('buildActiveChildren — 정규화 규칙', () => {
       ],
       children: [
         {
+          subject_id: 'subj-haneul',
           ordinal: 1,
           name: '하늘',
           gender: null,
@@ -110,6 +113,7 @@ describe('buildActiveChildren — 정규화 규칙', () => {
       ...baseUser,
       fetuses: [
         {
+          subject_id: 'subj-blank-nick',
           ordinal: 1,
           nickname: '   ',
           gender: null,
@@ -120,6 +124,7 @@ describe('buildActiveChildren — 정규화 규칙', () => {
       ],
       children: [
         {
+          subject_id: 'subj-blank-name',
           ordinal: 1,
           name: null,
           gender: null,

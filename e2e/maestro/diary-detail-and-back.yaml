@@ -1,0 +1,53 @@
+appId: com.dlddu.dearbaby
+---
+# Diary detail — open a card, verify detail content, return to list
+# (PRD-008 AC-008-04).
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "home-tab"
+- tapOn:
+    id: "tab-button-diary"
+- assertVisible:
+    id: "diary-tab"
+
+# Open the first seeded fixture record (id "diary-r1"). seed-diary
+# pins this row's content; assertions check the detail screen surfaces it.
+- tapOn:
+    id: "diary-list-card-diary-r1"
+- assertVisible:
+    id: "diary-detail"
+
+# Detail header chrome + record meta.
+- assertVisible:
+    id: "diary-detail-back"
+- assertVisible:
+    id: "diary-detail-more"
+- assertVisible:
+    id: "diary-detail-subject"
+# diary-r1 시드 데이터의 visibility 는 'private'. VisibilityBadge 는 base
+# testID 에 -<visibility> 접미사를 자동 부여한다 (diary-visibility-toggle
+# 플로우에서 두 상태 분기하려고 추가했음).
+- assertVisible:
+    id: "diary-detail-visibility-private"
+- assertVisible:
+    id: "diary-detail-content"
+
+# Back via the topbar arrow returns to the list.
+- tapOn:
+    id: "diary-detail-back"
+- assertVisible:
+    id: "diary-tab"
+- assertVisible:
+    id: "diary-list-card-diary-r1"

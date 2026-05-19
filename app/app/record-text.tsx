@@ -23,6 +23,7 @@ import { Button } from '../src/components/Button';
 import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
 import { useAuth } from '../src/auth/AuthContext';
+import { useActiveChild } from '../src/context/ActiveChildContext';
 import { colors } from '../src/theme/colors';
 import { radius } from '../src/theme/radius';
 import { spacing } from '../src/theme/spacing';
@@ -40,6 +41,7 @@ export default function RecordTextScreen() {
       : null;
 
   const { createTextRecord } = useAuth();
+  const { activeChild } = useActiveChild();
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -52,16 +54,26 @@ export default function RecordTextScreen() {
 
   const handleSave = useCallback(async () => {
     if (!canSave) return;
+    if (!activeChild) {
+      // 정상 흐름에서는 도달 불가 — 홈에 도착했다는 것 자체가 활성 아이가
+      // 있다는 뜻 (Onboarding 가드). 다만 컴파일 타임에 nullable 이라
+      // 마지막 안전망을 둔다.
+      Alert.alert('저장할 수 없어요', '활성 아이가 설정되지 않았습니다.');
+      return;
+    }
     setSaving(true);
     try {
-      await createTextRecord(trimmed, question || undefined);
+      await createTextRecord(trimmed, {
+        subjectId: activeChild.subjectId,
+        questionText: question || undefined,
+      });
       router.back();
     } catch {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해주세요.');
     } finally {
       setSaving(false);
     }
-  }, [canSave, trimmed, createTextRecord, router, question]);
+  }, [canSave, trimmed, createTextRecord, router, question, activeChild]);
 
   return (
     <SafeAreaView

@@ -71,6 +71,14 @@ jobs:
         working-directory: backend
         run: go build -o reset-user ./cmd/reset-user
 
+      # seed-diary populates the tester user with a fixture set of
+      # children / fetuses / records so the diary-tab maestro flows
+      # have a deterministic target. Same host-based pattern as
+      # reset-user — the e2e script calls it after a reset.
+      - name: Build seed-diary tool
+        working-directory: backend
+        run: go build -o seed-diary ./cmd/seed-diary
+
       - name: Setup AI worker
         uses: ./.github/actions/setup-ai-worker
         with:
@@ -200,6 +208,9 @@ jobs:
           reset_user() {
             (cd ../backend && ./reset-user "$TEST_USER_EMAIL")
           }
+          seed_diary() {
+            (cd ../backend && ./seed-diary "$TEST_USER_EMAIL")
+          }
 
           run_flow maestro/health.yaml
           # login.yaml requires a fresh-onboarding state to assert the
@@ -222,6 +233,30 @@ jobs:
           run_flow maestro/home-question-card-undecided.yaml
           reset_user
           run_flow maestro/home-voice-record.yaml
+
+          # Diary tab flows — empty state runs against a fresh reset,
+          # then seed_diary installs the multi-subject fixture for the
+          # list / detail / edit / delete / visibility / filter flows.
+          reset_user
+          run_flow maestro/diary-list-empty.yaml
+          reset_user
+          seed_diary
+          run_flow maestro/diary-list-multichild.yaml
+          reset_user
+          seed_diary
+          run_flow maestro/diary-detail-and-back.yaml
+          reset_user
+          seed_diary
+          run_flow maestro/diary-edit.yaml
+          reset_user
+          seed_diary
+          run_flow maestro/diary-delete-confirm.yaml
+          reset_user
+          seed_diary
+          run_flow maestro/diary-visibility-toggle.yaml
+          reset_user
+          seed_diary
+          run_flow maestro/diary-filter-by-child.yaml
 
       - name: Upload Maestro debug artifacts
         if: always()

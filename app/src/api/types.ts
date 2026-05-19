@@ -1,6 +1,10 @@
 // FetusProfile mirrors the backend `fetuses` row exposed on /me. Stored
 // shape lives in `backend/internal/users/model.go` (`FetusProfile`).
+// `subject_id` is the stable record_subjects.id the client passes back
+// as `subject_id` on POST /records — the diary tab uses it to group
+// records by 아이.
 export type FetusProfile = {
+  subject_id: string;
   ordinal: number;
   nickname: string | null;
   gender: string | null;
@@ -12,6 +16,7 @@ export type FetusProfile = {
 
 // ChildProfile mirrors the backend `children` row exposed on /me.
 export type ChildProfile = {
+  subject_id: string;
   ordinal: number;
   name: string | null;
   gender: string | null;
@@ -41,20 +46,28 @@ export type User = {
   updated_at: string;
 };
 
-// Record mirrors the backend `records` row returned by POST /records.
-// `source` and `audio_s3_key` are the Stage 2 voice-record additions:
-// `source` is "text" | "voice"; `audio_s3_key` is null until the
-// device finishes uploading the audio blob (and may stay null forever
-// when the user opts out of audio upload). `question_text` is the
-// daily question the home screen surfaced when the entry was started;
-// null when the entry came from a path that doesn't carry a question.
+// Record mirrors the backend `records` row returned by POST /records and
+// GET /records. `source` and `audio_s3_key` are the Stage 2 voice-record
+// additions: `source` is "text" | "voice"; `audio_s3_key` is null until
+// the device finishes uploading the audio blob (and may stay null
+// forever when the user opts out of audio upload). `question_text` is
+// the daily question the home screen surfaced when the entry was
+// started; null when the entry came from a path that doesn't carry a
+// question. `subject_id` points at a FetusProfile.subject_id /
+// ChildProfile.subject_id — the diary tab groups by this. `visibility`
+// flips between "private" (default) and "public" via the diary tab
+// toggle.
+export type RecordVisibility = 'private' | 'public';
+
 export type Record = {
   id: string;
   user_id: string;
+  subject_id: string;
   source: 'text' | 'voice';
   content: string;
   question_text: string | null;
   audio_s3_key: string | null;
+  visibility: RecordVisibility;
   created_at: string;
 };
 

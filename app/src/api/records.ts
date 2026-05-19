@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 import { posthogClient } from '../analytics/client';
 import { apiFetch } from './client';
-import type { CreateRecordResponse, Record } from './types';
+import type { CreateRecordResponse, Record, RecordVisibility } from './types';
 
 // AudioFormat mirrors storage.AudioFormat on the backend. iOS records
 // linear-PCM .wav (whisper-friendly, no AAC decode); Android records
@@ -14,18 +14,35 @@ export function platformAudioFormat(): AudioFormat {
   return Platform.OS === 'ios' ? 'wav' : 'm4a';
 }
 
+// CreateRecordOptions packages the optional fields callers pass to
+// create{Text,Voice}Record. subjectId is REQUIRED — the backend rejects
+// records without one. visibility defaults to 'private' on the server
+// when omitted, matching the user-trust-first policy.
+export type CreateRecordOptions = {
+  subjectId: string;
+  questionText?: string;
+  visibility?: RecordVisibility;
+};
+
 // createTextRecord POSTs a text entry to the backend. The response includes
 // the updated user (with first_record_at stamped) so AuthContext can refresh
 // local state in one round-trip — this is what unblurs the Stage 2 AI
-// preview on the home screen. `questionText` is the daily question the
+// preview on the home screen. `subjectId` ties the record to a fetus /
+// child via record_subjects. `questionText` is the daily question the
 // home screen showed when the user started writing; pass undefined when
 // no question is associated.
 export async function createTextRecord(
   content: string,
-  questionText?: string,
+  options: CreateRecordOptions,
 ): Promise<CreateRecordResponse> {
-  const payload: { content: string; question_text?: string } = { content };
-  if (questionText) payload.question_text = questionText;
+  const payload: {
+    content: string;
+    subject_id: string;
+    question_text?: string;
+    visibility?: RecordVisibility;
+  } = { content, subject_id: options.subjectId };
+  if (options.questionText) payload.question_text = options.questionText;
+  if (options.visibility) payload.visibility = options.visibility;
   const res = await apiFetch('/records', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -37,7 +54,7 @@ export async function createTextRecord(
   posthogClient?.capture('record_posted', {
     source: 'text',
     content_length: content.length,
-    has_question: Boolean(questionText),
+    has_question: Boolean(options.questionText),
     record_id: body.record.id,
   });
   return body;
@@ -49,13 +66,21 @@ export async function createTextRecord(
 // is the authoritative artifact and triggers first_record_at.
 export async function createVoiceRecord(
   content: string,
-  questionText?: string,
+  options: CreateRecordOptions,
 ): Promise<CreateRecordResponse> {
-  const payload: { content: string; source: 'voice'; question_text?: string } = {
+  const payload: {
+    content: string;
+    source: 'voice';
+    subject_id: string;
+    question_text?: string;
+    visibility?: RecordVisibility;
+  } = {
     content,
     source: 'voice',
+    subject_id: options.subjectId,
   };
-  if (questionText) payload.question_text = questionText;
+  if (options.questionText) payload.question_text = options.questionText;
+  if (options.visibility) payload.visibility = options.visibility;
   const res = await apiFetch('/records', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -67,10 +92,108 @@ export async function createVoiceRecord(
   posthogClient?.capture('record_posted', {
     source: 'voice',
     content_length: content.length,
-    has_question: Boolean(questionText),
+    has_question: Boolean(options.questionText),
     record_id: body.record.id,
   });
   return body;
+}
+
+// ListRecordsOptions narrows the diary list. subjectIds defaults to "all
+// subjects the user owns" when empty; visibility defaults to "both"
+// when undefined. limit caps page size (server clamps at 100). cursor
+// is opaque — pass through from a prior response.
+export type ListRecordsOptions = {
+  subjectIds?: string[];
+  visibility?: RecordVisibility;
+  cursor?: string;
+  limit?: number;
+};
+
+export type ListRecordsResponse = {
+  records: Record[];
+  next_cursor: string;
+};
+
+// listRecords fetches the diary tab page. The server returns records
+// newest-first; the diary tab groups them into month sections at render
+// time. next_cursor is empty when there's no further page.
+export async function listRecords(
+  options: ListRecordsOptions = {},
+): Promise<ListRecordsResponse> {
+  const params = new URLSearchParams();
+  if (options.subjectIds) {
+    for (const id of options.subjectIds) {
+      if (id) params.append('subject_id', id);
+    }
+  }
+  if (options.visibility) params.set('visibility', options.visibility);
+  if (options.cursor) params.set('cursor', options.cursor);
+  if (options.limit != null) params.set('limit', String(options.limit));
+  const qs = params.toString();
+  const url = qs ? `/records?${qs}` : '/records';
+  const res = await apiFetch(url, { method: 'GET' });
+  if (!res.ok) {
+    throw new Error(`listRecords failed: ${res.status}`);
+  }
+  return (await res.json()) as ListRecordsResponse;
+}
+
+// getRecord fetches a single record. Used by the diary detail screen.
+export async function getRecord(id: string): Promise<Record> {
+  const res = await apiFetch(`/records/${encodeURIComponent(id)}`, {
+    method: 'GET',
+  });
+  if (!res.ok) {
+    throw new Error(`getRecord failed: ${res.status}`);
+  }
+  const body = (await res.json()) as { record: Record };
+  return body.record;
+}
+
+// updateRecordContent edits the body of an existing record. Used by the
+// diary edit screen (PRD-008 AC-008-05).
+export async function updateRecordContent(
+  id: string,
+  content: string,
+): Promise<Record> {
+  const res = await apiFetch(`/records/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    throw new Error(`updateRecordContent failed: ${res.status}`);
+  }
+  const body = (await res.json()) as { record: Record };
+  return body.record;
+}
+
+// updateRecordVisibility flips a record's public/private state. Used
+// by the diary detail screen's action sheet (PRD-008 AC-008-07).
+export async function updateRecordVisibility(
+  id: string,
+  visibility: RecordVisibility,
+): Promise<Record> {
+  const res = await apiFetch(`/records/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ visibility }),
+  });
+  if (!res.ok) {
+    throw new Error(`updateRecordVisibility failed: ${res.status}`);
+  }
+  const body = (await res.json()) as { record: Record };
+  return body.record;
+}
+
+// deleteRecord hard-deletes a record. Used by the diary detail screen's
+// action sheet (PRD-008 AC-008-06). The server intentionally does not
+// clean up companion S3 audio synchronously; a sweep handles orphans.
+export async function deleteRecord(id: string): Promise<void> {
+  const res = await apiFetch(`/records/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(`deleteRecord failed: ${res.status}`);
+  }
 }
 
 // AudioUploadURL is the response shape of POST /records/{id}/audio/upload-url.

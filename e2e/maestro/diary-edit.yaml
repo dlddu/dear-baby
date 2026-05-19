@@ -1,0 +1,65 @@
+appId: com.dlddu.dearbaby
+---
+# Diary edit — open ⋯ → 편집, change body, save, verify the list and detail
+# reflect the new body (PRD-008 AC-008-05).
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+- assertVisible:
+    id: "home-tab"
+- tapOn:
+    id: "tab-button-diary"
+- assertVisible:
+    id: "diary-tab"
+
+- tapOn:
+    id: "diary-list-card-diary-r1"
+- assertVisible:
+    id: "diary-detail"
+
+# Open the action sheet, choose 편집.
+- tapOn:
+    id: "diary-detail-more"
+- assertVisible:
+    id: "diary-action-sheet"
+- tapOn:
+    id: "diary-action-edit"
+- assertVisible:
+    id: "diary-edit"
+
+# Replace some of the body and save. Content correctness is covered by the
+# records handler unit tests + the integration job; the maestro flow only
+# verifies the UI navigation (detail → edit → save → detail → list).
+# Android Maestro 의 substring text matcher 가 RN Text 의 혼합 텍스트에서
+# 신뢰성 없어 텍스트 단정은 피한다.
+- tapOn:
+    id: "diary-edit-input"
+- eraseText: 200
+- inputText: "diary-edit-marker-OK"
+- tapOn:
+    id: "diary-edit-save"
+
+# Save returns to detail; content node is rendered (proves the fetch resolved
+# after PATCH).
+- assertVisible:
+    id: "diary-detail"
+- assertVisible:
+    id: "diary-detail-content"
+
+# Back to list — card is still in place.
+- tapOn:
+    id: "diary-detail-back"
+- assertVisible:
+    id: "diary-tab"
+- assertVisible:
+    id: "diary-list-card-diary-r1"

@@ -132,6 +132,9 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 			pr.Post("/me/onboarding/case-b", usersHandlers.PostOnboardingCaseB)
 			pr.Post("/me/onboarding/case-c", usersHandlers.PostOnboardingCaseC)
 			pr.Post("/records", recordsHandlers.Create)
+			pr.Get("/records", recordsHandlers.List)
+			pr.Get("/records/{id}", recordsHandlers.Get)
+			pr.Delete("/records/{id}", recordsHandlers.Delete)
 			// Audio attachment routes are only meaningful when S3
 			// is wired, but mounting them unconditionally keeps
 			// the URL surface predictable — handlers return 503

@@ -30,6 +30,8 @@ export type ActiveChildKind = 'fetus' | 'child';
 export type ActiveChild = {
   kind: ActiveChildKind;
   ordinal: number;
+  /** record_subjects.id — 기록 작성·일기 탭 필터의 key. */
+  subjectId: string;
   /** fetus 의 due_date 또는 child 의 birth_date (ISO `YYYY-MM-DD`). */
   dueOrBirthDate: string | null;
   /** 헤더·카드에서 사용하는 표시 이름 (태명/이름). 빈 값일 때 fallback 처리됨. */
@@ -78,6 +80,7 @@ export function buildActiveChildren(user: User | null): ActiveChild[] {
     .map((c) => ({
       kind: 'child' as const,
       ordinal: c.ordinal,
+      subjectId: c.subject_id,
       dueOrBirthDate: c.birth_date,
       displayName: childDisplayName(c),
       profileImageUrl: null,
@@ -88,6 +91,7 @@ export function buildActiveChildren(user: User | null): ActiveChild[] {
     .map((f) => ({
       kind: 'fetus' as const,
       ordinal: f.ordinal,
+      subjectId: f.subject_id,
       dueOrBirthDate: f.due_date,
       displayName: fetusDisplayName(f),
       profileImageUrl: null,
