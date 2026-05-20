@@ -46,6 +46,12 @@ jobs:
       EXPO_PUBLIC_API_URL: ${{ inputs.expo-public-api-url }}
       EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
       EXPO_PUBLIC_POSTHOG_HOST: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
+      # Google OAuth client IDs are inlined into the JS bundle via
+      # process.env.EXPO_PUBLIC_* — they're public values, so they live
+      # in GitHub Variables rather than Secrets.
+      EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
       # Build identifiers consumed by app.config.ts at prebuild time and
       # by the Fastlane lanes below. app.config.ts requires every key
       # listed in app/.env.example to be set, so iOS-only values must
