@@ -1,2 +1,2 @@
-app_identifier("com.dlddu.dearbaby")
-team_id("RBX39XRW2J")
+app_identifier(ENV.fetch("APP_BUNDLE_IDENTIFIER"))
+team_id(ENV.fetch("APPLE_TEAM_ID"))

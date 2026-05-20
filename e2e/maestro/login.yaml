@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Verifies the password sign-in path that backs Apple beta review and
 # the rest of the Maestro suite. The flow drives the secret tap pattern

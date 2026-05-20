@@ -14,8 +14,6 @@
       "backgroundColor": "#FAF6F1"
     },
     "ios": {
-      "bundleIdentifier": "com.dlddu.dearbaby",
-      "appleTeamId": "RBX39XRW2J",
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -24,7 +22,6 @@
       }
     },
     "android": {
-      "package": "com.dlddu.dearbaby",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FAF6F1"
@@ -55,12 +52,7 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      [
-        "@react-native-google-signin/google-signin",
-        {
-          "iosUrlScheme": "com.googleusercontent.apps.587637575144-ovck0vqee4904nd0t3c0hn333dgmaet9"
-        }
-      ]
+      "@react-native-google-signin/google-signin"
     ]
   }
 }

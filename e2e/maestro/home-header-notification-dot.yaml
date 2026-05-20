@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # PRD-007 TC-007-03 — 알림 종 아이콘 red dot.
 #

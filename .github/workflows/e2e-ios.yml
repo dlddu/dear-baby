@@ -28,6 +28,21 @@ jobs:
       # MinIO instance set up below, so the records-audio backend
       # contract gets exercised end-to-end in CI.
       EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
+      # Google OAuth client IDs are inlined into the JS bundle via
+      # process.env.EXPO_PUBLIC_* — they're public values, so they live
+      # in GitHub Variables rather than Secrets.
+      EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+      # Build identifiers — app.config.ts at prebuild time and the
+      # maestro flows below read these. app.config.ts requires every key
+      # listed in app/.env.example to be set, so Android-only values must
+      # also be present on iOS prebuild (and vice versa).
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_BUNDLE_IDENTIFIER: ${{ vars.APP_BUNDLE_IDENTIFIER }}
+      APP_ANDROID_PACKAGE: ${{ vars.APP_ANDROID_PACKAGE }}
+      GOOGLE_IOS_URL_SCHEME: ${{ vars.GOOGLE_IOS_URL_SCHEME }}
+      APP_ID: ${{ vars.APP_BUNDLE_IDENTIFIER }}
 
     steps:
       - name: Checkout
@@ -118,9 +133,9 @@ jobs:
       #     of an "Apple Development" identity.
       #   IOS_DEVELOPMENT_CERTIFICATE_PASSWORD — the .p12 export password.
       #   IOS_DEVELOPMENT_PROFILE_BASE64       — base64 of an iOS
-      #     Development provisioning profile bound to com.dlddu.dearbaby
-      #     and the same Apple team. Must include the Sign in with Apple
-      #     capability so the entitlement validates.
+      #     Development provisioning profile bound to the bundle id in
+      #     APP_BUNDLE_IDENTIFIER and the same Apple team. Must include
+      #     the Sign in with Apple capability so the entitlement validates.
       - name: Install iOS development signing assets
         env:
           DEV_CERT_B64: ${{ secrets.IOS_DEVELOPMENT_CERTIFICATE_BASE64 }}
@@ -186,7 +201,7 @@ jobs:
       - name: Wait for app install
         run: |
           for i in $(seq 1 30); do
-            if xcrun simctl listapps booted | grep -q "com.dlddu.dearbaby"; then
+            if xcrun simctl listapps booted | grep -q "$APP_ID"; then
               echo "App is installed"
               exit 0
             fi
@@ -201,6 +216,7 @@ jobs:
           set -euo pipefail
           run_flow() {
             maestro test \
+              --env APP_ID="$APP_ID" \
               --env MAESTRO_TEST_USER_EMAIL="$MAESTRO_TEST_USER_EMAIL" \
               --env MAESTRO_TEST_USER_PASSWORD="$MAESTRO_TEST_USER_PASSWORD" \
               "$1"

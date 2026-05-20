@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Reusable Case B b0 → b6 subflow — 양육 2명 + 다태 2명 풀 시나리오.
 #

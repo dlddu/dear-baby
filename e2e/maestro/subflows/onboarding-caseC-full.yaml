@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Reusable Case C c1 → c2 → c3 → home subflow (single-child happy path).
 #

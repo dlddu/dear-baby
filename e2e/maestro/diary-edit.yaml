@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Diary edit — open ⋯ → 편집, change body, save, verify the list and detail
 # reflect the new body (PRD-008 AC-008-05).

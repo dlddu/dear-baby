@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Reusable Case A a1 → a2 → a3 → home subflow (예정일 선택 경로).
 #

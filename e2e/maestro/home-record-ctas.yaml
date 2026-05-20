@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Home record CTAs e2e — voice·text CTA → 기록 화면 진입/취소 회로.
 #

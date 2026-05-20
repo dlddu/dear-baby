@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Onboarding Case A — 임신만 (Q1=Y · Q2=N) 풀 시나리오.
 #

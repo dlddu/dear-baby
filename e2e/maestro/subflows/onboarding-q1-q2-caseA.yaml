@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # Reusable Q1/Q2 subflow for the **Case A** path (임신 O · 양육 X).
 # Caller must already be on the Q1 screen (id "onboarding-q1") — usually

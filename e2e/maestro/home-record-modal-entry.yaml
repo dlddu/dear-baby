@@ -1,4 +1,4 @@
-appId: com.dlddu.dearbaby
+appId: ${APP_ID}
 ---
 # PRD-007 AC-007-06 — 홈 1인칭 카드 → 음성/텍스트 기록 모달 진입.
 #
