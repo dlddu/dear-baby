@@ -148,10 +148,18 @@ jobs:
           fi
           echo "::endgroup::"
 
+      # `model` must name a device the runner has *already created* (visible
+      # in the diagnostic step's "Available devices" list) — simulator-action
+      # matches existing devices, not device types, and errors with "No devices
+      # found for the matching requirements" otherwise. The macos-latest image
+      # (Xcode 26.5 / iOS 26.x) pre-creates the iPhone 17 family + iPhone 16e
+      # but no plain "iPhone 16", which is why `model: "iPhone 16"` failed on
+      # the newer runners. "iPhone 17" is present on every installed iOS 26.x
+      # runtime, so it matches regardless of which runtime is selected.
       - name: Boot iOS Simulator
         uses: futureware-tech/simulator-action@v4
         with:
-          model: "iPhone 16"
+          model: "iPhone 17"
 
       # Install an Apple Development cert + matching dev provisioning
       # profile into a temporary keychain so Xcode's automatic signing
