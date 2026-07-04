@@ -22,7 +22,14 @@ async function refreshAccessOnce(): Promise<string | null> {
       body: JSON.stringify({ refresh_token: refresh }),
     });
     if (!res.ok) {
-      await clearTokens();
+      // Only a 401 means the refresh token itself is expired/revoked — the
+      // session is definitively dead, so drop the pair (AuthContext's boot
+      // fallback reads their absence as "re-login required"). Any other
+      // failure (5xx, gateway hiccup) is transient: keep the tokens so a
+      // later 401 can retry the refresh and recover the session.
+      if (res.status === 401) {
+        await clearTokens();
+      }
       return null;
     }
     const json = (await res.json()) as {

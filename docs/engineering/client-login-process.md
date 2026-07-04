@@ -2,8 +2,8 @@
 
 본 문서는 dear-baby(아이에게) 앱의 로그인 과정을 **클라이언트(Expo/React Native, `app/`) 관점**에서 상세히 기술한다. 백엔드 내부 구현은 클라이언트가 의존하는 계약(엔드포인트·응답 형식·토큰 수명)에 한해서만 다룬다.
 
-- 작성일: 2026-07-03
-- 기준 커밋: `0fad00b`
+- 작성일: 2026-07-03 · 최종 갱신: 2026-07-04
+- 기준 커밋: `0fad00b` + 동일 브랜치의 refresh 만료 부트 처리 수정 반영 (§5 "장기 미접속 복귀")
 
 ---
 
@@ -66,12 +66,18 @@ sequenceDiagram
             AP->>SS: 온보딩 캐시 갱신 (db_onboarded_at 등)
             AG->>AG: /(tabs) 또는 /(onboarding)/q1 로 replace
         else /me 실패
-            AP->>SS: getCachedOnboardedAt()
-            alt 캐시 있음 (과거 온보딩 완료 이력)
-                AP->>AP: status='authenticated' (일시 장애로 간주, 토큰 유지)
-            else 캐시 없음
-                AP->>SS: clearTokens()
-                AP->>AP: status='unauthenticated' → 랜딩 노출
+            AP->>SS: getAccessToken() 재확인
+            alt 토큰 소실 — refresh 가 401 (만료·회수, 세션 확정 종료)
+                AP->>SS: clearOnboardingCache()
+                AP->>AP: status='unauthenticated' → 랜딩에서 재로그인
+            else 토큰 보존 — 일시 장애 (5xx·오프라인)
+                AP->>SS: getCachedOnboardedAt()
+                alt 캐시 있음 (과거 온보딩 완료 이력)
+                    AP->>AP: status='authenticated' (토큰 유지)
+                else 캐시 없음
+                    AP->>SS: clearTokens()
+                    AP->>AP: status='unauthenticated' → 랜딩 노출
+                end
             end
         end
     end
@@ -81,7 +87,8 @@ sequenceDiagram
 
 - **`status === 'loading'` 동안 AuthGate 는 아무 리다이렉트도 하지 않는다.** 콜드 부팅 시 랜딩 화면이 먼저 보이는 것은 Maestro 헬스 플로우가 의존하는 동작이다 (`app/app/_layout.tsx:36`).
 - 부팅 중 상태가 자동으로 `authenticated`/`onboarding` 으로 바뀌는 곳은 **AuthProvider 의 부트 이펙트 한 곳뿐**이다 (`app/src/auth/AuthContext.tsx:102`).
-- `/me` 실패 시의 폴백은 "비행기 모드·백엔드 순단에서 온보딩 완료 사용자를 온보딩 깔때기로 되돌리지 않기 위한" 장치다. 백엔드가 진실의 원천이고 캐시는 힌트일 뿐이다 (`app/src/auth/onboardingCache.ts` 상단 주석).
+- `/me` 실패 시의 캐시 폴백은 "비행기 모드·백엔드 순단에서 온보딩 완료 사용자를 온보딩 깔때기로 되돌리지 않기 위한" 장치다. 백엔드가 진실의 원천이고 캐시는 힌트일 뿐이다 (`app/src/auth/onboardingCache.ts` 상단 주석).
+- 폴백 전에 **토큰이 아직 남아 있는지 먼저 확인**한다. `/me` 처리 중 refresh 토큰이 401(만료·회수)로 판정되면 `apiFetch` 가 토큰 쌍을 이미 지웠으므로, 이는 일시 장애가 아니라 **세션의 확정 종료**다 — 캐시와 무관하게 랜딩으로 보내 재로그인시킨다 (§5 "장기 미접속 복귀").
 
 ### 랜딩 화면 구성 (`app/app/index.tsx`)
 
@@ -162,8 +169,9 @@ App Store 심사자와 Maestro E2E 가 사용하는 경로로, **빌드 플래�
 loading ──(토큰 없음)──────────────→ unauthenticated
 loading ──(/me 성공·onboarded)─────→ authenticated
 loading ──(/me 성공·미온보딩)───────→ onboarding
-loading ──(/me 실패·캐시 있음)──────→ authenticated
-loading ──(/me 실패·캐시 없음)──────→ unauthenticated
+loading ──(/me 실패·refresh 만료로 토큰 소실)→ unauthenticated (재로그인)
+loading ──(/me 실패·토큰 보존·캐시 있음)─────→ authenticated
+loading ──(/me 실패·토큰 보존·캐시 없음)─────→ unauthenticated
 unauthenticated ──(setSession)────→ onboarding | authenticated
 onboarding ──(온보딩 완료 API 성공)─→ authenticated
 임의 상태 ──(signOut)──────────────→ unauthenticated
@@ -220,8 +228,11 @@ sequenceDiagram
             F->>SS: setTokens(새 쌍)
             F->>BE: 원 요청 재시도 (1회)
             F-->>C: Response
-        else refresh 실패 (non-ok)
-            F->>SS: clearTokens()
+        else refresh 401 (refresh 토큰 만료·회수)
+            F->>SS: clearTokens() — 세션 확정 종료
+            F-->>C: 원래의 401 Response (호출자가 처리)
+        else refresh 5xx·네트워크 오류 (일시 장애)
+            F->>F: 토큰 보존 — 다음 401 에서 재시도 가능
             F-->>C: 원래의 401 Response (호출자가 처리)
         end
     end
@@ -231,6 +242,7 @@ sequenceDiagram
 
 - **동시성 병합**: 화면 진입 직후 여러 요청이 한꺼번에 401 을 맞아도 `refreshingPromise` 모듈 변수로 refresh 호출은 1회만 나간다.
 - **재시도는 1회**: 갱신 후에도 401 이면 그대로 반환 — 호출자가 실패를 처리한다.
+- **실패 구분**: refresh 응답이 **401 일 때만** 토큰 쌍을 삭제한다(refresh 토큰 자체의 만료·회수 = 세션 확정 종료). 5xx·게이트웨이 오류·네트워크 예외는 토큰을 보존해, 백엔드가 회복되면 다음 401 에서 세션이 자동 복구된다.
 - `apiFetch` 는 Authorization 주입·401 갱신 외에는 관여하지 않는다. 나머지 상태 코드 처리는 호출자 책임.
 - PostHog 세션/distinct ID 를 `X-PostHog-Session-Id`/`X-PostHog-Distinct-Id` 헤더로 동봉해 백엔드 로그와 세션 리플레이를 연결한다.
 - 참고: 로그인 교환 API 3종(`google`/`apple`/`password-login`)과 `refresh`/`logout` 은 Bearer 가 불필요하므로 `apiFetch` 를 쓰지 않고 raw `fetch` 를 사용한다.
@@ -238,6 +250,18 @@ sequenceDiagram
 ### 앱 재실행 시 자동 로그인
 
 §2 의 부트 시퀀스가 곧 자동 로그인이다. 저장된 access 토큰이 있으면 `/me` 를 호출하고(만료 시 위 401→refresh 경로로 자동 회복), 성공하면 랜딩을 거의 거치지 않고 홈/온보딩으로 진입한다. refresh 토큰까지 만료(기본 30일 미접속)한 경우에만 랜딩으로 떨어져 재로그인이 필요하다.
+
+### 장기 미접속 복귀 — refresh 토큰까지 만료된 경우
+
+기본 설정(refresh 30일) 기준, 마지막 세션 갱신 후 30일 이상 앱을 열지 않은 사용자가 겪는 경로다.
+
+1. SecureStore 에는 만료된 access/refresh 토큰이 문자열로 그대로 남아 있으므로(JWT 만료는 저장소를 지우지 않는다), 부트는 `/me` 를 시도한다.
+2. 만료된 access → 401 → `apiFetch` 가 refresh 를 시도 → 백엔드가 401 응답 (`invalid refresh token`).
+3. `refreshAccessOnce` 가 **토큰 쌍을 삭제**하고, `/me` 는 최종 실패(throw)한다.
+4. AuthContext 의 catch 가 `getAccessToken()` 을 재확인한다 — 토큰이 사라졌으므로 세션 확정 종료로 판정하고, `clearOnboardingCache()` 로 로컬 상태를 `signOut` 과 동일하게 정리한 뒤 `unauthenticated` 로 전이한다.
+5. AuthGate 가 랜딩 화면을 유지 → 사용자는 소셜 버튼으로 재로그인한다. 재로그인 시 `setSession` 이 토큰·캐시를 새로 채우므로 이후 부팅은 정상 경로로 돌아온다.
+
+> **이력**: 수정 전에는 4단계에서 온보딩 캐시만 보고 `authenticated` 로 폴백했다. 토큰이 없으니 모든 API 가 401 이고(access 부재 시 refresh 재시도 자체가 없음) 랜딩으로 돌아갈 자동 경로도 없어, 앱을 재시작할 때까지 "데이터 로드가 전부 실패하는 홈 화면"에 갇혔다. 현재는 **토큰 소실 여부**로 확정 종료(재로그인)와 일시 장애(캐시 폴백)를 구분한다. 회귀 테스트: `app/src/auth/__tests__/AuthContext.test.tsx`, `app/src/api/__tests__/client.test.ts`.
 
 ---
 
@@ -261,10 +285,12 @@ sequenceDiagram
 | 소셜 SDK 성공했지만 idToken/authCode 누락 | `console.error` 후 중단 | **무반응** |
 | 교환 API non-ok (4xx/5xx) / 네트워크 오류 | `Error` throw → catch → `console.error` | **무반응** |
 | 테스터 로그인 실패 | 인라인 에러 문구 표시 | "로그인에 실패했어요…" |
-| 부팅 `/me` 실패 + 온보딩 캐시 있음 | `authenticated` 유지 (토큰 보존) | 홈 진입 (프로필은 폴백 표기) |
-| 부팅 `/me` 실패 + 캐시 없음 | 토큰 삭제 → `unauthenticated` | 랜딩 화면 |
+| 부팅 `/me` 일시 장애(토큰 보존) + 온보딩 캐시 있음 | `authenticated` 유지 | 홈 진입 (프로필은 폴백 표기) |
+| 부팅 `/me` 일시 장애(토큰 보존) + 캐시 없음 | 토큰 삭제 → `unauthenticated` | 랜딩 화면 |
+| 부팅 시 refresh 만료 (장기 미접속) | 토큰·온보딩 캐시 삭제 → `unauthenticated` | 랜딩 화면 (재로그인) |
 | API 401 → refresh 성공 | 투명하게 재시도 | 아무 일 없음 |
-| API 401 → refresh non-ok | 토큰 삭제, 401 반환 | 다음 부팅/가드 시점에 랜딩 |
+| API 401 → refresh 401 (만료·회수) | 토큰 삭제, 401 반환 | 다음 부팅/가드 시점에 랜딩 |
+| API 401 → refresh 5xx·네트워크 오류 | 토큰 보존, 401 반환 | 일시 오류 — 백엔드 회복 후 자동 복구 |
 | 헬스체크 실패 | 토스트 3.5초 | "서버에 연결할 수 없어요" |
 
 ---
@@ -297,8 +323,8 @@ sequenceDiagram
 코드를 검토하며 발견한, 동작에 영향을 줄 수 있는 특이점들이다. 모두 현재 코드 기준 사실 확인된 내용이며, 수정 여부는 별도 판단이 필요하다.
 
 1. **소셜 로그인 실패 시 사용자 피드백이 없다.** 취소를 제외한 모든 실패(네트워크 오류, 백엔드 4xx/5xx, idToken 누락)가 `console.error` 로만 남는다. 사용자는 버튼을 눌러도 아무 일이 없는 것처럼 보인다. 테스터 로그인만 인라인 에러 UI 가 있다.
-2. **`/me` 실패 + 캐시 폴백 시 `user` 가 `null` 인 채로 `authenticated` 가 된다.** 홈은 `user?.name` 폴백('우리 아이')으로 렌더는 되지만, 이 상태에서 복구를 위한 `/me` 재시도는 없다 — 이후 다른 API 호출이 성공해 user 를 갱신해 줄 때까지 프로필 정보가 비어 있다.
-3. **refresh 응답이 non-ok 이기만 하면 토큰을 삭제한다** (`client.ts:24`). 401(진짜 만료)뿐 아니라 백엔드 일시 장애(5xx)에도 refresh 토큰이 지워져 강제 재로그인이 될 수 있다. 반면 네트워크 예외(throw)는 토큰을 보존하므로 비일관적이다.
+2. **일시 장애 폴백 시 `user` 가 `null` 인 채로 `authenticated` 가 된다.** (refresh 확정 만료 케이스는 §5 "장기 미접속 복귀" 수정으로 랜딩으로 보내지만, 토큰이 보존된 일시 장애 + 캐시 케이스는 여전히 이 경로다.) 홈은 `user?.name` 폴백('우리 아이')으로 렌더는 되지만 복구를 위한 `/me` 재시도는 없다 — 이후 다른 API 호출이 성공해 user 를 갱신해 줄 때까지 프로필 정보가 비어 있다.
+3. ~~refresh 응답이 non-ok 이기만 하면 토큰을 삭제한다~~ **(해결됨, 2026-07-04)** — 이제 401 일 때만 토큰을 삭제하고, 5xx·네트워크 오류는 토큰을 보존해 다음 401 에서 재시도한다. 같은 수정에서 "refresh 만료 후 캐시 폴백으로 좀비 홈 화면에 갇히는" 장기 미접속 버그도 함께 해소됐다 (§5 "장기 미접속 복귀" 이력 참고).
 4. **랜딩 푸터의 "이용약관"·"개인정보 처리방침"이 링크 스타일이지만 실제 onPress 핸들러가 없다.** 심사 시 지적될 수 있는 지점이다.
 5. **테스터 로그인 경로가 프로덕션 빌드·프로덕션 서버에 상시 존재한다.** 이는 의도된 설계(심사·E2E 공용, 게이트는 제스처+시드 자격 증명)이지만, 자격 증명 관리가 곧 보안 경계라는 점은 인지하고 있어야 한다.
 6. **로그아웃의 서버 revoke 는 best-effort** 다. 오프라인 로그아웃 시 서버 측 refresh 토큰이 TTL(기본 30일)까지 유효하게 남는다. 단, 토큰이 기기 SecureStore 에만 있으므로 실질 위험은 기기 탈취 시나리오에 한정된다.
