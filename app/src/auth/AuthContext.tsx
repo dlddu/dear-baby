@@ -117,10 +117,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await cacheFromUser(u);
       } catch {
         if (cancelled) return;
-        // /me failed. If we have a cached onboarding marker, the user has
-        // definitely completed onboarding before — treat as authenticated
-        // so they aren't pushed back into the funnel on a transient error.
-        // Otherwise clear tokens and send them to the landing screen.
+        // /me failed. Distinguish two cases before falling back:
+        //
+        // 1) The session is definitively dead: apiFetch's 401→refresh path
+        //    got a 401 for the refresh token itself (expired/revoked after a
+        //    long absence) and cleared both tokens. Falling back to
+        //    'authenticated' here would strand the user on a home screen
+        //    where every call 401s — with no access token there is no
+        //    refresh retry, and no route back to the landing screen until an
+        //    app restart. Detect it by the tokens' absence and re-login.
+        // 2) Transient failure (airplane mode, backend hiccup): the tokens
+        //    survived. If we also have a cached onboarding marker, the user
+        //    has definitely completed onboarding before — treat as
+        //    authenticated so they aren't pushed back into the funnel.
+        const accessAfterMe = await getAccessToken();
+        if (!accessAfterMe) {
+          // Mirror signOut's local cleanup: a dead session is a forced
+          // sign-out, so the next boot must not consult this user's cache.
+          await clearOnboardingCache();
+          setStatus('unauthenticated');
+          return;
+        }
         const cachedOnboardedAt = await getCachedOnboardedAt();
         if (cachedOnboardedAt) {
           setStatus('authenticated');

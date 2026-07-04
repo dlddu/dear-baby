@@ -111,10 +111,55 @@ jobs:
       - name: Setup Maestro
         uses: ./.github/actions/setup-maestro
 
+      # ── Diagnostics for the intermittent "No devices found for the matching
+      # requirements" failure from simulator-action. It only surfaces when the
+      # runner has no *existing* device matching `model` — so we dump what this
+      # particular runner image actually ships: Xcode version, installed iOS
+      # runtimes, bootable devices, the iPhone device types, and whether an
+      # "iPhone 16" device is present at all. `|| true` keeps the probe itself
+      # from ever failing the job. Runs before the boot step so the snapshot is
+      # captured even when the boot then fails. Remove once the flake is root-caused.
+      - name: Diagnose iOS simulator availability
+        run: |
+          echo "::group::macOS + Xcode"
+          sw_vers || true
+          xcode-select -p || true
+          xcodebuild -version || true
+          xcrun --sdk iphonesimulator --show-sdk-version || true
+          echo "::endgroup::"
+
+          echo "::group::Installed simulator runtimes"
+          xcrun simctl list runtimes || true
+          echo "::endgroup::"
+
+          echo "::group::Available devices (bootable)"
+          xcrun simctl list devices available || true
+          echo "::endgroup::"
+
+          echo "::group::iPhone device types on this image"
+          xcrun simctl list devicetypes | grep -i iphone || true
+          echo "::endgroup::"
+
+          echo "::group::Is an 'iPhone 16' device present?"
+          if xcrun simctl list devices available | grep -i "iPhone 16"; then
+            echo "-> matched an 'iPhone 16' device above"
+          else
+            echo "-> NO 'iPhone 16' device on this runner (this is what simulator-action matches on)"
+          fi
+          echo "::endgroup::"
+
+      # `model` must name a device the runner has *already created* (visible
+      # in the diagnostic step's "Available devices" list) — simulator-action
+      # matches existing devices, not device types, and errors with "No devices
+      # found for the matching requirements" otherwise. The macos-latest image
+      # (Xcode 26.5 / iOS 26.x) pre-creates the iPhone 17 family + iPhone 16e
+      # but no plain "iPhone 16", which is why `model: "iPhone 16"` failed on
+      # the newer runners. "iPhone 17" is present on every installed iOS 26.x
+      # runtime, so it matches regardless of which runtime is selected.
       - name: Boot iOS Simulator
         uses: futureware-tech/simulator-action@v4
         with:
-          model: "iPhone 16"
+          model: "iPhone 17"
 
       # Install an Apple Development cert + matching dev provisioning
       # profile into a temporary keychain so Xcode's automatic signing
