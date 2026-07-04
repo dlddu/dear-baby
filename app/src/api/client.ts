@@ -11,6 +11,20 @@ import {
 // 401s triggers only one /v1/auth/refresh call.
 let refreshingPromise: Promise<string | null> | null = null;
 
+// sessionExpiredHandler bridges this non-React layer back to AuthContext.
+// When the refresh token itself is rejected (401) we clear the token pair
+// here, but this module can't move the UI. AuthContext registers a handler
+// on mount so the app can drop to the landing screen *immediately* instead
+// of stranding the user on an authenticated screen where every call 401s
+// until the next app launch.
+let sessionExpiredHandler: (() => void) | null = null;
+
+export function setSessionExpiredHandler(
+  handler: (() => void) | null,
+): void {
+  sessionExpiredHandler = handler;
+}
+
 async function refreshAccessOnce(): Promise<string | null> {
   if (refreshingPromise) return refreshingPromise;
   refreshingPromise = (async () => {
@@ -29,6 +43,9 @@ async function refreshAccessOnce(): Promise<string | null> {
       // later 401 can retry the refresh and recover the session.
       if (res.status === 401) {
         await clearTokens();
+        // Session is definitively dead — tell AuthContext to log out now so
+        // the user isn't left on a zombie authenticated screen until restart.
+        sessionExpiredHandler?.();
       }
       return null;
     }
