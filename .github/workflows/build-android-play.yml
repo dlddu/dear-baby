@@ -46,6 +46,16 @@ jobs:
       EXPO_PUBLIC_API_URL: ${{ inputs.expo-public-api-url }}
       EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
       EXPO_PUBLIC_POSTHOG_HOST: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
+      # PostHog source-map upload. The posthog-react-native/expo config
+      # plugin injects a Gradle step (com.posthog.android) at prebuild time
+      # that runs posthog-cli to upload the composed Hermes source map for
+      # the exact bundle this build ships, so JS stack traces symbolicate in
+      # Error Tracking. POSTHOG_CLI_API_KEY must be a Personal API key with
+      # `error tracking write` + `organization read` scopes. HOST is
+      # optional and defaults to https://us.posthog.com when the var is unset.
+      POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
+      POSTHOG_CLI_PROJECT_ID: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
+      POSTHOG_CLI_HOST: ${{ vars.POSTHOG_CLI_HOST }}
       # Google OAuth client IDs are inlined into the JS bundle via
       # process.env.EXPO_PUBLIC_* — they're public values, so they live
       # in GitHub Variables rather than Secrets.
@@ -77,6 +87,14 @@ jobs:
 
       - name: Setup JS
         uses: ./.github/actions/setup-js
+
+      # posthog-cli is invoked by the Gradle plugin the config plugin adds
+      # during prebuild; it must be on PATH before the Fastlane build runs.
+      # It is a standalone tool, not an app dependency, so it isn't covered
+      # by `npm ci` in setup-js.
+      - name: Setup PostHog CLI (source-map upload)
+        shell: bash
+        run: npm install -g @posthog/cli@latest
 
       - name: Setup Java
         uses: actions/setup-java@v4
