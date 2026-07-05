@@ -44,10 +44,14 @@ appId: ${APP_ID}
 - tapOn:
     id: "tester-corner-tr"
 
+# The macOS CI iOS 26 simulator is very slow (a single inputText can take
+# ~10s), and the RN <Modal> present + animation occasionally lags past the
+# old 5s window — an intermittent timeout, not a real failure (the modal does
+# appear; other runs pass in <1s). Give it generous headroom.
 - extendedWaitUntil:
     visible:
       id: "tester-login-modal"
-    timeout: 5000
+    timeout: 20000
 
 - tapOn:
     id: "tester-login-email"
@@ -65,3 +69,14 @@ appId: ${APP_ID}
 - pressKey: Enter
 - assertNotVisible:
     id: "tester-login-modal"
+# After the password is submitted, iOS 26 may raise a "Save Password?" system
+# dialog that covers the next screen and breaks the caller's onboarding
+# assert. Dismiss it defensively — `when visible` makes this a no-op when the
+# prompt doesn't appear (it is intermittent) and on Android. The password field
+# also sets textContentType="oneTimeCode" to suppress the prompt at the source;
+# this is the belt-and-suspenders backstop for runs where iOS shows it anyway.
+- runFlow:
+    when:
+      visible: "Save Password"
+    commands:
+      - tapOn: "Not Now"
