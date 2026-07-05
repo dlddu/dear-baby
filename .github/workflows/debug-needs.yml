@@ -1,0 +1,87 @@
+# TEMPORARY — hypothesis check for PR #148. Delete before merge.
+#
+# Question: in ci.yml, deploy-testflight / deploy-play-internal skip on every
+# PR even though their direct needs (prechecks-passed, changes) both succeed
+# and their `if` looks true. Hypothesis: a SKIPPED grandparent (integration /
+# backend-unit-tests), even though absorbed by prechecks-passed's
+# `!failure() && !cancelled()` gate (which then reports success), still
+# propagates a skip down to the grandchild job.
+#
+# This workflow reproduces exactly that diamond with echo-only jobs, WITHOUT
+# touching ci.yml (so the `ci` paths-filter stays false and nothing heavy is
+# triggered). It does not match any ci.yml paths-filter, so it changes no
+# existing job's behavior.
+#
+# Read: the `observe` job prints every job's final result.
+#  - downstream = skipped  -> hypothesis CONFIRMED (transitive skip through a
+#                             succeeded gate).
+#  - downstream = success  -> hypothesis REFUTED (the real deploy skip has a
+#                             different cause; investigate the `uses:` reusable
+#                             caller or the `if` next).
+name: DEBUG needs-skip (PR148)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Mirrors integration / backend-unit-tests: gets skipped.
+  ancestor-skipped:
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "this should never run"
+
+  # Mirrors e2e / app-unit / changes: runs and succeeds.
+  ancestor-ran:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ancestor-ran ok"
+
+  # Mirrors prechecks-passed: absorbs the skipped ancestor via
+  # !failure() && !cancelled(), so it runs and reports success.
+  gate:
+    needs: [ancestor-skipped, ancestor-ran]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "gate ran"
+          echo "ancestor-skipped result = ${{ needs.ancestor-skipped.result }}"
+          echo "ancestor-ran     result = ${{ needs.ancestor-ran.result }}"
+
+  # Mirrors deploy-testflight: direct need is the (successful) gate, with a
+  # plain non-status `if` that is TRUE on a PR. So run/skip here reflects only
+  # GitHub's default needs propagation, nothing else.
+  downstream:
+    needs: [gate]
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "DOWNSTREAM RAN (gate result = ${{ needs.gate.result }})"
+
+  # Closer mirror of deploy: also directly needs a succeeded ancestor, exactly
+  # like deploy needs both prechecks-passed AND changes.
+  downstream-two:
+    needs: [gate, ancestor-ran]
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "DOWNSTREAM-TWO RAN"
+
+  observe:
+    needs: [ancestor-skipped, ancestor-ran, gate, downstream, downstream-two]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "===== RESULTS ====="
+          echo "event_name       = ${{ github.event_name }}"
+          echo "ancestor-skipped = ${{ needs.ancestor-skipped.result }}"
+          echo "ancestor-ran     = ${{ needs.ancestor-ran.result }}"
+          echo "gate             = ${{ needs.gate.result }}"
+          echo "downstream       = ${{ needs.downstream.result }}"
+          echo "downstream-two   = ${{ needs.downstream-two.result }}"
+          echo "==================="
