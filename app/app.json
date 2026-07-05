@@ -56,8 +56,7 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "@react-native-google-signin/google-signin",
-      "posthog-react-native/expo"
+      "@react-native-google-signin/google-signin"
     ]
   }
 }

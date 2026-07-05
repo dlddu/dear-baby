@@ -36,7 +36,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const googleIosUrlScheme = requireEnv("GOOGLE_IOS_URL_SCHEME");
 
   const googleSigninPlugin = "@react-native-google-signin/google-signin";
-  const plugins: ExpoConfig["plugins"] = (config.plugins ?? []).map(
+  const plugins: NonNullable<ExpoConfig["plugins"]> = (
+    config.plugins ?? []
+  ).map(
     (plugin) => {
       const name = Array.isArray(plugin) ? plugin[0] : plugin;
       if (name !== googleSigninPlugin) return plugin;
@@ -47,6 +49,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ];
     },
   );
+
+  // PostHog source-map upload runs a posthog-cli subprocess during the native
+  // build (an injected Gradle step on Android, a rewritten "Bundle React
+  // Native code and images" phase on iOS). Only wire it for the release
+  // builds that install the CLI and provide POSTHOG_CLI_* credentials —
+  // build-android-play.yml / build-ios-testflight.yml set
+  // POSTHOG_UPLOAD_SOURCEMAPS=1. E2E and local builds leave it off so their
+  // prebuild/native build has no dependency on posthog-cli. Keep this in sync
+  // with the same flag gating the serializer in metro.config.js.
+  if (process.env.POSTHOG_UPLOAD_SOURCEMAPS === "1") {
+    plugins.push("posthog-react-native/expo");
+  }
 
   return {
     ...config,

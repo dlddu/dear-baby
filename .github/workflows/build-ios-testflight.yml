@@ -57,6 +57,11 @@ jobs:
       POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
       POSTHOG_CLI_PROJECT_ID: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
       POSTHOG_CLI_HOST: ${{ vars.POSTHOG_CLI_HOST }}
+      # Opt this (release) build into source-map upload. app.config.ts and
+      # metro.config.js only wire the posthog-react-native/expo plugin +
+      # debug-id serializer when this is "1", so E2E/local builds don't need
+      # posthog-cli. Deploy builds set it; nothing else does.
+      POSTHOG_UPLOAD_SOURCEMAPS: "1"
       # Google OAuth client IDs are inlined into the JS bundle via
       # process.env.EXPO_PUBLIC_* — they're public values, so they live
       # in GitHub Variables rather than Secrets.

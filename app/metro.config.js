@@ -1,18 +1,21 @@
-// Wraps Expo's default Metro config with PostHog's serializer so every JS
-// bundle gets a stable debug ID (Expo 50+ built-in debug-id injection).
+// Metro config. By default this is the stock Expo config, unchanged.
 //
-// Why this is required for error tracking: PostHog symbolicates a Hermes
-// stack trace by matching the bundle's debug ID against an uploaded source
-// map. The upload itself runs during the native build (the Gradle plugin /
-// Xcode build phase that the `posthog-react-native/expo` config plugin adds
-// at prebuild time). Without the debug ID injected here, the shipped bundle
-// and the uploaded map can't be matched and stack traces stay minified —
-// so this file and the config plugin have to ship together.
+// Only release/deploy builds opt into PostHog source-map upload: the
+// build-android-play.yml / build-ios-testflight.yml workflows set
+// POSTHOG_UPLOAD_SOURCEMAPS=1, install posthog-cli, and provide the
+// POSTHOG_CLI_* credentials. For those builds we swap in PostHog's serializer
+// (getPostHogExpoConfig, which wraps expo/metro-config's getDefaultConfig) so
+// the bundle carries a stable debug ID. PostHog matches that debug ID against
+// the map uploaded during the native build to symbolicate Hermes stack
+// traces; without it the shipped bundle and the map can't be matched.
 //
-// getPostHogExpoConfig internally calls expo/metro-config's getDefaultConfig,
-// so all Expo defaults are preserved.
-const { getPostHogExpoConfig } = require('posthog-react-native/metro');
+// Every other build (E2E, local, dev) uses the stock config and never touches
+// posthog-cli, so their native build has no dependency on it. This flag must
+// stay in lockstep with the posthog-react-native/expo plugin in app.config.ts
+// — both activate together or not at all.
+const { getDefaultConfig } = require('expo/metro-config');
 
-const config = getPostHogExpoConfig(__dirname);
-
-module.exports = config;
+module.exports =
+  process.env.POSTHOG_UPLOAD_SOURCEMAPS === '1'
+    ? require('posthog-react-native/metro').getPostHogExpoConfig(__dirname)
+    : getDefaultConfig(__dirname);
