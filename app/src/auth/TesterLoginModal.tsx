@@ -135,13 +135,6 @@ export function TesterLoginModal({ visible, onClose }: TesterLoginModalProps) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            // Suppress iOS's "Save Password?" system dialog: on iOS 26 it pops
-            // after submit and covers the next screen, breaking the E2E
-            // onboarding assert. Marking the field as a one-time-code input
-            // stops iOS from offering to save it. Harmless for real users —
-            // this tester login is reachable only via the secret gesture, and
-            // secureTextEntry still masks the input.
-            textContentType="oneTimeCode"
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="done"

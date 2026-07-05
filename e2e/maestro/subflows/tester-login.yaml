@@ -76,8 +76,9 @@ appId: ${APP_ID}
 # had not appeared yet, so it no-op'd and the dialog surfaced just afterwards.
 # tapOn with optional:true instead WAITS for the button and taps it if/when it
 # appears, and is a no-op when it never does (Android, or runs where iOS does
-# not offer to save). The password field's textContentType="oneTimeCode" also
-# tries to suppress the prompt at the source.
+# not offer to save). CI evidence: a prior run showed the dialog still appearing
+# even with the password field marked textContentType="oneTimeCode", so this
+# dismiss — not source suppression — is what reliably handles it.
 - tapOn:
     text: "Not Now"
     optional: true
