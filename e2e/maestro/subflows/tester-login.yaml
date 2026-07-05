@@ -69,14 +69,15 @@ appId: ${APP_ID}
 - pressKey: Enter
 - assertNotVisible:
     id: "tester-login-modal"
-# After the password is submitted, iOS 26 may raise a "Save Password?" system
-# dialog that covers the next screen and breaks the caller's onboarding
-# assert. Dismiss it defensively — `when visible` makes this a no-op when the
-# prompt doesn't appear (it is intermittent) and on Android. The password field
-# also sets textContentType="oneTimeCode" to suppress the prompt at the source;
-# this is the belt-and-suspenders backstop for runs where iOS shows it anyway.
-- runFlow:
-    when:
-      visible: "Save Password"
-    commands:
-      - tapOn: "Not Now"
+# After the password is submitted, iOS 26 intermittently raises a "Save
+# Password?" system dialog a beat LATER — during the transition to the next
+# screen — which then covers it and breaks the caller's onboarding assert.
+# A `runFlow when visible` check here raced: it evaluates once, and the dialog
+# had not appeared yet, so it no-op'd and the dialog surfaced just afterwards.
+# tapOn with optional:true instead WAITS for the button and taps it if/when it
+# appears, and is a no-op when it never does (Android, or runs where iOS does
+# not offer to save). The password field's textContentType="oneTimeCode" also
+# tries to suppress the prompt at the source.
+- tapOn:
+    text: "Not Now"
+    optional: true
