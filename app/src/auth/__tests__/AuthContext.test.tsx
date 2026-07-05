@@ -32,6 +32,12 @@ jest.mock('../../api/auth', () => ({
   logout: jest.fn(),
 }));
 
+// client 는 setSessionExpiredHandler 만 mock 한다 — AuthProvider 가 부트 시
+// 등록하는 강제 로그아웃 핸들러를 캡처해 직접 호출하기 위함이다.
+jest.mock('../../api/client', () => ({
+  setSessionExpiredHandler: jest.fn(),
+}));
+
 jest.mock('../../api/records', () => ({
   createTextRecord: jest.fn(),
   createVoiceRecord: jest.fn(),
@@ -43,16 +49,21 @@ jest.mock('../../api/users', () => ({
   submitOnboardingCaseC: jest.fn(),
 }));
 
-import { render, waitFor } from '@testing-library/react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 import React from 'react';
 import { Text } from 'react-native';
 
 import { me } from '../../api/auth';
+import { setSessionExpiredHandler } from '../../api/client';
 import type { User } from '../../api/types';
 import { AuthProvider, useAuth } from '../AuthContext';
 
 const mockMe = me as jest.MockedFunction<typeof me>;
+const mockSetSessionExpiredHandler =
+  setSessionExpiredHandler as jest.MockedFunction<
+    typeof setSessionExpiredHandler
+  >;
 
 const secureStoreMock = SecureStore as unknown as {
   __reset: () => void;
@@ -107,6 +118,7 @@ function seedTokens() {
 beforeEach(() => {
   secureStoreMock.__reset();
   mockMe.mockReset();
+  mockSetSessionExpiredHandler.mockClear();
 });
 
 describe('AuthProvider 부트 — 정상 경로', () => {
@@ -174,5 +186,28 @@ describe('AuthProvider 부트 — /me 실패 폴백', () => {
     await expectStatus(getByTestId, 'unauthenticated');
     expect(secureStoreMock.__has(ACCESS_KEY)).toBe(false);
     expect(secureStoreMock.__has(REFRESH_KEY)).toBe(false);
+  });
+});
+
+describe('AuthProvider — 세션 중 강제 로그아웃 (session-expired 통지)', () => {
+  it('등록된 핸들러 호출 시 authenticated → unauthenticated + 온보딩 캐시 정리', async () => {
+    seedTokens();
+    secureStoreMock.__seed(ONBOARDED_AT_KEY, '2026-05-01T00:00:00Z');
+    mockMe.mockResolvedValue(baseUser);
+
+    const { getByTestId } = renderAuth();
+    await expectStatus(getByTestId, 'authenticated');
+
+    // 실제로는 apiFetch 의 refresh 401 경로가 이 핸들러를 호출한다. 부트 시
+    // AuthProvider 가 등록한 콜백을 직접 실행해 강제 로그아웃 전이를 검증한다.
+    const handler = mockSetSessionExpiredHandler.mock.calls.at(-1)?.[0];
+    expect(typeof handler).toBe('function');
+    await act(async () => {
+      handler!();
+    });
+
+    await expectStatus(getByTestId, 'unauthenticated');
+    // signOut 과 동일하게 다음 부팅이 이전 사용자 캐시를 참조하지 않도록 정리.
+    expect(secureStoreMock.__has(ONBOARDED_AT_KEY)).toBe(false);
   });
 });

@@ -30,7 +30,7 @@ jest.mock('../../analytics/client', () => ({
 
 import * as SecureStore from 'expo-secure-store';
 
-import { apiFetch } from '../client';
+import { apiFetch, setSessionExpiredHandler } from '../client';
 
 const secureStoreMock = SecureStore as unknown as {
   __reset: () => void;
@@ -44,6 +44,10 @@ const REFRESH_KEY = 'db_refresh_token';
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
+
+// AuthContext registers this in the real app; here we capture calls so the
+// "notify the UI on session death" contract is locked alongside token cleanup.
+const mockSessionExpired = jest.fn();
 
 function response(status: number, body: unknown = {}): Response {
   return {
@@ -61,6 +65,13 @@ function seedTokens() {
 beforeEach(() => {
   secureStoreMock.__reset();
   mockFetch.mockReset();
+  mockSessionExpired.mockReset();
+  setSessionExpiredHandler(mockSessionExpired);
+});
+
+afterEach(() => {
+  // Module-level handler must not leak into other test files.
+  setSessionExpiredHandler(null);
 });
 
 describe('apiFetch — Bearer 주입', () => {
@@ -137,6 +148,8 @@ describe('apiFetch — 401 자동 갱신', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(secureStoreMock.__has(ACCESS_KEY)).toBe(false);
     expect(secureStoreMock.__has(REFRESH_KEY)).toBe(false);
+    // 세션 확정 종료 → UI 즉시 로그아웃되도록 AuthContext 에 통지한다.
+    expect(mockSessionExpired).toHaveBeenCalledTimes(1);
   });
 
   it('refresh 가 5xx 이면(일시 장애) 토큰을 보존하고 원래 401 을 반환한다', async () => {
@@ -152,5 +165,7 @@ describe('apiFetch — 401 자동 갱신', () => {
     // 다음 401 때 같은 refresh 토큰으로 재시도할 수 있어야 한다.
     expect(secureStoreMock.__get(ACCESS_KEY)).toBe('old-access');
     expect(secureStoreMock.__get(REFRESH_KEY)).toBe('old-refresh');
+    // 일시 장애는 세션 종료가 아니므로 로그아웃 통지도 하지 않는다.
+    expect(mockSessionExpired).not.toHaveBeenCalled();
   });
 });

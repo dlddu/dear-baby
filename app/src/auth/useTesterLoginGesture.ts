@@ -16,7 +16,14 @@ export const TESTER_LOGIN_GESTURE = {
   MIN_LEFT: 5,
   MAX_LEFT: 7,
   MIN_RIGHT: 10,
-  RESET_AFTER_MS: 5000,
+  // 20s rather than 5s: the CI iOS 26 simulator is pathologically slow (a
+  // single Maestro inputText can take ~10s), so the JS thread can stall long
+  // enough between corner taps that a 5s window reset the sequence mid-gesture
+  // — the tester-login modal then never opened (intermittent E2E flake where
+  // all 15 taps report COMPLETED but the modal assert times out). Widening the
+  // window keeps the anti-accidental-trigger intent (the 15-tap pattern + the
+  // seeded password are the real gate) while tolerating the slow simulator.
+  RESET_AFTER_MS: 20000,
 } as const;
 
 type Phase = 'idle' | 'left' | 'right';

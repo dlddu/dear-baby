@@ -259,12 +259,33 @@ jobs:
         working-directory: e2e
         run: |
           set -euo pipefail
+          # Per-flow retry — the CI iOS 26 simulator is pathologically slow, so
+          # individual flows occasionally lose intermittent timing races (modal
+          # present, the corner-tap gesture, or iOS's "Save Password?" system
+          # dialog popping over the next screen). These are flaky, not real
+          # regressions: a fresh re-run (each flow begins with clearKeychain +
+          # launchApp clearState) almost always passes. Retry up to 3 attempts.
           run_flow() {
-            maestro test \
-              --env APP_ID="$APP_ID" \
-              --env MAESTRO_TEST_USER_EMAIL="$MAESTRO_TEST_USER_EMAIL" \
-              --env MAESTRO_TEST_USER_PASSWORD="$MAESTRO_TEST_USER_PASSWORD" \
-              "$1"
+            local flow="$1" attempt=1 max=3
+            while true; do
+              if maestro test \
+                --env APP_ID="$APP_ID" \
+                --env MAESTRO_TEST_USER_EMAIL="$MAESTRO_TEST_USER_EMAIL" \
+                --env MAESTRO_TEST_USER_PASSWORD="$MAESTRO_TEST_USER_PASSWORD" \
+                "$flow"; then
+                return 0
+              fi
+              if [ "$attempt" -ge "$max" ]; then
+                echo "::error::maestro flow $flow failed after $max attempts"
+                return 1
+              fi
+              echo "::warning::maestro flow $flow failed (attempt $attempt/$max), retrying — slow-sim flake tolerance"
+              # Force-kill the app so a lingering system dialog (e.g. iOS's
+              # "Save Password?") from the failed attempt cannot bleed into the
+              # retry's fresh launch.
+              xcrun simctl terminate booted "$APP_ID" 2>/dev/null || true
+              attempt=$((attempt + 1))
+            done
           }
           reset_user() {
             (cd ../backend && ./reset-user "$TEST_USER_EMAIL")

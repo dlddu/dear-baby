@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 
 import { logout as apiLogout, me as apiMe } from '../api/auth';
+import { setSessionExpiredHandler } from '../api/client';
 import {
   createTextRecord as apiCreateTextRecord,
   createVoiceRecord as apiCreateVoiceRecord,
@@ -152,6 +153,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Forced sign-out bridge. apiFetch clears the token pair when the refresh
+  // token itself is rejected (401), but it lives outside React and can't move
+  // the UI. Register a handler so a mid-session session death drops the user
+  // to the landing screen right away instead of leaving them on an
+  // authenticated screen where every call 401s until the next launch. Mirrors
+  // signOut's local cleanup — tokens are already gone, and there is no server
+  // revoke to attempt (the refresh token is what just got rejected).
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      void clearOnboardingCache();
+      setUser(null);
+      setStatus('unauthenticated');
+    });
+    return () => setSessionExpiredHandler(null);
+  }, []);
+
   const setSession = useCallback(async (session: Session) => {
     await setTokens(session.accessToken, session.refreshToken);
     setUser(session.user);
@@ -225,8 +242,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     const refresh = await getRefreshToken();
     if (refresh) {
-      await apiLogout(refresh);
+      // Best-effort server revoke, fire-and-forget: local token deletion is
+      // the source of truth for sign-out, so we don't block the UI on a
+      // network round-trip. Awaiting it froze the button on slow/offline
+      // networks; apiLogout swallows its own errors so this never rejects.
+      void apiLogout(refresh);
     }
+    // Let SecureStore failures propagate so the caller (settings screen) can
+    // surface an error and leave the session intact. Flipping to
+    // 'unauthenticated' while the tokens survive on disk would silently
+    // auto-log-in again on the next launch — better to fail loudly and retry.
     await clearTokens();
     await clearOnboardingCache();
     setUser(null);

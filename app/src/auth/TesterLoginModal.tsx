@@ -71,7 +71,12 @@ export function TesterLoginModal({ visible, onClose }: TesterLoginModalProps) {
   return (
     <Modal
       visible={visible}
-      animationType="fade"
+      // animationType="none" (was "fade"): on the very slow CI iOS 26
+      // simulator the fade delayed the modal becoming "visible" to Maestro
+      // past its wait window (an intermittent E2E timeout). An instant present
+      // is more deterministic, and the fade has no product value on this
+      // gesture-gated tester-only surface.
+      animationType="none"
       transparent
       onRequestClose={close}
     >
