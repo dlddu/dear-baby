@@ -45,7 +45,6 @@ jobs:
     env:
       EXPO_PUBLIC_API_URL: ${{ inputs.expo-public-api-url }}
       EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
-      EXPO_PUBLIC_POSTHOG_HOST: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
       # Google OAuth client IDs are inlined into the JS bundle via
       # process.env.EXPO_PUBLIC_* — they're public values, so they live
       # in GitHub Variables rather than Secrets.

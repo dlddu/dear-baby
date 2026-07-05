@@ -88,20 +88,18 @@ jobs:
             --from-literal=OPENROUTER_MODEL=openrouter-mock
 
       # Worker's envFrom references langfuse-secret as optional: true, so
-      # it's safe to skip this when keys aren't configured. Default base
-      # URL is US (our account region); override by setting the
-      # LANGFUSE_BASE_URL GitHub secret.
+      # it's safe to skip this when keys aren't configured. Base URL is
+      # hardcoded to US (our account region).
       - name: Create Langfuse secret
         if: steps.has_langfuse_keys.outputs.value == 'true'
         env:
           LF_PUB: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LF_SEC: ${{ secrets.LANGFUSE_SECRET_KEY }}
-          LF_BASE: ${{ secrets.LANGFUSE_BASE_URL }}
         run: |
           kubectl create secret generic langfuse-secret \
             --from-literal=LANGFUSE_PUBLIC_KEY="$LF_PUB" \
             --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC" \
-            --from-literal=LANGFUSE_BASE_URL="${LF_BASE:-https://us.cloud.langfuse.com}"
+            --from-literal=LANGFUSE_BASE_URL="https://us.cloud.langfuse.com"
 
       # Stand up the mock OpenRouter server in-cluster. The worker's
       # OPENROUTER_BASE_URL env (set below) points its OpenAI client at

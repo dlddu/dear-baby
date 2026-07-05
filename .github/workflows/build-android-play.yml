@@ -45,7 +45,6 @@ jobs:
     env:
       EXPO_PUBLIC_API_URL: ${{ inputs.expo-public-api-url }}
       EXPO_PUBLIC_POSTHOG_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_KEY }}
-      EXPO_PUBLIC_POSTHOG_HOST: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
       # Google OAuth client IDs are inlined into the JS bundle via
       # process.env.EXPO_PUBLIC_* — they're public values, so they live
       # in GitHub Variables rather than Secrets.
@@ -64,7 +63,6 @@ jobs:
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      PLAY_STORE_JSON_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
       PLAY_STORE_JSON_KEY_BASE64: ${{ secrets.PLAY_STORE_JSON_KEY_BASE64 }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
       GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
