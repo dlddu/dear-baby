@@ -51,11 +51,12 @@ jobs:
       # that runs posthog-cli to upload the composed Hermes source map for
       # the exact bundle this build ships, so JS stack traces symbolicate in
       # Error Tracking. POSTHOG_CLI_API_KEY must be a Personal API key with
-      # `error tracking write` + `organization read` scopes. HOST is
-      # optional and defaults to https://us.posthog.com when the var is unset.
+      # `error tracking write` + `organization read` scopes. Host defaults to
+      # https://us.posthog.com; EU/self-host must add a POSTHOG_CLI_HOST env
+      # here with a full URL — an empty value makes posthog-cli fail with
+      # "Invalid Host", so we omit it rather than pass an undefined var.
       POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
       POSTHOG_CLI_PROJECT_ID: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
-      POSTHOG_CLI_HOST: ${{ vars.POSTHOG_CLI_HOST }}
       # Opt this (release) build into source-map upload. app.config.ts and
       # metro.config.js only wire the posthog-react-native/expo plugin +
       # debug-id serializer when this is "1", so E2E/local builds don't need
