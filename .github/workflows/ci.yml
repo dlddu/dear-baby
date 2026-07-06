@@ -158,7 +158,14 @@ jobs:
   build-image:
     name: Build & Push Backend Image
     needs: [prechecks-passed, changes]
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true'
+    # Same transitive-skip fix as the deploy jobs (PR #148): !cancelled()
+    # disables GitHub's implicit auto-skip that otherwise propagates from
+    # prechecks-passed's skipped upstreams, so a backend-only change (where
+    # app-related prechecks are skipped) still builds and pushes the image.
+    if: >-
+      !cancelled() &&
+      needs.prechecks-passed.result == 'success' &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/backend-image.yml
     permissions:
       contents: read
@@ -168,7 +175,11 @@ jobs:
   build-worker-image:
     name: Build & Push Worker Image
     needs: [prechecks-passed, changes]
-    if: needs.changes.outputs.worker == 'true' || needs.changes.outputs.ci == 'true'
+    # Same transitive-skip fix as the deploy jobs (PR #148).
+    if: >-
+      !cancelled() &&
+      needs.prechecks-passed.result == 'success' &&
+      (needs.changes.outputs.worker == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/worker-image.yml
     permissions:
       contents: read
@@ -178,7 +189,16 @@ jobs:
   deploy-testflight:
     name: Deploy iOS to TestFlight
     needs: [prechecks-passed, changes]
+    # !cancelled() makes this if contain a status function, which disables
+    # GitHub's implicit auto-skip. Without it, a skip propagates transitively
+    # from prechecks-passed's skipped upstreams (integration / backend-unit-
+    # tests) down to this job even though prechecks-passed itself succeeds —
+    # verified in PR #148, which is why this deploy never ran on PRs.
+    # prechecks-passed.result == 'success' then re-applies the original gate:
+    # only deploy when the prechecks actually passed.
     if: >-
+      !cancelled() &&
+      needs.prechecks-passed.result == 'success' &&
       github.event_name == 'pull_request' &&
       (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/build-ios-testflight.yml
@@ -191,7 +211,10 @@ jobs:
   deploy-play-internal:
     name: Deploy Android to Play Store (Internal)
     needs: [prechecks-passed, changes]
+    # Same transitive-skip fix as deploy-testflight above (see PR #148).
     if: >-
+      !cancelled() &&
+      needs.prechecks-passed.result == 'success' &&
       github.event_name == 'pull_request' &&
       (needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/build-android-play.yml
