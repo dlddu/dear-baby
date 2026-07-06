@@ -158,7 +158,14 @@ jobs:
   build-image:
     name: Build & Push Backend Image
     needs: [prechecks-passed, changes]
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true'
+    # Same transitive-skip fix as the deploy jobs (PR #148): !cancelled()
+    # disables GitHub's implicit auto-skip that otherwise propagates from
+    # prechecks-passed's skipped upstreams, so a backend-only change (where
+    # app-related prechecks are skipped) still builds and pushes the image.
+    if: >-
+      !cancelled() &&
+      needs.prechecks-passed.result == 'success' &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/backend-image.yml
     permissions:
       contents: read
@@ -168,7 +175,11 @@ jobs:
   build-worker-image:
     name: Build & Push Worker Image
     needs: [prechecks-passed, changes]
-    if: needs.changes.outputs.worker == 'true' || needs.changes.outputs.ci == 'true'
+    # Same transitive-skip fix as the deploy jobs (PR #148).
+    if: >-
+      !cancelled() &&
+      needs.prechecks-passed.result == 'success' &&
+      (needs.changes.outputs.worker == 'true' || needs.changes.outputs.ci == 'true')
     uses: ./.github/workflows/worker-image.yml
     permissions:
       contents: read
