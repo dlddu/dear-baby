@@ -59,7 +59,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // prebuild/native build has no dependency on posthog-cli. Keep this in sync
   // with the same flag gating the serializer in metro.config.js.
   if (process.env.POSTHOG_UPLOAD_SOURCEMAPS === "1") {
-    plugins.push("posthog-react-native/expo");
+    // skipOnConflict adds --skip-on-conflict to the Hermes source-map upload so
+    // re-uploading maps with an already-seen debug id is skipped instead of
+    // failing the build. Requires posthog-react-native >= 4.49.1.
+    const posthogPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
+      "posthog-react-native/expo",
+      { skipOnConflict: true },
+    ];
+    plugins.push(posthogPlugin);
   }
 
   return {
