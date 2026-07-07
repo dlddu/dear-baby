@@ -127,6 +127,29 @@ func TestPasswordLogin_WrongPasswordReturns401(t *testing.T) {
 	}
 }
 
+// TestPasswordLogin_DatastoreFailureReturns500 locks in the fix for the
+// incident where a corrupt SQLite file ("insert refresh: database disk
+// image is malformed") reached clients as a 401. The password verifies
+// in-memory here, so the request clears the auth boundary; the datastore
+// is then unavailable, which is a server fault and must be 500 — never a
+// masked credential rejection.
+func TestPasswordLogin_DatastoreFailureReturns500(t *testing.T) {
+	h, db, cleanup := newTestHandlers(t)
+	defer cleanup()
+	const email, pwd = "tester@dear-baby.app", "correct-password"
+	configureTestUser(t, h, db, email, pwd)
+
+	// Break the datastore after the user is seeded and creds are wired
+	// up, so the request passes password verification and only fails on
+	// the first DB access inside sign-in.
+	db.Close()
+
+	rec := postPasswordLogin(t, h, `{"email":"`+email+`","password":"`+pwd+`"}`)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status: got %d want 500, resp=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestPasswordLogin_Success(t *testing.T) {
 	h, db, cleanup := newTestHandlers(t)
 	defer cleanup()

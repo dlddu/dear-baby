@@ -9,6 +9,19 @@ import (
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
 
+// ErrGoogleTokenInvalid and ErrAppleCodeInvalid mark genuine credential
+// failures at the OAuth verification boundary. They let the HTTP layer
+// answer 401 for a bad token/code while still returning 500 for
+// infrastructure failures (DB writes, token signing, profile loads) that
+// happen *after* verification succeeds. Without this split a broken
+// dependency looks identical to a rejected credential — e.g. a corrupt
+// SQLite file surfaced "insert refresh: database disk image is malformed"
+// to clients as a 401 "invalid google token".
+var (
+	ErrGoogleTokenInvalid = errors.New("invalid google token")
+	ErrAppleCodeInvalid   = errors.New("invalid apple code")
+)
+
 // AppleCodeVerifier is the contract Service relies on for Apple sign-in.
 // The production implementation is *AppleVerifier, which exchanges the
 // authorization code with Apple's token endpoint. Tests can substitute
@@ -49,7 +62,7 @@ type SessionResult struct {
 func (s *Service) SignInWithGoogle(ctx context.Context, idToken string) (*SessionResult, error) {
 	claims, err := s.Verifier.Verify(ctx, idToken)
 	if err != nil {
-		return nil, fmt.Errorf("verify: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrGoogleTokenInvalid, err)
 	}
 	u, err := s.Users.UpsertByOAuth(ctx, s.Onboarding, "google", claims.Sub, claims.Email, claims.Name, claims.Picture)
 	if err != nil {
@@ -84,7 +97,7 @@ func (s *Service) SignInWithApple(ctx context.Context, in AppleSignInInput) (*Se
 	}
 	claims, err := s.AppleVerifier.Verify(ctx, in.Code)
 	if err != nil {
-		return nil, fmt.Errorf("apple verify: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrAppleCodeInvalid, err)
 	}
 
 	email := claims.Email
@@ -146,13 +159,16 @@ func (s *Service) RefreshSession(ctx context.Context, refreshToken string) (*Ses
 	if err != nil {
 		return nil, err
 	}
-	// Defense in depth: also verify the JWT signature and claim type.
+	// Defense in depth: also verify the JWT signature and claim type. A
+	// token that was found in the store but fails signature/type checks is
+	// still an invalid refresh token (401), not a server fault — tag it so
+	// the HTTP layer classifies it alongside the store's own rejections.
 	claims, err := s.Issuer.Parse(refreshToken)
 	if err != nil {
-		return nil, fmt.Errorf("parse refresh: %w", err)
+		return nil, fmt.Errorf("%w: parse: %w", ErrRefreshInvalid, err)
 	}
 	if err := ExpectType(claims, TypeRefresh); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrRefreshInvalid, err)
 	}
 	if claims.UserID != userID {
 		return nil, ErrRefreshInvalid
