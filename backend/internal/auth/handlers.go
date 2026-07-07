@@ -42,6 +42,30 @@ type sessionResponse struct {
 	User         *users.Profile `json:"user"`
 }
 
+// writeAuthError translates a sign-in / refresh error into an HTTP
+// response. Genuine credential failures — a bad Google token or Apple
+// code, a wrong password, an invalid or expired refresh token — become
+// 401 with the caller-supplied message. Everything else is an
+// infrastructure failure (a DB error, a token-signing outage) and must
+// surface as 500 so a broken dependency is never disguised as an auth
+// rejection. This is the fix for the incident where a corrupt SQLite
+// file made "insert refresh: database disk image is malformed" reach the
+// client as a 401 "invalid google token", sending debugging down the
+// wrong path.
+func writeAuthError(w http.ResponseWriter, err error, logMsg, unauthorizedMsg string) {
+	switch {
+	case errors.Is(err, ErrGoogleTokenInvalid),
+		errors.Is(err, ErrAppleCodeInvalid),
+		errors.Is(err, ErrPasswordInvalid),
+		errors.Is(err, ErrRefreshInvalid):
+		slog.Warn(logMsg, "error", err)
+		httpx.WriteError(w, http.StatusUnauthorized, unauthorizedMsg)
+	default:
+		slog.Error(logMsg, "error", err)
+		httpx.WriteError(w, http.StatusInternalServerError, "internal error")
+	}
+}
+
 // Google handles POST /auth/google.
 func (h *Handlers) Google(w http.ResponseWriter, r *http.Request) {
 	if err := h.Cfg.RequireAuthEnv(); err != nil {
@@ -55,8 +79,7 @@ func (h *Handlers) Google(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.Service.SignInWithGoogle(r.Context(), req.IDToken)
 	if err != nil {
-		slog.Warn("google sign-in failed", "error", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "invalid google token")
+		writeAuthError(w, err, "google sign-in failed", "invalid google token")
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, sessionResponse{
@@ -86,8 +109,7 @@ func (h *Handlers) Apple(w http.ResponseWriter, r *http.Request) {
 		FamilyName: req.FamilyName,
 	})
 	if err != nil {
-		slog.Warn("apple sign-in failed", "error", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "invalid apple code")
+		writeAuthError(w, err, "apple sign-in failed", "invalid apple code")
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, sessionResponse{
@@ -110,11 +132,7 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.Service.RefreshSession(r.Context(), req.RefreshToken)
 	if err != nil {
-		if errors.Is(err, ErrRefreshInvalid) {
-			httpx.WriteError(w, http.StatusUnauthorized, "invalid refresh token")
-			return
-		}
-		httpx.WriteError(w, http.StatusUnauthorized, "refresh failed")
+		writeAuthError(w, err, "refresh failed", "invalid refresh token")
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, sessionResponse{
@@ -148,10 +166,10 @@ func (h *Handlers) PasswordLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	result, err := h.Service.SignInWithPassword(ctx, req.Email, req.Password)
 	if err != nil {
-		// Single error code for "user not found" and "wrong password"
-		// so the endpoint cannot be used to enumerate accounts.
-		slog.Warn("password sign-in failed", "error", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "invalid credentials")
+		// Single 401 code for "user not found" and "wrong password" so
+		// the endpoint cannot be used to enumerate accounts; a DB or
+		// signing failure still surfaces as 500 via writeAuthError.
+		writeAuthError(w, err, "password sign-in failed", "invalid credentials")
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, sessionResponse{

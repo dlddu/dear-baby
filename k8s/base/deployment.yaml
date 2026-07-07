@@ -4,6 +4,14 @@ metadata:
   name: dear-baby
 spec:
   replicas: 1
+  # SQLite is a single-writer store living on a ReadWriteOnce PVC. The
+  # default RollingUpdate briefly runs the old and new pods at once; when
+  # they land on the same node both can mount the RWO volume and write the
+  # same .db file, which corrupts it ("database disk image is malformed").
+  # Recreate terminates the old pod before starting the new one, so there
+  # is only ever one writer across a rollout.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: dear-baby
