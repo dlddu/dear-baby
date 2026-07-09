@@ -30,3 +30,29 @@ BackLink 컴포넌트는 우리 핸들러를 거치지만, iOS 스와이프 백�
 ### 참고 커밋
 - `6e835ca` Case B 양육 b2-purpose 가 context 구독이라 iOS 스와이프 백 시
   잘못된 인덱스로 표시되던 버그 — 페어 양쪽을 params 기반으로 통일.
+
+---
+
+## 그룹 없는 `/` 로 이동하지 않는다
+
+expo-router 는 그룹 세그먼트를 라우팅 패턴에서 **선택적**으로 컴파일한다
+(`routePatternToRegex`: `(tabs)` → `(tabs)?`). 따라서 `(landing)/index.tsx` 와
+`(tabs)/index.tsx` 는 **둘 다 `/` 에 매칭된다.**
+
+둘 중 누가 이기는지는 `getRouteConfigSorter` 가 정하는데, 두 라우트의
+`type`·`isIndex`·`staticPartCount` 가 모두 같으면 (그룹 세그먼트는
+`staticPartCount` 에서 제외된다) 마지막 타이브레이커는 **"현재 서 있는 라우트의
+그룹과의 유사도"** 다. 즉 맨 `/` 의 해석은 문맥 의존적이다.
+
+### 규칙
+- 공유 URL 로 이동할 때는 **항상 그룹을 명시한다**: `/(landing)`, `/(tabs)`.
+  `router.replace('/')` 는 `(tabs)` 안에서 호출되면 `(tabs)/index` 로 되돌아와
+  AuthGate 무한 루프가 된다.
+- URL 을 공유하는 라우트는 **전부 그룹 안에 둔다.** 그룹 밖 라우트는 그룹
+  접두사로 지목할 방법이 없어 영구히 가려진다.
+- `_layout` 이 없는 디렉토리·그룹의 라우트는 가장 가까운 `_layout` 으로
+  호이스팅되고, `<Stack.Screen name>` 은 그 `_layout` 기준 상대 경로다
+  (`(landing)/index`, `diary/[id]` — `(landing)` 이나 `diary` 가 아니다).
+- 위 세 가지는 `npm run check:routes` (`app/scripts/check-routes.mjs`) 가
+  CI 에서 강제한다. `typedRoutes` 는 `/` 를 유효한 Href 로 보므로 이 모호성을
+  잡지 못한다.

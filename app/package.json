@@ -8,6 +8,7 @@
     "ios": "expo run:ios",
     "prebuild": "expo prebuild",
     "tsc": "tsc --noEmit",
+    "check:routes": "node scripts/check-routes.mjs app app src",
     "test": "jest",
     "test:watch": "jest --watch"
   },
