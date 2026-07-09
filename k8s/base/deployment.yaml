@@ -30,8 +30,12 @@ spec:
           env:
             - name: PORT
               value: "8080"
+            # journal_mode is DELETE, not WAL: /data is an EFS volume and WAL needs a
+            # -shm mapping shared by every process holding the file open, which a
+            # network filesystem does not guarantee. replicas=1 + Recreate below
+            # keeps this a single-writer database, as the rollback journal assumes.
             - name: DATABASE_URL
-              value: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"
+              value: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(delete)"
             # In-cluster Redis is ClusterIP-only with no auth, so the URL
             # carries no secret material — keep it as plain config.
             - name: REDIS_URL
