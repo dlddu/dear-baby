@@ -10,24 +10,24 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import { Text } from '../src/components/Text';
+import { Text } from '../../src/components/Text';
 import {
   exchangeAppleAuthCode,
   exchangeGoogleIdToken,
-} from '../src/api/auth';
-import { useAuth } from '../src/auth/AuthContext';
-import { TesterLoginModal } from '../src/auth/TesterLoginModal';
-import { useTesterLoginGesture } from '../src/auth/useTesterLoginGesture';
+} from '../../src/api/auth';
+import { useAuth } from '../../src/auth/AuthContext';
+import { TesterLoginModal } from '../../src/auth/TesterLoginModal';
+import { useTesterLoginGesture } from '../../src/auth/useTesterLoginGesture';
 import {
   API_URL,
   GOOGLE_IOS_CLIENT_ID,
   GOOGLE_WEB_CLIENT_ID,
-} from '../src/config/env';
-import { colors } from '../src/theme/colors';
-import { fontFamilies } from '../src/theme/fonts';
-import { radius } from '../src/theme/radius';
-import { shadows } from '../src/theme/shadows';
-import { spacing } from '../src/theme/spacing';
+} from '../../src/config/env';
+import { colors } from '../../src/theme/colors';
+import { fontFamilies } from '../../src/theme/fonts';
+import { radius } from '../../src/theme/radius';
+import { shadows } from '../../src/theme/shadows';
+import { spacing } from '../../src/theme/spacing';
 
 // @react-native-google-signin/google-signin uses the web OAuth client ID as
 // the audience for the ID token (so the backend can verify it against a

@@ -59,7 +59,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       status === 'unauthenticated' &&
       (inTabs || inOnboarding || inAuthedModal)
     ) {
-      router.replace('/');
+      // `/` 는 (landing)/index 와 (tabs)/index 양쪽에 매칭되는 모호한 URL 이고,
+      // expo-router 의 우선순위 타이브레이커는 "현재 서 있는 라우트의 그룹과의
+      // 유사도" 다. 즉 (tabs) 안에서 로그아웃하면 맨 `/` 는 (tabs)/index 로
+      // 되돌아가 무한 루프가 된다. 그룹을 명시해야 한다.
+      router.replace('/(landing)');
     }
   }, [status, segments, router]);
 
@@ -95,7 +99,9 @@ export default function RootLayout() {
                   contentStyle: { backgroundColor: colors.bg.cream },
                 }}
               >
-                <Stack.Screen name="index" />
+                {/* (landing) 은 _layout 이 없는 그룹이라 이 Stack 으로 호이스팅
+                    된다. 스크린 이름은 가장 가까운 _layout 기준 상대 경로다. */}
+                <Stack.Screen name="(landing)/index" />
                 <Stack.Screen name="(onboarding)" />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen

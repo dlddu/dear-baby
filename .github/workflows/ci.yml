@@ -111,6 +111,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: ./.github/actions/setup-js
+      # 의존성이 없어 setup-js 이전에도 돌지만, app 잡 안에 두어 changes 게이트를
+      # 재사용한다. Jest 보다 훨씬 빨라 먼저 실패시키는 편이 피드백이 빠르다.
+      - name: Check route conflicts
+        working-directory: app
+        run: npm run check:routes
       - name: Run Jest
         working-directory: app
         run: npm test -- --ci --colors=false
