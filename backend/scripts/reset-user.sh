@@ -27,7 +27,7 @@ if ! nsenter --version >/dev/null 2>&1; then
 fi
 
 DATABASE_URL=$(tr '\0' '\n' </proc/1/environ | sed -n 's/^DATABASE_URL=//p')
-: "${DATABASE_URL:=file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)}"
+: "${DATABASE_URL:=file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(delete)}"
 export DATABASE_URL
 
 exec nsenter -t 1 -a -- /reset-user "$1"

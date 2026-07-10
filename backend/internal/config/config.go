@@ -90,7 +90,7 @@ type AWSConfig struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Port:        getenv("PORT", "8080"),
-		DatabaseURL: getenv("DATABASE_URL", "file:./dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)"),
+		DatabaseURL: getenv("DATABASE_URL", "file:./dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(delete)"),
 	}
 
 	secret := os.Getenv("JWT_SECRET")

@@ -23,7 +23,7 @@ rm -f dear-baby.db dear-baby.db-*
 | Variable | Default | Notes |
 |---|---|---|
 | `PORT` | `8080` | HTTP listen port. |
-| `DATABASE_URL` | `file:./dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)` | SQLite DSN accepted by `modernc.org/sqlite`. |
+| `DATABASE_URL` | `file:./dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(delete)` | SQLite DSN accepted by `modernc.org/sqlite`. |
 | `JWT_SECRET` | dev placeholder | HMAC secret for signing access/refresh JWTs. **Set this in any non-dev environment.** |
 | `JWT_ACCESS_TTL` | `15m` | Access token lifetime (`time.ParseDuration` format). |
 | `JWT_REFRESH_TTL` | `720h` | Refresh token lifetime (30 days). |
