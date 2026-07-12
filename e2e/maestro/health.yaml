@@ -1,5 +1,12 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: 없음 — 예외 (배포 스모크).
+#
+# 이 flow 는 제품 AC 도, 엔지니어링 노트도 검증하지 않는다. 앱이 부팅되고
+# 백엔드에 도달 가능한지만 확인하는 배포 파이프라인 스모크 테스트이며,
+# 따라서 매핑 누락이 아니라 의도된 예외다.
+# 근거·예외 목록: docs/doc-tracker.md § "e2e flow 매핑".
+
 - launchApp:
     clearState: true
 # If a system "isn't responding" dialog covers the app (Pixel Launcher

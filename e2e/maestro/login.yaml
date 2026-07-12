@@ -1,5 +1,13 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: docs/engineering/client-login-process.md (ENG-003)
+#
+# 인증은 제품 PRD/AC 계층이 아니라 엔지니어링 노트로 관리한다. 이 flow 는
+# 그 노트가 기술한 "테스터 로그인 게이트 + 세션 수립 후 온보딩 분기" 동작을
+# 검증한다 (ENG-003 §3.3, §4, §9). OAuth 경로(Apple/Google)는 외부 계정
+# 의존으로 E2E 자동화 대상이 아니며, 테스터 로그인이 세션 수립 이후의 공통
+# 경로를 대신 커버한다. 매핑 근거: docs/doc-tracker.md § "e2e flow 매핑".
+#
 # Verifies the password sign-in path that backs Apple beta review and
 # the rest of the Maestro suite. The flow drives the secret tap pattern
 # (top-left 5–7 times, then top-right 10+ times) that gates the
