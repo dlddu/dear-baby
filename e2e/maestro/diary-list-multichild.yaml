@@ -1,6 +1,7 @@
 appId: ${APP_ID}
 ---
-# Diary list — multi-child integrated view (PRD-008 AC-008-01·02·03·10).
+# 검증 대상: AC-008-01 (모든 아이의 기록 통합 표시).
+# Diary list — multi-child integrated view.  (월 그룹 008-02·카드 칩 008-03·헤더+네비 008-10 은 후속 전용 flow 대상.)
 #
 # Setup: seed_diary has installed a fixture user with 1 fetus (콩이) + 1
 # child (하준) + 5 records spanning two months. The diary tab integrates

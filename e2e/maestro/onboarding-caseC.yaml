@@ -1,5 +1,6 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: AC-006-04 (Case C 입력 흐름 — 순수 양육자).
 # Onboarding Case C — 양육자(임신 X · 양육 O) full flow.
 #
 # Verifies the Case C entry flow (Q1 → Q2 → C1 → C2 → C3) and the

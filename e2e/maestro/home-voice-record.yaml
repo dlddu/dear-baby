@@ -2,7 +2,8 @@ appId: ${APP_ID}
 ---
 # Home voice record E2E — 홈 1인칭 카드의 🎙️ CTA 에서 시작하는 두 가지 종결 경로.
 #
-# verifies: PRD-007 AC-007-06 (음성 CTA → 녹음 → 리뷰 → 저장/업로드 회로).
+# 검증 대상: AC-001-01 (음성 녹음 시작 및 종료 — 홈 🎙️ CTA → 녹음 → 리뷰 → 저장/업로드 회로).
+#           (홈 카드에서의 모달 진입 자체는 AC-007-06=home-record-modal-entry 소관.)
 #
 #   A. 저장만             — transcript on server, audio in local archive
 #   B. 저장 후 업로드      — transcript on server, audio uploaded (or fixture)
