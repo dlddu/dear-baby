@@ -1,11 +1,16 @@
 appId: ${APP_ID}
 ---
-# 검증 대상: AC-007-06 (오늘의 질문 카드 — 음성/텍스트 기록 진입).  [단독 소유]
-# 홈 1인칭 카드 → 음성/텍스트 기록 모달 진입.
+# Home record CTAs e2e — voice·text CTA → 기록 화면 진입/취소 회로.
 #
-# TC-007-06-A (음성 CTA → record-audio), TC-007-06-B (텍스트 CTA → record-text)
-# 를 한 flow 로 묶어 확인한다. 모달 진입 후 취소로 빠져 나와 다시 홈에 돌아오는
-# 라운드트립이 가능해야 한다.
+# 검증 대상: AC-007-06 (오늘의 질문 카드 — 음성/텍스트 기록 진입).  [단독 소유]
+#           (헤더 AC-007-01·03, 카드 표시 AC-007-04 는 각 전용 flow 소관 — 여기선 부수 경유.)
+#
+# 셋업으로 Case A 온보딩(예정일 선택 경로)을 거쳐 홈에 도착한 뒤 CTA
+# 동작만 검증한다. 예정일 미정 경로의 컨텍스트 라벨 부재 검증은
+# home-question-card-undecided.yaml 가 책임진다.
+#
+# CI must reset the seeded test user's onboarding state before running
+# this flow.
 
 - clearKeychain
 - launchApp:
@@ -19,15 +24,19 @@ appId: ${APP_ID}
 - runFlow:
     file: subflows/tester-login.yaml
 
-# 가장 짧은 경로 — Case A 예정일 선택 후 홈 도착.
+# Q1·Q2 (Case A: 임신 O · 양육 X) → a1
 - runFlow:
     file: subflows/onboarding-q1-q2-caseA.yaml
+
+# a1 → a2 → a3 → 홈 (예정일 선택 경로)
 - runFlow:
     file: subflows/onboarding-caseA-full.yaml
 
-# 홈 도착 — 카드와 CTA 두 개가 모두 보여야 한다.
+# 홈 진입 — PRD-007 AC-007-01·03 헤더 + AC-007-04·06 1인칭 카드 + CTA.
 - assertVisible:
-    id: "home-tab"
+    id: "home-header"
+- assertVisible:
+    id: "home-header-bell"
 - assertVisible:
     id: "home-question-card"
 - assertVisible:
@@ -35,7 +44,7 @@ appId: ${APP_ID}
 - assertVisible:
     id: "home-text-cta"
 
-# TC-007-06-A — 음성 CTA → record-audio 모달
+# Voice CTA opens the recorder; back out without recording.
 - tapOn:
     id: "home-voice-cta"
 - assertVisible:
@@ -45,7 +54,7 @@ appId: ${APP_ID}
 - assertVisible:
     id: "home-tab"
 
-# TC-007-06-B — 텍스트 CTA → record-text 모달
+# Text CTA opens the text-record modal; cancel to return.
 - tapOn:
     id: "home-text-cta"
 - assertVisible:
