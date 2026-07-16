@@ -45,6 +45,7 @@
 - [PRD-006: 케이스 분기 온보딩 및 아이 컨텍스트 관리](prd/PRD-006-onboarding-cases.md)
 - [PRD-007: 홈 화면 구성](prd/PRD-007-home-screen.md)
 - [PRD-008: 일기 탭 — 내 기록 조회 및 관리](prd/PRD-008-diary-tab.md)
+- [PRD-009: 커뮤니티 탭 — 공개 기록 기반 공감 커뮤니티](prd/PRD-009-community-tab.md) ⚠️ draft
 
 ### 플로우
 - [Onboarding Flow — 케이스 분기 온보딩 전체 흐름도](flows/onboarding-flow.md)
