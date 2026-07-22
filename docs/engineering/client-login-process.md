@@ -3,7 +3,7 @@ doc_id: ENG-003
 doc_type: engineering-note
 product: dear_baby
 created: 2026-07-03
-updated: 2026-07-09
+updated: 2026-07-22
 verified_by:
   - e2e/maestro/login.yaml
   - e2e/maestro/subflows/tester-login.yaml
@@ -34,7 +34,7 @@ verified_by:
 
 | 역할 | 파일 |
 |---|---|
-| 랜딩(로그인) 화면 | `app/app/index.tsx` |
+| 랜딩(로그인) 화면 | `app/app/(landing)/index.tsx` |
 | 인증 상태 머신·세션 수립 | `app/src/auth/AuthContext.tsx` |
 | 토큰 저장소 (SecureStore) | `app/src/auth/tokens.ts` |
 | 온보딩 완료 캐시 (오프라인 폴백) | `app/src/auth/onboardingCache.ts` |
@@ -101,7 +101,7 @@ sequenceDiagram
 - `/me` 실패 시의 캐시 폴백은 "비행기 모드·백엔드 순단에서 온보딩 완료 사용자를 온보딩 깔때기로 되돌리지 않기 위한" 장치다. 백엔드가 진실의 원천이고 캐시는 힌트일 뿐이다 (`app/src/auth/onboardingCache.ts` 상단 주석).
 - 폴백 전에 **토큰이 아직 남아 있는지 먼저 확인**한다. `/me` 처리 중 refresh 토큰이 401(만료·회수)로 판정되면 `apiFetch` 가 토큰 쌍을 이미 지웠으므로, 이는 일시 장애가 아니라 **세션의 확정 종료**다 — 캐시와 무관하게 랜딩으로 보내 재로그인시킨다 (§5 "장기 미접속 복귀").
 
-### 랜딩 화면 구성 (`app/app/index.tsx`)
+### 랜딩 화면 구성 (`app/app/(landing)/index.tsx`)
 
 - 히어로(Dear/Baby 로고 + 태그라인) → 로그인 버튼 영역 → "계속하시면 이용약관과 개인정보 처리방침에 동의합니다" 푸터 순서.
 - 버튼 노출 조건:
@@ -116,7 +116,7 @@ sequenceDiagram
 
 ### 3.1 Apple 로그인 (iOS 전용)
 
-파일: `app/app/index.tsx` (`AppleSignInButton`), `app/src/api/auth.ts` (`exchangeAppleAuthCode`)
+파일: `app/app/(landing)/index.tsx` (`AppleSignInButton`), `app/src/api/auth.ts` (`exchangeAppleAuthCode`)
 
 1. `AppleAuthentication.signInAsync({ requestedScopes: [FULL_NAME, EMAIL] })` 로 네이티브 시트를 띄운다.
 2. 반환된 `credential.authorizationCode` 가 없으면 `console.error` 후 중단.
@@ -132,7 +132,7 @@ sequenceDiagram
 
 ### 3.2 Google 로그인 (iOS·Android)
 
-파일: `app/app/index.tsx` (`GoogleSignInButton`), `app/src/api/auth.ts` (`exchangeGoogleIdToken`)
+파일: `app/app/(landing)/index.tsx` (`GoogleSignInButton`), `app/src/api/auth.ts` (`exchangeGoogleIdToken`)
 
 1. 모듈 로드 시점에 `GoogleSignin.configure({ webClientId, iosClientId? })` 가 1회 실행된다.
    - **웹 클라이언트 ID 가 ID 토큰의 audience** 가 된다 — 백엔드가 단일 audience 로 검증하기 위함.
