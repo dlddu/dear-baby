@@ -1,6 +1,7 @@
 appId: ${APP_ID}
 ---
-# Diary list — empty state (PRD-008 AC-008-09 + AC-008-10).
+# 검증 대상: AC-008-09 (빈 상태 처리).
+# Diary list — empty state.  (헤더+네비 008-10 은 후속 전용 flow 대상 — 여기선 탭 이동 경유만.)
 #
 # Setup: reset_user → tester-login → Case A onboarding → home. The user has
 # completed onboarding (one fetus) but written zero records, so the diary
