@@ -1,0 +1,47 @@
+appId: ${APP_ID}
+---
+# 검증 대상: AC-007-01 (헤더 — 활성 아이 컨텍스트 표시).  [TC-007-01-A/B]
+#
+# 단일 아이(Case A: 임신 O · 첫 아이) 사용자로 홈에 도착한 뒤, 헤더 중앙에
+# 활성 아이 이름이 노출되고, 프로필 이름 아래 컨텍스트 라벨이 임산부 모드
+# 포맷(`NN주차` 또는 `D-NN`)으로 표시되는지를 확인한다. 컨텍스트 라벨 값은
+# 시스템 날짜 대비 예정일로 매일 갱신되므로(AC-007-01 규칙 · childLabel.ts
+# formatPregnancyLabel) 정확한 값이 아니라 포맷을 정규식으로 단정한다.
+# TC-007-01-A(주차 표기) 와 TC-007-01-B(D-day 표기) 를 하나의 정규식으로 함께
+# 커버한다 — 기본 예정일이 잔여 100 일 경계 중 어디에 있든 둘 중 하나가 뜬다.
+#
+# (헤더 좌우 화살표의 활성/비활성은 AC-007-02, 종·red dot 은 AC-007-03 전용
+#  flow 소관 — 여기선 AC-007-01 의 이름 + 컨텍스트 표시만 주검증한다.
+#  컨텍스트 라벨의 '존재'만 보는 home-question-card-undecided.yaml(AC-007-04)
+#  와 달리, 본 flow 는 그 라벨이 임산부 포맷을 따르는지까지 단정한다.)
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1·Q2 (Case A: 임신 O · 양육 X) → a1
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseA.yaml
+
+# a1 → a2 → a3 → 홈 (예정일 선택 경로 — 단일 태아)
+- runFlow:
+    file: subflows/onboarding-caseA-full.yaml
+
+# 홈 도착: 헤더에 활성 아이 이름이 노출된다.
+- assertVisible:
+    id: "home-header"
+- assertVisible:
+    id: "home-header-name"
+
+# 프로필 이름 아래 컨텍스트 라벨이 임산부 모드 포맷(NN주차 | D-NN)으로 표시된다.
+- assertVisible:
+    id: "home-question-card-context"
+    text: "[0-9]+주차|D-[0-9]+"
