@@ -20,8 +20,8 @@ updated: 2026-07-09
 - Mockup: **39개 화면** (M-01 ~ M-39, 일부 결번) + 갤러리, 단일 React 번들 `mockups/index.html`. 모든 사용자 여정 stage 1:1 매핑
 - 엔지니어링 노트: **4개** (ENG-001 임신 주차 계산 · ENG-002 주간 질문(deferred) · ENG-003 클라이언트 로그인 · client-logout-process)
 - 용어집: **1개** (GLOSSARY-001)
-- e2e flow (Maestro): AC↔flow 1:1 매핑 확정 — 제품 flow 19개(각 AC 1개 단독) + 후속 flow 36건(미작성). **영구 예외 AC 0건** — 자동화 곤란은 AC가 아니라 외부 호출 모킹 경계 6개(2 구현·4 신설)로 등재(경계만 결정적 치환, 나머지 구간은 실 e2e). + 엔지니어링 노트 1개(`login.yaml`→ENG-003) + 스모크 예외 1개(`health.yaml`). 상세는 "e2e flow 매핑" 섹션 참조
-- **건강 상태**: ⚠️ 주의 — **PRD-009 (커뮤니티 탭)가 draft 상태로 편입됨**. 원문(0704 최서영 WIP 기획안)이 작업 중 문서라 AC 13개가 미확정이며, TEST-009·커뮤니티 여정·mockup이 아직 없다. 확정 계층(PRD-001~008 · AC 55 · TEST 8)은 여전히 ✅ 건강하며, 확정 AC 55의 e2e AC↔flow 매핑을 1:1 구조로 정리(제품 flow 19 · 후속 flow 36 미작성 · 영구 예외 AC 0 → 외부 호출 모킹 경계 6개로 등재 · `login.yaml`→ENG-003 · `health.yaml` 스모크 예외) — 상세는 "e2e flow 매핑" 섹션 참조
+- e2e flow (Maestro): AC↔flow 1:1 매핑 확정 — 제품 flow 20개(각 AC 1개 단독) + 후속 flow 35건(미작성). **영구 예외 AC 0건** — 자동화 곤란은 AC가 아니라 외부 호출 모킹 경계 6개(2 구현·4 신설)로 등재(경계만 결정적 치환, 나머지 구간은 실 e2e). + 엔지니어링 노트 1개(`login.yaml`→ENG-003) + 스모크 예외 1개(`health.yaml`). 상세는 "e2e flow 매핑" 섹션 참조
+- **건강 상태**: ⚠️ 주의 — **PRD-009 (커뮤니티 탭)가 draft 상태로 편입됨**. 원문(0704 최서영 WIP 기획안)이 작업 중 문서라 AC 13개가 미확정이며, TEST-009·커뮤니티 여정·mockup이 아직 없다. 확정 계층(PRD-001~008 · AC 55 · TEST 8)은 여전히 ✅ 건강하며, 확정 AC 55의 e2e AC↔flow 매핑을 1:1 구조로 정리(제품 flow 20 · 후속 flow 35 미작성 · 영구 예외 AC 0 → 외부 호출 모킹 경계 6개로 등재 · `login.yaml`→ENG-003 · `health.yaml` 스모크 예외) — 상세는 "e2e flow 매핑" 섹션 참조
 
 ## 연결 매트릭스
 
@@ -71,7 +71,7 @@ e2e flow(`e2e/maestro/*.yaml`)는 다음 중 하나에 매핑되어야 하며, �
 ### AC ↔ e2e flow 매핑 (제품 AC 55개)
 
 > 각 AC 는 (a) 전용 flow 1개(✅) · (b) 후속 flow(⬜, 미작성) 중 하나로 분류된다. **영구 예외 AC 는 없다** — 외부 서비스에 의존하는 AC 도 해당 외부 호출 경계만 결정적으로 치환하면 e2e 로 구동 가능하므로, "e2e 불가"를 AC 에 붙이지 않고 아래 [외부 호출 모킹 경계 레지스트리](#외부-호출-모킹-경계-레지스트리-mock-boundary-registry)에 경계(라이브러리/서비스) 단위로 등재한다. 모킹이 필요한 후속 AC 는 매핑에 경계 ID(MB-n)를 병기한다.
-> 2026-07-12 첫 정비 · 2026-07-15 예외 재정비 · 2026-07-20 경계 재프레이밍 · **2026-07-22 AC-007-01 flow 신설** 기준: ✅ 19 · ⬜ 36 · 🟡 0. 모든 제품 flow 는 헤더에 정확히 1개 AC 를 선언한다(중복·묶음 0).
+> 2026-07-12 첫 정비 · 2026-07-15 예외 재정비 · 2026-07-20 경계 재프레이밍 · 2026-07-22 AC-007-01 flow 신설 · **2026-07-27 AC-008-10 flow 신설** 기준: ✅ 20 · ⬜ 35 · 🟡 0. 모든 제품 flow 는 헤더에 정확히 1개 AC 를 선언한다(중복·묶음 0).
 
 | AC | 제목 | 매핑 |
 |----|------|------|
@@ -129,7 +129,7 @@ e2e flow(`e2e/maestro/*.yaml`)는 다음 중 하나에 매핑되어야 하며, �
 | AC-008-07 | 공개/비공개 토글 — 사후 변경 | ✅ `diary-visibility-toggle.yaml` |
 | AC-008-08 | 필터 — 아이·날짜·미디어·공개 여부 | ✅ `diary-filter-by-child.yaml` |
 | AC-008-09 | 빈 상태 처리 | ✅ `diary-list-empty.yaml` |
-| AC-008-10 | 일기 탭 헤더 + 하단 네비게이션 바 | ⬜ 후속 |
+| AC-008-10 | 일기 탭 헤더 + 하단 네비게이션 바 | ✅ `diary-header-nav.yaml` |
 
 ### 외부 호출 모킹 경계 레지스트리 (Mock Boundary Registry)
 
@@ -178,7 +178,6 @@ e2e flow(`e2e/maestro/*.yaml`)는 다음 중 하나에 매핑되어야 하며, �
 - **AC-007-09** 타인 기록 피드 — 노출 로직 → `home-feed-exposure.yaml`: 공개 기록만 노출·본인 기록 제외·작성자 비식별 단정 (정렬 랜덤성은 후속)
 - **AC-008-02** 기록 목록 — 월 단위 시간 그룹 → `diary-list-month-groups.yaml`: 여러 달 기록이 월 단위 그룹 헤더로 구분
 - **AC-008-03** 기록 카드 — 아이 컨텍스트 칩과 표시 요소 → `diary-card-elements.yaml`: 카드에 아이 컨텍스트 칩·표시 요소 노출
-- **AC-008-10** 일기 탭 헤더 + 하단 네비게이션 바 → `diary-header-nav.yaml`: 일기 탭 헤더(제목·종, home 화살표 부재) + 하단 네비
 
 _경계 모킹 선행 — 예외에서 승격된 7건 (각 경계 ID 참조; "잔여"는 e2e 밖):_
 
@@ -223,6 +222,7 @@ _경계 모킹 선행 — 예외에서 승격된 7건 (각 경계 ID 참조; "�
 
 | 시점 | 변경 내용 | 이전 상태 | 이후 상태 |
 |------|-----------|-----------|-----------|
+| 2026-07-27 AC-008-10 flow 신설 | AC↔flow 1:1 잔여 gap 축소 1건 (reconciler rct_20260726-0001): AC-008-10(일기 탭 헤더 + 하단 네비게이션 바) 전용 e2e flow `diary-header-nav.yaml` 신설 — 검증된 Case B 서브플로우(tester-login·onboarding-q1-q2-caseB·onboarding-caseB-full) 재사용(home-header-multichild와 동일 다자녀 셋업), 일기 탭 헤더 diary-header/diary-header-bell 노출 + home-header-prev/next/name 부재(TC-008-10-A) + 하단 5탭 tab-button-{memoir,community,home,diary,settings} 구성·현재 일기 탭(TC-008-10-B) 단정. 매핑 ⬜→✅, backlog 36→35. 신규 subflow 0, 앱 코드·CI run-list 무변경(형제 헤더/네비 flow와 동일하게 파일 단위 1:1 충족). | ✅19·⬜36·🟡0, AC-008-10 ⬜ 후속 | ✅20·⬜35·🟡0, AC-008-10 ✅ `diary-header-nav.yaml` |
 | 2026-07-22 AC-007-01 flow 신설 | AC↔flow 1:1 잔여 gap 축소 1건 (reconciler rct_20260722-0001): AC-007-01(헤더 — 활성 아이 컨텍스트 표시) 전용 e2e flow `home-header-active-child.yaml` 신설 — 검증된 Case A 서브플로우(tester-login·onboarding-q1-q2-caseA·onboarding-caseA-full) 재사용, 헤더 이름 노출 + 컨텍스트 라벨 임산부 포맷(`[0-9]+주차`\|`D-[0-9]+`, TC-007-01-A/B) 정규식 단정. 매핑 ⬜→✅, backlog 37→36. 앱 코드·CI run-list 무변경(형제 헤더 flow와 동일하게 파일 단위 1:1 충족). | ✅18·⬜37·🟡0, AC-007-01 ⬜ 후속 | ✅19·⬜36·🟡0, AC-007-01 ✅ `home-header-active-child.yaml` |
 | 2026-07-20 경계 재프레이밍 | 예외 모델 전환 (reconciler rct_20260712-0001 3차 재계획, 사용자 반려 ①②반영): "AC 단위 e2e-불가 목록"을 폐기하고 **외부 호출 모킹 경계 레지스트리(MB-1~6)**로 재구성. 경계마다 결정적 치환 최소부분 vs 실 e2e 구동 구간 vs 잔여를 명시(①: 불가능 부분만 모킹·나머지 실 e2e / ②: AC 아닌 라이브러리·서비스 단위 기술). 앵커는 구현된 seam MB-1(오디오/STT `EXPO_PUBLIC_E2E_AUDIO_FIXTURE`)·MB-2(OAuth tester-login). 남은 예외 7건(002-04·003-01·004-03·005-01·005-03·005-08·006-05)을 전부 ⬜ 후속(경계 참조)으로 승격 → **영구 예외 AC 0**. docs/doc-tracker.md 1파일만 변경(maestro·앱·워크플로 무변). | 예외 7건 등재(AC 단위 "e2e 불가"), 후속 30, ✅18·🟡7·⬜30 | 영구 예외 0, 외부 호출 경계 6개 등재(2 구현·4 신설), 후속 37, ✅18·🟡0·⬜37 |
 | 2026-07-12 첫 정비 · 2026-07-15 재정비 | AC↔e2e flow 1:1 정합성 정비 (reconciler rct_20260712-0001): 55개 AC 매핑 표 + 예외 목록 신설, TC-선언 헤더 4건 AC 정규화(header-multichild→AC-007-02, notification-dot→AC-007-03, nav-5tabs→AC-007-10, caseC→AC-006-04), 묶음·중복 flow 를 헤더 단일-AC 재선언으로 정리(비-CI 트윈 `home-record-modal-entry.yaml` 삭제, CI 실행 flow `home-record-ctas`→AC-007-06 단독 소유, `home-voice-record`→AC-001-01 재배치). **2026-07-15 재계획**: 예외를 "본질적 e2e 구동 불가"로 한정해 12→7 축소(AC-001-02·003-04·004-04·007-09·002-02 를 후속 backlog 로 재분류), 삭제 대상을 ctas→modal-entry 로 교정해 CI 결함(워크플로가 참조하는 flow 삭제) 해소(워크플로 무수정). 새 flow 저작은 후속. | 다대다: AC 55 vs flow 21, 묶음 5·중복 5·TC-선언 4·AC 예외 0 | 제품 flow 18개 각 AC 1개 단독, 예외 7건 등재(본질적 e2e 불가만), 후속 30건 명세; 중복·묶음 0 |
