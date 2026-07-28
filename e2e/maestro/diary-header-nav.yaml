@@ -1,0 +1,71 @@
+appId: ${APP_ID}
+---
+# 검증 대상: AC-008-10 (일기 탭 헤더 + 하단 네비게이션 바).  [TC-008-10-A/B]
+#
+# 다자녀(Case B: 양육 2 + 다태 2 = 활성 아이 4명) 사용자로 홈에 도착한 뒤 일기
+# 탭으로 이동해, 일기 탭 헤더가 홈 헤더와 의도적으로 다른지를 확인한다:
+#   - TC-008-10-A(헤더 구성): 가운데 "일기" 타이틀 헤더(diary-header)와 우상단
+#     알림 종(diary-header-bell)만 노출되고, 홈 헤더의 좌우 아이 전환 화살표
+#     (home-header-prev/next)와 아이 이름(home-header-name)은 없다. 다자녀 전제라
+#     '활성 아이가 누구든 아이 정보가 노출되지 않는다'를 강하게 검증한다.
+#   - TC-008-10-B(하단 네비): PRD-007 AC-007-10 과 동일한 5탭(자서전·커뮤니티·홈·
+#     일기·설정) 구성이 노출되고 현재 일기 탭에 있음을 확인한다. 탭 선택 강조
+#     (coral) 색 단정은 Maestro 범위 밖이라 diary-tab 도착으로 대체하며
+#     (home-nav-5tabs 선례와 동일), 탭 순회 자체의 검증은 AC-007-10
+#     (home-nav-5tabs) 소관이라 여기서 중복하지 않는다.
+#
+# Case B subflow 재사용(tester-login · onboarding-q1-q2-caseB · onboarding-
+# caseB-full) — home-header-multichild.yaml 과 동일 셋업. 신규 subflow 0.
+# 앱 코드·CI run-list 무변경(형제 헤더/네비 flow 와 동일하게 파일 단위 1:1 충족).
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login.yaml
+
+# Q1·Q2 (Case B: 양육 O · 임신 O) → b0 진입
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseB.yaml
+
+# b0 → b6 → 홈 (활성 아이 4명)
+- runFlow:
+    file: subflows/onboarding-caseB-full.yaml
+
+# 홈 도착 확인 후 일기 탭으로 이동.
+- assertVisible:
+    id: "home-tab"
+- tapOn:
+    id: "tab-button-diary"
+- assertVisible:
+    id: "diary-tab"
+
+# TC-008-10-A: 일기 탭 헤더 구성 — "일기" 타이틀 헤더 + 알림 종만, 좌측 화살표·아이 이름 부재.
+- assertVisible:
+    id: "diary-header"
+- assertVisible:
+    id: "diary-header-bell"
+- assertNotVisible:
+    id: "home-header-prev"
+- assertNotVisible:
+    id: "home-header-next"
+- assertNotVisible:
+    id: "home-header-name"
+
+# TC-008-10-B: 하단 네비게이션 — 5탭(자서전·커뮤니티·홈·일기·설정) 구성, 현재 일기 탭.
+- assertVisible:
+    id: "tab-button-memoir"
+- assertVisible:
+    id: "tab-button-community"
+- assertVisible:
+    id: "tab-button-home"
+- assertVisible:
+    id: "tab-button-diary"
+- assertVisible:
+    id: "tab-button-settings"
