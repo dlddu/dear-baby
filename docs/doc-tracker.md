@@ -62,8 +62,10 @@ e2e flow(`e2e/maestro/*.yaml`)는 다음 중 하나에 매핑되어야 하며, �
 
 | flow | 매핑 유형 | 대상 | 비고 |
 |------|-----------|------|------|
-| `login.yaml` | 엔지니어링 노트 | ENG-003 (`engineering/client-login-process.md`) | 테스터 로그인 게이트 + 세션 수립 후 온보딩 분기(§3.3·§4·§9). OAuth 경로는 외부 계정 의존으로 수동 QA |
-| `subflows/tester-login.yaml` | (헬퍼) | — | 다른 flow 가 재사용하는 로그인 서브플로우. 독립 검증 단위가 아님 |
+| `login.yaml` | 엔지니어링 노트 | ENG-003 (`engineering/client-login-process.md`) | 테스터 로그인 게이트 + 세션 수립 후 온보딩 분기(§3.3·§4·§9). **실제 15탭 제스처를 구동하는 유일한 flow.** OAuth 경로는 외부 계정 의존으로 수동 QA |
+| `subflows/tester-login.yaml` | (헬퍼) | — | 실제 제스처 서브플로우. `login.yaml` 전용. 독립 검증 단위가 아님 |
+| `subflows/tester-login-fast.yaml` | (헬퍼) | — | 로그인을 준비 단계로만 쓰는 나머지 flow **전부**가 쓰는 단축 진입점(E2E 빌드 한정). 독립 검증 단위가 아님 |
+| `subflows/tester-login-credentials.yaml` | (헬퍼) | — | 위 두 진입점이 공유하는 자격 증명 입력·제출 구간. 독립 검증 단위가 아님 |
 | `health.yaml` | 예외(스모크) | — | 앱 부팅 + 백엔드 도달 스모크. 랜딩 헬스체크 토스트 UI 의 승격 여부는 ENG-003 향후 검토 |
 
 **등재 규칙**: (1) flow 헤더에 `검증 대상:` 주석과 근거를 남기고, (2) 본 표에 등재한다. `subflows/*.yaml` 은 테스트가 아니라 재사용 헬퍼이므로 매핑 대상이 아니다.

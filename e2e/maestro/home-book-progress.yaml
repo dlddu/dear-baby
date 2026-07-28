@@ -23,7 +23,7 @@ appId: ${APP_ID}
       - tapOn: "Wait"
 
 - runFlow:
-    file: subflows/tester-login.yaml
+    file: subflows/tester-login-fast.yaml
 
 # Case B → 활성 아이 4명 풀 시나리오 → 홈 도착
 - runFlow:

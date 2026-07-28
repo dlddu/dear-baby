@@ -34,3 +34,21 @@ export const POSTHOG_HOST: string =
 export const E2E_AUDIO_FIXTURE: boolean =
   process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === 'true' ||
   process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === '1';
+
+// E2E_FAST_TESTER_LOGIN exposes a one-press shortcut to the tester-login
+// modal so the Maestro suite does not replay the 15-tap corner gesture
+// before every functional flow (it costs 35-42s per flow on the CI
+// simulators). It only changes how the modal is *reached* — the modal,
+// POST /auth/password-login and the session write are untouched, and
+// e2e/maestro/login.yaml still drives the real gesture so that path keeps
+// its coverage.
+//
+// No credential ever rides on this flag: the password still comes from the
+// tester typing it (or Maestro pasting it), exactly as before.
+//
+// Production builds must leave this unset. Only .github/workflows/e2e-*.yml
+// injects it, and app/app/(landing)/__tests__/index.test.tsx locks the
+// default-off behaviour.
+export const E2E_FAST_TESTER_LOGIN: boolean =
+  process.env.EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN === 'true' ||
+  process.env.EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN === '1';

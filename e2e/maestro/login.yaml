@@ -15,6 +15,13 @@ appId: ${APP_ID}
 # there is no build-time test-mode flag, only the seeded password
 # (TEST_USER_PASSWORD) and the gesture.
 #
+# This is the ONLY flow that drives the real gesture. Every other root
+# flow logs in as setup, not as its subject, so they use
+# subflows/tester-login-fast.yaml — a one-press shortcut that exists only
+# in E2E builds and reaches the identical modal / password-login call.
+# Keep this flow on subflows/tester-login.yaml so the gesture, and the
+# production path it stands for, stay covered.
+#
 # The MAESTRO_TEST_USER_EMAIL / MAESTRO_TEST_USER_PASSWORD env vars are
 # injected by CI (see .github/workflows/e2e-*.yml) and must match the
 # backend's TEST_USER_EMAIL / TEST_USER_PASSWORD secrets.

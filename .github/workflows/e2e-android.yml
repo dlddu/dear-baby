@@ -38,6 +38,13 @@ jobs:
       # MinIO instance set up below, so the records-audio backend
       # contract gets exercised end-to-end in CI.
       EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
+      # Render the E2E-only `tester-login-fast` hit zone on the landing
+      # screen so subflows/tester-login-fast.yaml can open the tester-login
+      # modal in one press instead of replaying the 15-tap corner gesture
+      # before every functional flow. maestro/login.yaml still drives the
+      # real gesture, so that path keeps its coverage. Never set in the
+      # store build workflows.
+      EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN: "1"
       # Google OAuth client IDs are inlined into the JS bundle via
       # process.env.EXPO_PUBLIC_* — they're public values, so they live
       # in GitHub Variables rather than Secrets.
@@ -57,6 +64,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      # Cheap static guard, first so it fails before the ~40min build:
+      # login.yaml must keep driving the real 15-tap gesture, no flow may
+      # use both login entry points, and every logging-in flow keeps its
+      # clearKeychain + clearState isolation.
+      - name: Check Maestro login subflow wiring
+        working-directory: e2e
+        run: ./scripts/check-login-subflows.sh
 
       # Stand MinIO up first so its AWS_* env vars land in $GITHUB_ENV
       # before setup-backend reads them.
@@ -142,9 +157,11 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
           EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
+          EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN: "1"
         run: |
           echo "EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL"
           echo "EXPO_PUBLIC_E2E_AUDIO_FIXTURE=$EXPO_PUBLIC_E2E_AUDIO_FIXTURE"
+          echo "EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN=$EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN"
           ./gradlew assembleRelease --no-daemon
 
       # reactivecircus/android-emulator-runner splits `script:` on newlines and

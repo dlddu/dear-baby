@@ -20,6 +20,7 @@ import { TesterLoginModal } from '../../src/auth/TesterLoginModal';
 import { useTesterLoginGesture } from '../../src/auth/useTesterLoginGesture';
 import {
   API_URL,
+  E2E_FAST_TESTER_LOGIN,
   GOOGLE_IOS_CLIENT_ID,
   GOOGLE_WEB_CLIENT_ID,
 } from '../../src/config/env';
@@ -174,6 +175,13 @@ function AppleSignInButton() {
 // element lookup uses the same accessibility identifiers Apple/Google
 // expose, so hiding the pressables there hides them from the test
 // harness too.
+//
+// `tester-login-fast` is a third, E2E-build-only Pressable that opens the
+// same modal in one press. It exists purely so the functional Maestro
+// flows — which log in as *setup*, not as the thing under test — skip the
+// 15-tap replay. It is compiled out of every build that does not set
+// EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN (see src/config/env.ts), and
+// e2e/maestro/login.yaml keeps exercising the real gesture.
 const TOAST_VISIBLE_MS = 3500;
 const TOAST_FADE_MS = 200;
 const TOAST_OFFSET_PX = 12;
@@ -293,6 +301,15 @@ export default function Landing() {
         onPress={onRightPress}
         style={[styles.cornerHit, styles.cornerHitTopRight]}
       />
+      {E2E_FAST_TESTER_LOGIN && (
+        <Pressable
+          testID="tester-login-fast"
+          accessibilityRole="button"
+          accessibilityLabel="tester login fast"
+          onPress={() => setTesterLoginVisible(true)}
+          style={styles.fastTesterLoginHit}
+        />
+      )}
       <TesterLoginModal
         visible={testerLoginVisible}
         onClose={() => setTesterLoginVisible(false)}
@@ -445,6 +462,17 @@ const styles = StyleSheet.create({
   },
   cornerHitTopRight: {
     right: 0,
+  },
+  // E2E-only shortcut hit zone (see the `tester-login-fast` note above).
+  // Bottom-left so it cannot overlap the two top corner zones the real
+  // gesture uses, nor the 4×4 health sentinel pinned bottom-right. Like
+  // the corner zones it draws nothing — the flows find it by testID.
+  fastTesterLoginHit: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 80,
+    height: 80,
   },
   toast: {
     position: 'absolute',

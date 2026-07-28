@@ -1,0 +1,36 @@
+appId: ${APP_ID}
+---
+# Fast tester-login subflow for the flows that log in as *setup* rather
+# than as the thing under test. Caller must launch the app and arrive at
+# the landing screen first.
+#
+# Instead of replaying the 15-tap corner gesture, this presses the
+# `tester-login-fast` hit zone once. That hit zone only exists in builds
+# started with EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN=1 (see
+# app/src/config/env.ts and .github/workflows/e2e-*.yml); it is compiled
+# out of store builds, and a unit test at
+# app/app/(landing)/__tests__/index.test.tsx locks that.
+#
+# The gesture itself is NOT left uncovered: e2e/maestro/login.yaml still
+# uses subflows/tester-login.yaml and asserts the whole real path.
+#
+# From the modal onward both paths are identical — same modal, same
+# POST /auth/password-login, same session write, same clearKeychain /
+# clearState isolation in the caller.
+#
+# Required env (passed via `maestro test --env`):
+#   MAESTRO_TEST_USER_EMAIL
+#   MAESTRO_TEST_USER_PASSWORD
+
+- assertVisible:
+    id: "root"
+
+# If this fails with "element not found", the app under test was built
+# without EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN — rebuild with the flag or run
+# the flow against subflows/tester-login.yaml.
+- tapOn:
+    id: "tester-login-fast"
+
+# Modal wait + credential entry + submit are shared with the real path.
+- runFlow:
+    file: tester-login-credentials.yaml

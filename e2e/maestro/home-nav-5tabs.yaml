@@ -19,7 +19,7 @@ appId: ${APP_ID}
       - tapOn: "Wait"
 
 - runFlow:
-    file: subflows/tester-login.yaml
+    file: subflows/tester-login-fast.yaml
 
 # Case A (임신 O · 양육 X) → A1·A2(예정일 선택) → A3 → 홈 도착
 - runFlow:

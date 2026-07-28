@@ -18,7 +18,7 @@ appId: ${APP_ID}
       - tapOn: "Wait"
 
 - runFlow:
-    file: subflows/tester-login.yaml
+    file: subflows/tester-login-fast.yaml
 
 # Q1·Q2 (Case B) → b0 진입
 - runFlow:

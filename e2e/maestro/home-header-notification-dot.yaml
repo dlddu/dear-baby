@@ -16,7 +16,7 @@ appId: ${APP_ID}
       - tapOn: "Wait"
 
 - runFlow:
-    file: subflows/tester-login.yaml
+    file: subflows/tester-login-fast.yaml
 
 # 가장 짧은 경로 — Case A 예정일 선택 후 홈 도착.
 - runFlow:

@@ -14,7 +14,7 @@ appId: ${APP_ID}
 #     (home-nav-5tabs 선례와 동일), 탭 순회 자체의 검증은 AC-007-10
 #     (home-nav-5tabs) 소관이라 여기서 중복하지 않는다.
 #
-# Case B subflow 재사용(tester-login · onboarding-q1-q2-caseB · onboarding-
+# Case B subflow 재사용(tester-login-fast · onboarding-q1-q2-caseB · onboarding-
 # caseB-full) — home-header-multichild.yaml 과 동일 셋업. 신규 subflow 0.
 # 앱 코드·CI run-list 무변경(형제 헤더/네비 flow 와 동일하게 파일 단위 1:1 충족).
 
@@ -28,7 +28,7 @@ appId: ${APP_ID}
       - tapOn: "Wait"
 
 - runFlow:
-    file: subflows/tester-login.yaml
+    file: subflows/tester-login-fast.yaml
 
 # Q1·Q2 (Case B: 양육 O · 임신 O) → b0 진입
 - runFlow:
