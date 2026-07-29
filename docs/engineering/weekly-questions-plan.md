@@ -18,11 +18,14 @@ PRD-002 의 **AC-002-02 (임신 주차별 질문 매칭)** 본 구현은 **프�
 ## 현재 상태 (플레이스홀더)
 
 - 구현: [`app/src/data/dailyQuestions.ts`](../../app/src/data/dailyQuestions.ts)
-  의 `pickDailyQuestion(date)` — 12개 문항 풀에서 `dayOfYear % N` 인덱스로 선택.
-- 주차 무관: `due_date` / `weekLabel` 은 배지 표시에만 쓰이고 (`QuestionCard`),
-  질문 선정 로직에는 관여하지 않는다.
+  의 `getDailyQuestionTriplet(date, pool)` — 12개 1인칭 문항 풀(`DAILY_QUESTIONS`) 에서
+  `dayOfYear(date) % pool.length` 를 시작 인덱스로 연속 3개(`DAILY_QUESTION_SLOTS = 3`) 를
+  결정적으로 고른다. 같은 날엔 같은 3개, 다음 날엔 한 칸 밀린 3개이며 `12 % 3 == 0`
+  이라 4일마다 같은 묶음이 반복된다 — 본격 풀이 들어오기 전 임시 동작이다.
+- 주차 무관: `weekLabel`(임신 주차 배지) 은 카드·라우팅 파라미터 표시에만 쓰이고
+  (`HomeQuestionCard`), 질문 선정 로직에는 관여하지 않는다.
 - 소비처: [`app/app/(tabs)/index.tsx`](../../app/app/(tabs)/index.tsx) 홈 화면
-  Stage 2 질문 카드.
+  `HomeTab` 의 1인칭 질문 카드(`HomeQuestionCard`) — 일일 3개 회전(PRD-007 AC-007-04·05).
 
 이 구조는 Stage 2 의 UI 기능(코치마크 · AI 미리보기 트리거)을 먼저 검증하기 위한
 임시 해결책이며, 주차 기반 매칭 로직은 본 문서의 "본 구현" 단계에서 교체된다.
