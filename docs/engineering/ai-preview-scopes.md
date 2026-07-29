@@ -42,6 +42,6 @@ This document draws the line between the **home-screen AI preview** (active, Sta
 ## Stage 2 implementation references
 
 - Column: `backend/internal/migrations/0005_onboarding_move.up.sql` (`ai_preview`).
-- Task: `worker/src/tasks/ai-preview/`.
+- Task: `worker/internal/tasks/aipreview/`.
 - Trigger path: client observes `user.first_record_at` flipping from null → set in `app/app/(tabs)/index.tsx`, posts `/onboarding/ai-preview`, subscribes to `/onboarding/ai-preview/events`.
-- System prompt: `worker/src/tasks/ai-preview/handle.ts` (`SYSTEM_PROMPT`).
+- System prompt: `worker/internal/tasks/aipreview/task.go` (`SystemPrompt`).
