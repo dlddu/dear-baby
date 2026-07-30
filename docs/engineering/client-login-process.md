@@ -3,10 +3,11 @@ doc_id: ENG-003
 doc_type: engineering-note
 product: dear_baby
 created: 2026-07-03
-updated: 2026-07-22
+updated: 2026-07-28
 verified_by:
   - e2e/maestro/login.yaml
   - e2e/maestro/subflows/tester-login.yaml
+  - e2e/maestro/subflows/tester-login-credentials.yaml
 ---
 
 # 클라이언트 로그인 과정 리포트
@@ -45,7 +46,7 @@ verified_by:
 | 테스터 로그인 모달 | `app/src/auth/TesterLoginModal.tsx` |
 | 환경 변수 | `app/src/config/env.ts`, `app/.env.example` |
 | 분석 계정 동기화 (PostHog) | `app/src/analytics/useAnalyticsIdentity.ts` |
-| E2E 검증 | `e2e/maestro/login.yaml`, `e2e/maestro/subflows/tester-login.yaml` |
+| E2E 검증 | `e2e/maestro/login.yaml`, `e2e/maestro/subflows/tester-login.yaml`, `e2e/maestro/subflows/tester-login-credentials.yaml` |
 
 ---
 
@@ -324,7 +325,9 @@ sequenceDiagram
 ## 9. E2E 검증 (Maestro)
 
 - `e2e/maestro/login.yaml`: `clearKeychain` + `clearState` 로 콜드 상태에서 시작해, 시크릿 제스처 → 테스터 로그인 → 모달 닫힘까지 검증한다. 자격 증명은 CI 가 `MAESTRO_TEST_USER_EMAIL`/`MAESTRO_TEST_USER_PASSWORD` 로 주입하며 백엔드의 `TEST_USER_*` 시크릿과 일치해야 한다.
-- `e2e/maestro/subflows/tester-login.yaml`: 다른 플로우(온보딩·홈 등)가 재사용하는 로그인 서브플로우. 좌상단 5탭 → 우상단 10탭 → 이메일/비밀번호 입력을 testID(`tester-corner-tl`, `tester-login-email` 등)로 구동한다. 키보드 Next/Done 체인으로 `hideKeyboard`(iOS 에서 모달을 닫아버리는 제스처)를 회피하는 등, 화면 구현이 E2E 구동 가능성을 전제로 설계돼 있다.
+- `e2e/maestro/subflows/tester-login.yaml`: **실제 제스처** 서브플로우. 좌상단 5탭 → 우상단 10탭을 testID(`tester-corner-tl`, `tester-corner-tr`)로 구동한다. 프로덕션에 그대로 실리는 경로라 `login.yaml` **하나만** 이 서브플로우를 쓴다.
+- `e2e/maestro/subflows/tester-login-fast.yaml`: 로그인을 *검증 대상*이 아니라 *준비 단계*로 쓰는 나머지 flow **전부**가 쓴다. 15탭 대신 `tester-login-fast` 히트존을 한 번 눌러 같은 모달을 연다. 이 히트존은 `EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN=1` 로 빌드한 앱에만 존재하며(`app/src/config/env.ts`, `.github/workflows/e2e-*.yml`), 스토어 빌드에는 컴파일되지 않는다 — 비노출은 `app/app/(landing)/__tests__/index.test.tsx` 가, 배선은 `e2e/scripts/check-login-subflows.sh` 가 CI 에서 강제한다. 플래그에 자격 증명은 싣지 않는다.
+- `e2e/maestro/subflows/tester-login-credentials.yaml`: 두 진입점이 공유하는 이메일/비밀번호 입력·제출 구간. 모달부터 세션 수립까지는 양쪽이 완전히 동일하다. 키보드 Next/Done 체인으로 `hideKeyboard`(iOS 에서 모달을 닫아버리는 제스처)를 회피하는 등, 화면 구현이 E2E 구동 가능성을 전제로 설계돼 있다.
 - OAuth 경로(Apple/Google)는 외부 계정 의존 때문에 E2E 자동화 대상이 아니며, 테스터 로그인이 "세션 수립 이후" 공통 경로를 대신 커버한다.
 
 ---

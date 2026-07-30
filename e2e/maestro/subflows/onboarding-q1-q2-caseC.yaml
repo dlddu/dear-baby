@@ -2,7 +2,8 @@ appId: ${APP_ID}
 ---
 # Reusable Q1/Q2 subflow for the **Case C** path (임신 X · 양육 O).
 # Caller must already be on the Q1 screen (id "onboarding-q1") — usually
-# by having just signed in via subflows/tester-login.yaml.
+# by having just signed in via subflows/tester-login-fast.yaml (or
+# subflows/tester-login.yaml).
 #
 # After this subflow runs the user is on the C1 screen
 # (id "onboarding-c1"), Case C 의 첫 입력 화면(양육 아이 수)이다.

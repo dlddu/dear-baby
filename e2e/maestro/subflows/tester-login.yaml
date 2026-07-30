@@ -1,9 +1,15 @@
 appId: ${APP_ID}
 ---
-# Reusable tester-login subflow. Caller must launch the app and arrive
-# at the landing screen first. Drives the secret tap pattern (top-left
-# 5 times, then top-right 10 times) and submits the test credentials —
-# the same code path that ships in production.
+# Real tester-login subflow — drives the secret tap pattern (top-left 5
+# times, then top-right 10 times) that gates the tester-login modal in the
+# same code path that ships in production. Caller must launch the app and
+# arrive at the landing screen first.
+#
+# Only e2e/maestro/login.yaml uses this: it is the flow whose *subject* is
+# the login gate. Every other root flow logs in as setup and uses
+# subflows/tester-login-fast.yaml instead, which reaches the same modal in
+# one press on E2E builds. If you add a flow that must verify the gesture
+# itself, point it here.
 #
 # Required env (passed via `maestro test --env`):
 #   MAESTRO_TEST_USER_EMAIL
@@ -44,41 +50,6 @@ appId: ${APP_ID}
 - tapOn:
     id: "tester-corner-tr"
 
-# The macOS CI iOS 26 simulator is very slow (a single inputText can take
-# ~10s), and the RN <Modal> present + animation occasionally lags past the
-# old 5s window — an intermittent timeout, not a real failure (the modal does
-# appear; other runs pass in <1s). Give it generous headroom.
-- extendedWaitUntil:
-    visible:
-      id: "tester-login-modal"
-    timeout: 20000
-
-- tapOn:
-    id: "tester-login-email"
-- inputText: ${MAESTRO_TEST_USER_EMAIL}
-# Press the keyboard's Next key — the email TextInput has
-# returnKeyType=next + onSubmitEditing focusing the password field.
-# Avoids `hideKeyboard` mid-flow, which on iOS dismisses the modal
-# (Maestro's hideKeyboard fires a screen-area gesture that the
-# transparent modal then loses focus to).
-- pressKey: Enter
-- inputText: ${MAESTRO_TEST_USER_PASSWORD}
-# Password TextInput has returnKeyType=done + onSubmitEditing=submit,
-# so the second Enter triggers the login API call. On success the
-# modal calls onClose(); on failure the error copy renders inline.
-- pressKey: Enter
-- assertNotVisible:
-    id: "tester-login-modal"
-# After the password is submitted, iOS 26 intermittently raises a "Save
-# Password?" system dialog a beat LATER — during the transition to the next
-# screen — which then covers it and breaks the caller's onboarding assert.
-# A `runFlow when visible` check here raced: it evaluates once, and the dialog
-# had not appeared yet, so it no-op'd and the dialog surfaced just afterwards.
-# tapOn with optional:true instead WAITS for the button and taps it if/when it
-# appears, and is a no-op when it never does (Android, or runs where iOS does
-# not offer to save). CI evidence: a prior run showed the dialog still appearing
-# even with the password field marked textContentType="oneTimeCode", so this
-# dismiss — not source suppression — is what reliably handles it.
-- tapOn:
-    text: "Not Now"
-    optional: true
+# Modal wait + credential entry + submit are shared with the fast path.
+- runFlow:
+    file: tester-login-credentials.yaml
