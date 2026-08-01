@@ -14,7 +14,7 @@ services:
       context: ./backend
     environment:
       PORT: "8080"
-      DATABASE_URL: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(delete)"
+      DATABASE_URL: "file:/data/dear-baby.db?_pragma=foreign_keys(1)&_pragma=journal_mode(delete)&_pragma=synchronous(FULL)"
       REDIS_URL: "redis://redis:6379"
     ports:
       - "8080:8080"
