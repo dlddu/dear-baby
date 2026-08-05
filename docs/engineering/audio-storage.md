@@ -1,3 +1,11 @@
+---
+doc_id: ENG-005
+doc_type: engineering-note
+product: dear_baby
+created: 2026-05-01
+updated: 2026-08-05
+---
+
 # Records audio storage
 
 This document covers how voice records are stored: where transcripts live, where audio blobs live, and how the device, the backend, and S3 cooperate without the backend ever touching the audio bytes.
