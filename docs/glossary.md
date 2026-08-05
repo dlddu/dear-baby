@@ -3,7 +3,7 @@ doc_id: GLOSSARY-001
 doc_type: glossary
 product: dear_baby
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-08-05
 ---
 
 # 용어집 (Glossary)
@@ -53,6 +53,12 @@ updated: 2026-04-15
 | 기록 목적 | `Purpose` (string), `purposes: string[]` | `purposes` | `fetuses.purposes_json`, `children.purposes_json` (TEXT, JSON 배열) | A3·C3 화면에서 사용자가 선택한 칩 라벨. **사용자가 선택한 한국어 라벨 그대로 클라/API/DB에 저장한다** (영문 ID 매핑 없음). 다태/다자녀에서도 1회만 묻고 모든 태아·아이에 동일하게 복제 저장. 칩 옵션 표는 PRD-006 AC-006-02·04 참조 | PRD-006, AC-006-02, AC-006-04 |
 | OAuth 계정 연결 | — (DB only) | — | `oauth_accounts` / `provider`, `provider_user_id` | 사용자와 외부 OAuth 제공자(Google, Apple)의 연결 | `backend/internal/migrations/0001_users.up.sql` |
 | 리프레시 토큰 저장소 | `RefreshStore` | `refreshStore` | `refresh_tokens` | 서버에 영속되는 리프레시 토큰 레코드 | `backend/internal/auth/store.go` |
+| 공개 상태 *(제안)* | `Visibility` (`'public' \| 'private'`) | `visibility` | `records.visibility` | 기록의 커뮤니티 노출 여부. **기본값 private**. 사후 전환 가능하며 삭제와 달리 공감·댓글이 보존된다 | PRD-001 AC-001-06, PRD-008 AC-008-07 |
+| 임시 저장 기록 | `LocalAudio` | `draft`, `localAudio` | — (로컬 전용) | 업로드 전 기기에 보관되는 녹음 파일+메타. 서버 미전송 상태라 정식 기록이 아니며 공개 대상도 아니다 | PRD-001 AC-001-07, `app/src/drafts/` |
+| 공감 *(제안)* | `Like` | `like`, `likeCount` | `likes` / `like_id` | 기록·댓글에 대한 하트 반응. UI 라벨은 항상 "공감" (좋아요 아님). 본인 콘텐츠에는 불가 | PRD-009 AC-009-08 |
+| 댓글 *(제안)* | `Comment` | `comment`, `comments` | `comments` / `comment_id`, `parent_comment_id` | 게시글에 대한 답글. `parent_comment_id`가 있으면 대댓글이며 1depth까지만 허용 | PRD-009 AC-009-09 |
+| 신고 *(제안)* | `Report` | `report` | `reports` / `report_id`, `reason` | 게시글·댓글에 대한 신고 접수. 사유 5종(부적절/개인정보/광고/비방·혐오/기타) | PRD-009 AC-009-11 |
+| 커뮤니티 표시명 *(제안)* | `MaskedDisplayName` (string) | `maskedDisplayName` | — (파생 값) | 커뮤니티에서 작성자를 나타내는 마스킹 문자열. 형식: 앞 3자+`***`+끝 1자, 4자 이하는 첫 1자+`***` (예: `seo***1`). **마스킹 원본 소스는 PRD-009 확정에서 결정.** 주의: "닉네임"이라는 용어·`Nickname` 타입은 태명이 선점하고 있으므로 사용자 표시 개념에는 본 행의 이름을 쓴다 | PRD-009 AC-009-10 |
 
 ## 문서 ID 체계
 
@@ -61,11 +67,12 @@ updated: 2026-04-15
 | ID 패턴 | 의미 | 예시 |
 |---|---|---|
 | `dear_baby` | 제품 식별자 | (front matter `product` 필드) |
-| `V-NNN` | 제품 가치 (V-001~V-007) | `V-001` |
+| `V-NNN` | 제품 가치 (V-001~V-008) | `V-001` |
 | `VDOC-NNN` | 가치 문서 | `VDOC-001` |
 | `PRD-NNN` | 제품 요구 문서 | `PRD-001` |
 | `AC-PRD-NN` | 인수 조건 | `AC-001-01` |
 | `TEST-NNN` | 테스트 문서 | `TEST-001` |
+| `ENG-NNN` | 엔지니어링 노트 (`docs/engineering/`) | `ENG-001` |
 | `GLOSSARY-NNN` | 용어집 (본 문서) | `GLOSSARY-001` |
 
 ## 디자인 토큰 매핑 (Design Tokens)

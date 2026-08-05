@@ -1,3 +1,11 @@
+---
+doc_id: ENG-006
+doc_type: engineering-note
+product: dear_baby
+created: 2026-07-04
+updated: 2026-08-05
+---
+
 # 클라이언트 로그아웃 과정 리포트
 
 본 문서는 dear-baby(아이에게) 앱의 로그아웃 과정을 **클라이언트(Expo/React Native, `app/`) 관점**에서 상세히 기술한다. 백엔드 내부 구현은 클라이언트가 의존하는 계약(엔드포인트·응답 형식·revoke 의미)에 한해서만 다룬다. 로그인 과정은 별도 문서(`client-login-process.md`)를 참고하고, 본 문서는 그 §6 "로그아웃"을 확장한다.

@@ -1,3 +1,11 @@
+---
+doc_id: ENG-004
+doc_type: engineering-note
+product: dear_baby
+created: 2026-04-24
+updated: 2026-08-05
+---
+
 # AI Preview Scopes
 
 This document draws the line between the **home-screen AI preview** (active, Stage 2) and the **book-length AI narrative** (planned, Stage 3). They share the word "AI" in the spec but are different features with different storage, different model prompts, and different failure tolerances.
