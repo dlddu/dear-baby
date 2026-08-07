@@ -15,6 +15,12 @@
 //
 // preview 는 서버가 이미 50자로 자르고 '…' 를 붙여 보낸다. 본 컴포넌트는 그
 // 마커를 muted 색으로 분리해 칠할 뿐, 자체 추가 자르기는 하지 않는다.
+//
+// `showTypeBadge` 는 커뮤니티 탭(AC-009-02 카드의 "콘텐츠 타입" 요소)만
+// 켜는 opt-in 이다. 홈(AC-009-14)의 카드 요소 목록에는 타입 표시가 없어
+// 기본값 false 로 두었다 — 홈 렌더 결과는 이 prop 도입 전후로 동일하다.
+// 타입은 `questionText` 유무에서 그대로 나오므로(서버의 질문답변/자유일기
+// 판정과 같은 근거) 새로 지어내는 값이 아니다.
 
 import {
   Pressable,
@@ -36,6 +42,8 @@ export type OtherEntryCardProps = {
   entry: CommunityFeedItem;
   /** 카드 탭 — 게시글 상세(AC-009-07)가 도착하기 전까지 부모가 noop 으로 둔다. */
   onPress?: () => void;
+  /** AC-009-02 카드의 "콘텐츠 타입" 배지. 홈은 끄고 커뮤니티 탭만 켠다. */
+  showTypeBadge?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -47,6 +55,7 @@ const ELLIPSIS_MARKER = '…';
 export function OtherEntryCard({
   entry,
   onPress,
+  showTypeBadge = false,
   style,
   testID = 'other-entry-card',
 }: OtherEntryCardProps) {
@@ -86,6 +95,17 @@ export function OtherEntryCard({
           ) : null}
         </View>
       </View>
+
+      {showTypeBadge ? (
+        <Text
+          variant="micro"
+          color="coral"
+          style={styles.typeBadge}
+          testID={`${testID}-type`}
+        >
+          {entry.questionText ? '질문답변' : '자유일기'}
+        </Text>
+      ) : null}
 
       {entry.questionText ? (
         <Text
@@ -138,6 +158,9 @@ const styles = StyleSheet.create({
   alias: {},
   context: {
     flexShrink: 1,
+  },
+  typeBadge: {
+    marginTop: spacing[1],
   },
   question: {
     marginTop: spacing[1],

@@ -91,4 +91,34 @@ describe('OtherEntryCard', () => {
       expect(onPress).toHaveBeenCalledTimes(1);
     });
   });
+
+  // AC-009-02 카드의 "콘텐츠 타입" 요소. 커뮤니티 탭만 켜는 opt-in 이라
+  // 홈(AC-009-14)의 렌더 결과가 이 prop 도입 전후로 같다는 것도 함께 잠근다.
+  describe('AC-009-02 — 콘텐츠 타입 배지 (opt-in)', () => {
+    it('is absent by default — 홈 카드는 타입 표시를 요구하지 않는다', () => {
+      const { queryByTestId } = render(<OtherEntryCard entry={baseEntry} />);
+      expect(queryByTestId('other-entry-card-type')).toBeNull();
+    });
+
+    it('renders 질문답변 when the record answered a daily question', () => {
+      const { getByTestId } = render(
+        <OtherEntryCard entry={baseEntry} showTypeBadge />,
+      );
+      expect(getByTestId('other-entry-card-type').props.children).toBe(
+        '질문답변',
+      );
+    });
+
+    it('renders 자유일기 when there is no question', () => {
+      const { getByTestId } = render(
+        <OtherEntryCard
+          entry={{ ...baseEntry, questionText: null }}
+          showTypeBadge
+        />,
+      );
+      expect(getByTestId('other-entry-card-type').props.children).toBe(
+        '자유일기',
+      );
+    });
+  });
 });
