@@ -330,6 +330,11 @@ jobs:
           run_flow maestro/home-question-card-undecided.yaml
           reset_user
           run_flow maestro/home-voice-record.yaml
+          # 기록 저장 시점 공개/비공개 선택 (AC-001-06). 공개로 저장한 뒤
+          # 재진입 시 기본값이 비공개로 돌아오는지(비이월)까지 단정하므로,
+          # 화면 마운트 라이프사이클이 필요해 단위 테스트로 대체할 수 없다.
+          reset_user
+          run_flow maestro/record-visibility-select.yaml
 
           # Diary tab flows — empty state runs against a fresh reset,
           # then seed_diary installs the multi-subject fixture for the
