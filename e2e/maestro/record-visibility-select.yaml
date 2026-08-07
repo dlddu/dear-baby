@@ -1,0 +1,101 @@
+appId: ${APP_ID}
+---
+# Record visibility select e2e — 기록 저장(확정) 화면의 공개/비공개 토글.
+#
+# 검증 대상: AC-001-06 (작성 시점 공개/비공개 선택 — TC-001-06).  [단독 소유]
+#           (홈 카드에서의 텍스트 기록 진입 자체는 AC-007-06=home-record-ctas
+#            소관, 사후 변경은 AC-008-07=diary-visibility-toggle 소관 — 여기선
+#            둘 다 부수 경유이고 검증 대상이 아니다.)
+#
+# 두 시나리오로 TC-001-06 을 덮는다.
+#   A. 기본값 확인 + 그대로 저장   — 토글 초기 상태가 비공개다 (TC step 2·3)
+#   B. 공개로 전환 후 저장         — 선택이 반영된다 (TC step 4)
+#
+# 선택 상태는 컨테이너 testID 접미사(`record-text-visibility-private` /
+# `-public`)로만 단정한다 — 칩 두 개는 항상 렌더되므로 칩 존재만으로는
+# "무엇이 선택됐는지" 를 알 수 없고, 라벨(🔒 비공개 / 🌐 공개)은 한국어 +
+# 이모지 혼합이라 Android Maestro 의 부분 매칭이 불안정하다. 같은 이유로
+# 본문도 ASCII 로 입력한다(한글 IME 회피).
+#
+# 저장된 기록의 공개 상태를 상세 화면에서 재확인하는 것은 이 flow 범위 밖이다
+# — 새로 만든 기록의 record id 를 flow 가 알 수 없어 `diary-list-card-<id>` 로
+# 특정할 수 없다. 그 부분(payload 의 visibility 값)은
+# app/app/__tests__/record-visibility.test.tsx 가 단정한다.
+#
+# Requires the seeded test user (TEST_USER_EMAIL / TEST_USER_PASSWORD)
+# in a fresh onboarding state — CI calls
+# `backend/reset-user $TEST_USER_EMAIL` before this flow runs.
+
+# ─── Sign in and finish Case A onboarding so the home is unblocked ───────
+
+- clearKeychain
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    file: subflows/tester-login-fast.yaml
+# Q1·Q2 (Case A: 임신 O · 양육 X) → a1
+- runFlow:
+    file: subflows/onboarding-q1-q2-caseA.yaml
+# a1 → a2 → a3 → 홈 (예정일 선택 경로)
+- runFlow:
+    file: subflows/onboarding-caseA-full.yaml
+
+# ─── Scenario A: default is private, save as-is ───────────────────────────
+
+- assertVisible:
+    id: "home-text-cta"
+- tapOn:
+    id: "home-text-cta"
+- assertVisible:
+    id: "record-text-screen"
+
+# 본문 입력 — 저장 버튼은 내용이 있어야 활성화된다. autoFocus 로 이미 떠 있는
+# 키보드를 내려야 하단 footer(토글 + 저장)가 가려지지 않는다.
+- inputText: "e2e visibility default"
+- hideKeyboard
+
+# 토글이 저장 화면에 표시되고, 초기 선택은 비공개다 (TC-001-06 step 2).
+- assertVisible:
+    id: "record-text-visibility-private"
+- assertVisible:
+    id: "record-text-visibility-option-private"
+- assertVisible:
+    id: "record-text-visibility-option-public"
+
+# 그대로 저장 — 비공개 기본값으로 확정된다 (TC-001-06 step 3).
+- tapOn:
+    id: "record-text-save"
+- assertVisible:
+    id: "home-tab"
+
+# ─── Scenario B: switch to public before saving ───────────────────────────
+
+- tapOn:
+    id: "home-text-cta"
+- assertVisible:
+    id: "record-text-screen"
+- inputText: "e2e visibility public"
+- hideKeyboard
+
+# 새 작성 화면도 비공개에서 시작한다(선택이 이월되지 않는다).
+- assertVisible:
+    id: "record-text-visibility-private"
+
+# 공개로 전환 — 컨테이너 testID 가 -public 으로 바뀐다 (TC-001-06 step 4).
+- tapOn:
+    id: "record-text-visibility-option-public"
+- assertVisible:
+    id: "record-text-visibility-public"
+- assertNotVisible:
+    id: "record-text-visibility-private"
+
+- tapOn:
+    id: "record-text-save"
+- assertVisible:
+    id: "home-tab"

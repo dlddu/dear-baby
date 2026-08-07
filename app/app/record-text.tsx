@@ -22,6 +22,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../src/components/Button';
 import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
+import { VisibilityToggle } from '../src/components/VisibilityToggle';
+import type { RecordVisibility } from '../src/api/types';
 import { useAuth } from '../src/auth/AuthContext';
 import { useActiveChild } from '../src/context/ActiveChildContext';
 import { colors } from '../src/theme/colors';
@@ -43,6 +45,9 @@ export default function RecordTextScreen() {
   const { createTextRecord } = useAuth();
   const { activeChild } = useActiveChild();
   const [content, setContent] = useState('');
+  // AC-001-06 — 저장 시점 공개 여부. 기본값은 비공개(사용자 신뢰 우선,
+  // 서버 기본값과 동일). 공개를 고른 기록만 커뮤니티(PRD-009)로 이어진다.
+  const [visibility, setVisibility] = useState<RecordVisibility>('private');
   const [saving, setSaving] = useState(false);
 
   const trimmed = useMemo(() => content.trim(), [content]);
@@ -66,6 +71,7 @@ export default function RecordTextScreen() {
       await createTextRecord(trimmed, {
         subjectId: activeChild.subjectId,
         questionText: question || undefined,
+        visibility,
       });
       router.back();
     } catch {
@@ -73,7 +79,7 @@ export default function RecordTextScreen() {
     } finally {
       setSaving(false);
     }
-  }, [canSave, trimmed, createTextRecord, router, question, activeChild]);
+  }, [canSave, trimmed, createTextRecord, router, question, activeChild, visibility]);
 
   return (
     <SafeAreaView
@@ -124,6 +130,13 @@ export default function RecordTextScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
+          <VisibilityToggle
+            value={visibility}
+            onChange={setVisibility}
+            disabled={saving}
+            testID="record-text-visibility"
+          />
+          <View style={{ height: spacing[3] }} />
           <Button
             title={saving ? '저장 중…' : '저장'}
             variant="primary"

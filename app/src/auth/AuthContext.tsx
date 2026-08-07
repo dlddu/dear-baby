@@ -13,6 +13,7 @@ import {
   createTextRecord as apiCreateTextRecord,
   createVoiceRecord as apiCreateVoiceRecord,
 } from '../api/records';
+import type { CreateRecordOptions } from '../api/records';
 import type { Record, Session, User } from '../api/types';
 import {
   submitOnboardingCaseA as apiSubmitCaseA,
@@ -65,7 +66,7 @@ type AuthContextValue = {
   completeOnboardingCaseC: (payload: CaseCPayload) => Promise<void>;
   createTextRecord: (
     content: string,
-    options: { subjectId: string; questionText?: string },
+    options: CreateRecordOptions,
   ) => Promise<void>;
   // createVoiceRecord saves the transcript with source="voice". The
   // returned Record is what the caller needs to either move on or
@@ -73,7 +74,7 @@ type AuthContextValue = {
   // draft store + presigned URL).
   createVoiceRecord: (
     content: string,
-    options: { subjectId: string; questionText?: string },
+    options: CreateRecordOptions,
   ) => Promise<Record>;
   signOut: () => Promise<void>;
 };
@@ -205,14 +206,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // screen observes `first_record_at` to decide when to request an AI
   // preview and subscribe to the SSE stream.
   const createTextRecord = useCallback(
-    async (
-      content: string,
-      options: { subjectId: string; questionText?: string },
-    ) => {
-      const { user: updated } = await apiCreateTextRecord(content, {
-        subjectId: options.subjectId,
-        questionText: options.questionText,
-      });
+    async (content: string, options: CreateRecordOptions) => {
+      const { user: updated } = await apiCreateTextRecord(content, options);
       setUser(updated);
       await cacheFromUser(updated);
     },
@@ -224,14 +219,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // handled by the review screen, which uses the returned record_id
   // to feed the draft store and/or uploadAudio orchestrator.
   const createVoiceRecord = useCallback(
-    async (
-      content: string,
-      options: { subjectId: string; questionText?: string },
-    ) => {
-      const { record, user: updated } = await apiCreateVoiceRecord(content, {
-        subjectId: options.subjectId,
-        questionText: options.questionText,
-      });
+    async (content: string, options: CreateRecordOptions) => {
+      const { record, user: updated } = await apiCreateVoiceRecord(content, options);
       setUser(updated);
       await cacheFromUser(updated);
       return record;
