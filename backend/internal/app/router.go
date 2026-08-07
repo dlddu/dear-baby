@@ -141,6 +141,12 @@ func newRouter(cfg *config.Config, db *sql.DB, logger *slog.Logger, redisClient 
 			// if Audio is nil.
 			pr.Post("/records/{id}/audio/upload-url", recordsHandlers.CreateAudioUploadURL)
 			pr.Patch("/records/{id}", recordsHandlers.Patch)
+			// Community read path (PRD-009 커뮤니티 탭, first slice):
+			// public feed of other users' records, kind-matched to the
+			// caller's active subject, newest-first, keyset-paginated,
+			// author names masked. Read-only — likes / comments / reports
+			// and the same-question collection land in later slices.
+			pr.Get("/community/feed", recordsHandlers.CommunityFeed)
 		})
 	})
 
