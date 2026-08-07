@@ -10,15 +10,20 @@
 //
 // 회전 상태는 화면이 들고 있다 (당일 자정까지). 활성 아이가 바뀌면 자연스럽게
 // 0번 질문부터 다시 보여지도록 인덱스를 리셋한다.
-// 타인 기록 피드(AC-007-08·09) 는 카드 아래에 배치되며, mock 셀렉터가 정렬·
-// 필터·비식별화·50자 컷을 처리한다.
+// 타인 기록 피드는 PRD-009 AC-009-14("다른 엄마들의 기록" 섹션, 구 AC-007-08
+// 에서 이관) 로, `GET /v1/community/feed` 의 결과를 최대 3개 카드로 그린다.
+// 정렬·노출 풀·마스킹·50자 컷은 모두 서버가 끝내고 오므로 화면은 받은 것을
+// 그대로 렌더한다. 0건·오류 시의 문구는 AC-009-13 의 홈 관련 두 행을 따른다.
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getTopThreeForHome, type FeedEntry } from '../../src/api/feed';
+import {
+  getTopThreeForHome,
+  type CommunityFeedItem,
+} from '../../src/api/community';
 import { getUnreadCount } from '../../src/api/notifications';
 import { getCountByActiveChild } from '../../src/api/recordsCount';
 import { BookProgress } from '../../src/components/BookProgress';
@@ -30,6 +35,8 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { useActiveChild } from '../../src/context/ActiveChildContext';
 import { getDailyQuestionTriplet } from '../../src/data/dailyQuestions';
 import { colors } from '../../src/theme/colors';
+import { radius } from '../../src/theme/radius';
+import { shadows } from '../../src/theme/shadows';
 import { spacing } from '../../src/theme/spacing';
 import { formatChildAgeLabel, formatPregnancyLabel } from '../../src/utils/childLabel';
 
@@ -42,7 +49,13 @@ export default function HomeTab() {
   // the user returns from the notifications screen.
   const [unreadCount, setUnreadCount] = useState(0);
   const [rotationIndex, setRotationIndex] = useState(0);
-  const [feedEntries, setFeedEntries] = useState<FeedEntry[]>([]);
+  // 피드는 로딩·성공·실패 세 갈래를 구분해야 한다 — 빈 배열 하나로는
+  // "아직 안 왔다" 와 "공개 기록이 0건이다"(AC-009-13 빈 카드) 를 구분할 수
+  // 없고, 실패를 0건으로 그리면 사용자에게 거짓말이 된다.
+  const [feedStatus, setFeedStatus] = useState<'loading' | 'ready' | 'error'>(
+    'loading',
+  );
+  const [feedEntries, setFeedEntries] = useState<CommunityFeedItem[]>([]);
   // 책 진행도(AC-007-07): 활성 아이별 누적 답변 카운트. mock 가 결정적이라
   // 활성 아이 키만 의존성으로 두면 충분하다.
   const [recordsCount, setRecordsCount] = useState<number | null>(null);
@@ -107,17 +120,33 @@ export default function HomeTab() {
     }, []),
   );
 
-  // 피드는 마운트 시 한 번만 — mock 이라 결정적이고, 포커스마다 다시 셔플할
-  // 이유가 없다. 백엔드 도착 후 정렬·페이지네이션 정책에 맞춰 재검토.
+  // 활성 아이가 정해져야 피드를 부를 수 있다 — subject 의 kind 가 노출 풀을
+  // 고르기 때문(임신 case 는 태아 기록, 육아 case 는 아이 기록; ENG-008 케이스
+  // 혼합 금지). 그래서 아이를 바꾸면 피드도 다시 받는다.
+  const feedSubjectId = activeChild?.subjectId ?? null;
   useEffect(() => {
+    if (!feedSubjectId) {
+      setFeedStatus('ready');
+      setFeedEntries([]);
+      return;
+    }
     let cancelled = false;
-    void getTopThreeForHome().then((entries) => {
-      if (!cancelled) setFeedEntries(entries);
-    });
+    setFeedStatus('loading');
+    getTopThreeForHome(feedSubjectId)
+      .then((entries) => {
+        if (cancelled) return;
+        setFeedEntries(entries);
+        setFeedStatus('ready');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFeedEntries([]);
+        setFeedStatus('error');
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [feedSubjectId]);
 
   const handlePrevQuestion = useCallback(() => {
     setRotationIndex((curr) => (curr > 0 ? curr - 1 : curr));
@@ -198,7 +227,7 @@ export default function HomeTab() {
           }
         />
 
-        {feedEntries.length > 0 ? (
+        {feedSubjectId ? (
           <View style={styles.feedSection} testID="home-feed-section">
             <View style={styles.feedHeader}>
               <Text variant="sectionTitle" color="primary">
@@ -217,15 +246,41 @@ export default function HomeTab() {
                 </Text>
               </Pressable>
             </View>
-            <View style={styles.feedList}>
-              {feedEntries.map((entry) => (
-                <OtherEntryCard
-                  key={entry.id}
-                  entry={entry}
-                  testID={`home-feed-entry-${entry.id}`}
-                />
-              ))}
-            </View>
+            {/* 로딩 중에는 아무 카드도 그리지 않는다 — 빈 상태 문구를 잠깐
+                보여줬다가 카드로 바뀌는 깜빡임이 더 나쁘다. */}
+            {feedStatus === 'error' ? (
+              <View style={styles.feedNotice} testID="home-feed-error">
+                <Text variant="bodySmall" color="muted">
+                  기록을 불러오지 못했어요. 다시 시도해주세요
+                </Text>
+              </View>
+            ) : feedStatus === 'ready' && feedEntries.length === 0 ? (
+              // AC-009-13·14 — 공개 기록이 0건이면 mock 대신 빈 카드 + CTA.
+              <Pressable
+                onPress={handleTextPress}
+                accessibilityRole="button"
+                style={styles.feedNotice}
+                testID="home-feed-empty"
+              >
+                <Text
+                  variant="bodySmall"
+                  color="secondary"
+                  testID="home-feed-empty-cta"
+                >
+                  첫 기록을 공개해보세요
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={styles.feedList}>
+                {feedEntries.map((entry) => (
+                  <OtherEntryCard
+                    key={entry.id}
+                    entry={entry}
+                    testID={`home-feed-entry-${entry.id}`}
+                  />
+                ))}
+              </View>
+            )}
           </View>
         ) : null}
       </ScrollView>
@@ -261,5 +316,14 @@ const styles = StyleSheet.create({
   },
   feedList: {
     gap: spacing[2],
+  },
+  // 빈 상태·오류 상태의 자리. 카드와 같은 표면을 쓰되 내용만 문구 한 줄이라
+  // 섹션이 통째로 사라지지 않고 "여기에 무언가 올 자리" 라는 게 남는다.
+  feedNotice: {
+    backgroundColor: colors.surface.ivory,
+    borderRadius: radius.md,
+    padding: spacing[4],
+    alignItems: 'center',
+    ...shadows.card,
   },
 });

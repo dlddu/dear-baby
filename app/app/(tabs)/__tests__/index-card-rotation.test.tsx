@@ -37,9 +37,9 @@ jest.mock('../../../src/api/notifications', () => ({
   getUnreadCount: jest.fn(() => Promise.resolve(0)),
 }));
 
-// 본 테스트는 피드 영역이 관심사 밖 — 빈 배열을 돌려 섹션이 렌더되지 않게
+// 본 테스트는 피드 영역이 관심사 밖 — 빈 배열을 돌려 카드가 렌더되지 않게
 // 한다 (act 경고 방지 + 회전·CTA 단정의 testID 충돌 차단).
-jest.mock('../../../src/api/feed', () => ({
+jest.mock('../../../src/api/community', () => ({
   getTopThreeForHome: jest.fn(() => Promise.resolve([])),
 }));
 

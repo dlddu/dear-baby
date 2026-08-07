@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/dlddu/dear-baby/backend/internal/users"
 )
@@ -242,5 +243,145 @@ func TestCommunityFeed_EmptyPool(t *testing.T) {
 	}
 	if got.NextCursor != "" {
 		t.Errorf("empty pool should have no cursor, got %q", got.NextCursor)
+	}
+}
+
+// -- 아이 현황 (AC-009-14 카드의 "임신 N주차 / 생후 N개월" · ENG-011 + ENG-001) --
+
+// seedFetusProfile / seedChildProfile attach the profile row a subject's
+// stage is derived from. Migration 0012 makes fetuses.id / children.id equal
+// the record_subjects.id, and the feed query joins on exactly that.
+func seedFetusProfile(t *testing.T, db *sql.DB, subjID, userID string, ordinal int, dueDate any) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT INTO fetuses (id, user_id, ordinal, due_date) VALUES (?, ?, ?, ?)`, subjID, userID, ordinal, dueDate); err != nil {
+		t.Fatalf("seed fetus profile %s: %v", subjID, err)
+	}
+}
+
+func seedChildProfile(t *testing.T, db *sql.DB, subjID, userID string, ordinal int, birthDate any) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT INTO children (id, user_id, ordinal, birth_date) VALUES (?, ?, ?, ?)`, subjID, userID, ordinal, birthDate); err != nil {
+		t.Fatalf("seed child profile %s: %v", subjID, err)
+	}
+}
+
+func TestChildStatusText(t *testing.T) {
+	// 기록 작성일을 고정해 두고 (ENG-011: 기준 시점 = 작성 당시) 프로필 날짜만
+	// 흔든다. 작성자의 "지금" 은 어떤 케이스에서도 개입하지 않아야 한다.
+	recordedAt := time.Date(2026, 8, 7, 9, 30, 0, 0, time.UTC)
+	str := func(v string) sql.NullString { return sql.NullString{String: v, Valid: true} }
+	null := sql.NullString{}
+
+	cases := []struct {
+		name      string
+		kind      string
+		dueDate   sql.NullString
+		birthDate sql.NullString
+		want      string
+	}{
+		// 280 - (due - 작성일) = 280 - 140 = 140일 → 20주.
+		{"임신 20주차", "fetus", str("2026-12-25"), null, "임신 20주차"},
+		// 예정일 당일 → daysPregnant = 280 → 40주.
+		{"예정일 당일은 40주차", "fetus", str("2026-08-07"), null, "임신 40주차"},
+		// 5주 이내 과거 예정일은 아직 표시한다 (ENG-001 경계값 표).
+		{"예정일 4주 경과", "fetus", str("2026-07-10"), null, "임신 44주차"},
+		// 5주 이상 과거 → 방치된 프로필로 보고 배지를 숨긴다.
+		{"예정일 6주 경과는 숨김", "fetus", str("2026-06-26"), null, ""},
+		// 45주 초과 미래 → Stage 1 피커가 막는 범위 밖.
+		{"45주 초과 미래는 숨김", "fetus", str("2027-07-01"), null, ""},
+		// 40주보다 먼 미래 예정일 → daysPregnant 음수를 0 으로 clamp.
+		{"만삭 이전은 0주로 clamp", "fetus", str("2027-06-01"), null, "임신 0주차"},
+		{"예정일 미설정은 숨김", "fetus", null, null, ""},
+		{"예정일 파싱 불가는 숨김", "fetus", str("2026/12/25"), null, ""},
+
+		{"생후 5개월", "child", null, str("2026-03-07"), "생후 5개월"},
+		// 같은 day-of-month 가 아직 안 지났으면 한 달 깎는다.
+		{"생일 도래 전은 한 달 적게", "child", null, str("2026-03-08"), "생후 4개월"},
+		{"당일 출생은 0개월", "child", null, str("2026-08-07"), "생후 0개월"},
+		// 12개월까지는 개월, 13개월부터 살 — 앱 childLabel 과 같은 경계.
+		{"12개월은 개월 표기", "child", null, str("2025-08-07"), "생후 12개월"},
+		{"13개월은 1살", "child", null, str("2025-07-07"), "1살"},
+		{"4살", "child", null, str("2022-01-07"), "4살"},
+		{"미래 생일은 숨김", "child", null, str("2026-09-01"), ""},
+		{"생일 미설정은 숨김", "child", null, null, ""},
+
+		{"알 수 없는 kind 는 숨김", "unknown", str("2026-12-25"), str("2026-03-07"), ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := childStatusText(c.kind, c.dueDate, c.birthDate, recordedAt); got != c.want {
+				t.Fatalf("childStatusText(%s) = %q, want %q", c.kind, got, c.want)
+			}
+		})
+	}
+}
+
+func TestChildStatusTextUsesRecordDateNotToday(t *testing.T) {
+	// 같은 예정일이라도 언제 쓴 글이냐에 따라 단계가 달라야 한다 — ENG-011 의
+	// "작성 당시 단계" 규칙이 지켜지는지 직접 잠근다.
+	due := sql.NullString{String: "2026-12-25", Valid: true}
+	early := childStatusText("fetus", due, sql.NullString{}, time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC))
+	late := childStatusText("fetus", due, sql.NullString{}, time.Date(2026, 8, 7, 0, 0, 0, 0, time.UTC))
+	if early == late {
+		t.Fatalf("stage should differ by write date, got %q for both", early)
+	}
+	if early != "임신 6주차" {
+		t.Fatalf("early = %q, want 임신 6주차", early)
+	}
+	if late != "임신 20주차" {
+		t.Fatalf("late = %q, want 임신 20주차", late)
+	}
+}
+
+func TestCommunityFeedIncludesChildStatusText(t *testing.T) {
+	h, db := newFeedHandlers(t)
+	defer db.Close()
+	seedFeedUser(t, db, "viewer", "viewer@example.com")
+	seedFeedUser(t, db, "author", "seoyeon1@example.com")
+	viewerSubj := seedSubject(t, db, "subj-viewer", "viewer", "fetus", 0)
+	authorSubj := seedSubject(t, db, "subj-author", "author", "fetus", 0)
+	seedFetusProfile(t, db, viewerSubj, "viewer", 0, "2026-11-01")
+	seedFetusProfile(t, db, authorSubj, "author", 0, "2026-12-25")
+	seedRecord(t, db, "rec-1", "author", authorSubj, "오늘은 태동이 유난히 셌어", "public", "2026-08-07 09:30:00", nil)
+
+	rec := getFeed(t, h, "viewer", "?subject_id="+url.QueryEscape(viewerSubj))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+	}
+	got := decodeFeed(t, rec)
+	if len(got.Items) != 1 {
+		t.Fatalf("items = %d, want 1", len(got.Items))
+	}
+	if got.Items[0].ChildStatusText != "임신 20주차" {
+		t.Fatalf("child_status_text = %q, want 임신 20주차", got.Items[0].ChildStatusText)
+	}
+	// 마스킹은 그대로 — 현황이 붙었다고 작성자 식별 정보가 새면 안 된다.
+	if got.Items[0].AuthorName != "seo***1" {
+		t.Fatalf("author_name = %q, want seo***1", got.Items[0].AuthorName)
+	}
+}
+
+func TestCommunityFeedWithoutProfileRowStillReturnsRecord(t *testing.T) {
+	// 프로필 행이 없어도 (레거시 subject) 기록은 사라지지 않고 현황만 빈다 —
+	// LEFT JOIN 이 INNER 로 바뀌면 이 테스트가 잡는다.
+	h, db := newFeedHandlers(t)
+	defer db.Close()
+	seedFeedUser(t, db, "viewer", "viewer@example.com")
+	seedFeedUser(t, db, "author", "author@example.com")
+	viewerSubj := seedSubject(t, db, "subj-viewer", "viewer", "child", 0)
+	authorSubj := seedSubject(t, db, "subj-author", "author", "child", 0)
+	seedChildProfile(t, db, viewerSubj, "viewer", 0, "2026-01-01")
+	seedRecord(t, db, "rec-1", "author", authorSubj, "첫 이유식을 먹었다", "public", "2026-08-07 09:30:00", nil)
+
+	rec := getFeed(t, h, "viewer", "?subject_id="+url.QueryEscape(viewerSubj))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+	}
+	got := decodeFeed(t, rec)
+	if len(got.Items) != 1 {
+		t.Fatalf("items = %d, want 1", len(got.Items))
+	}
+	if got.Items[0].ChildStatusText != "" {
+		t.Fatalf("child_status_text = %q, want empty", got.Items[0].ChildStatusText)
 	}
 }

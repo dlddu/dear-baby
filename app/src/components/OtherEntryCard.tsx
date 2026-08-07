@@ -1,15 +1,20 @@
-// OtherEntryCard — PRD-007 AC-007-08 의 타인 기록 피드 카드.
+// OtherEntryCard — PRD-009 AC-009-14 의 홈 "다른 엄마들의 기록" 피드 카드.
+//   (구 PRD-007 AC-007-08 에서 2026-08-05 이관.)
 //
 // 시각 출처: docs/mockups/source/src/screens/HomePregnancyScreen.tsx L114-129.
 // 카드 구성:
-//   - 좌상단: 비식별화 alias (예: 'cho***3') + 아이 컨텍스트 ('임신 3주차')
-//   - 우상단: ♥ + 카운트 (coral)
-//   - 본문: 질문 (h3, ink) + 답변 snippet ('…' 마커는 muted)
+//   - 좌상단: 마스킹 표시명 (AC-009-10, 예: 'seo***1') + 작성 당시 아이 현황
+//     ('임신 20주차'). 현황은 서버가 산출하지 못하면 빈 문자열로 오고, 그때는
+//     줄을 아예 그리지 않는다 (없는 값을 지어내지 않는다).
+//   - 본문: 질문 (h3, ink — AI 질문 답변일 때만) + 미리보기 ('…' 마커는 muted)
 //
-// answer 는 이미 셀렉터가 잘라 '…' 까지 붙여 넘긴다고 가정한다. 본 컴포넌트
-// 는 마커를 다시 분리해 muted 색으로만 칠할 뿐, 자체 추가 자르기는 하지
-// 않는다 — UI 에서 글자 수를 만지려면 셀렉터 한도(FEED_ANSWER_SNIPPET_LIMIT)
-// 부터 조정한다.
+// **공감 수(♥)는 아직 그리지 않는다.** AC-009-14 는 카드에 공감 수를 요구하지만
+// likes 테이블·집계가 없어 실제 값을 낼 수 없다. 0 이나 임의 값을 박으면 이
+// 화면이 오래 해 온 일(mock 데이터 노출)을 되풀이하는 셈이라, AC-009-08(공감)
+// 슬라이스가 실제 카운트를 실어 올 때 이 카드에 다시 붙인다.
+//
+// preview 는 서버가 이미 50자로 자르고 '…' 를 붙여 보낸다. 본 컴포넌트는 그
+// 마커를 muted 색으로 분리해 칠할 뿐, 자체 추가 자르기는 하지 않는다.
 
 import {
   Pressable,
@@ -19,7 +24,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import type { FeedEntry } from '../api/feed';
+import type { CommunityFeedItem } from '../api/community';
 import { colors } from '../theme/colors';
 import { radius } from '../theme/radius';
 import { shadows } from '../theme/shadows';
@@ -28,14 +33,14 @@ import { spacing } from '../theme/spacing';
 import { Text } from './Text';
 
 export type OtherEntryCardProps = {
-  entry: FeedEntry;
-  /** 카드 탭 — 본 작업 범위에서는 부모가 noop 으로 둘 수 있다. */
+  entry: CommunityFeedItem;
+  /** 카드 탭 — 게시글 상세(AC-009-07)가 도착하기 전까지 부모가 noop 으로 둔다. */
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
 
-// 셀렉터가 붙인 '…' 마커. 본 컴포넌트는 이 한 글자를 muted 색으로 분리해
+// 서버가 붙인 '…' 마커. 본 컴포넌트는 이 한 글자를 muted 색으로 분리해
 // 칠하기 위해서만 안다.
 const ELLIPSIS_MARKER = '…';
 
@@ -45,10 +50,10 @@ export function OtherEntryCard({
   style,
   testID = 'other-entry-card',
 }: OtherEntryCardProps) {
-  const hasEllipsis = entry.answer.endsWith(ELLIPSIS_MARKER);
-  const answerBody = hasEllipsis
-    ? entry.answer.slice(0, -ELLIPSIS_MARKER.length)
-    : entry.answer;
+  const hasEllipsis = entry.preview.endsWith(ELLIPSIS_MARKER);
+  const previewBody = hasEllipsis
+    ? entry.preview.slice(0, -ELLIPSIS_MARKER.length)
+    : entry.preview;
 
   return (
     <Pressable
@@ -66,41 +71,32 @@ export function OtherEntryCard({
             numberOfLines={1}
             testID={`${testID}-alias`}
           >
-            {entry.authorAlias}
+            {entry.authorName}
           </Text>
-          <Text
-            variant="micro"
-            color="muted"
-            style={styles.context}
-            numberOfLines={1}
-            testID={`${testID}-context`}
-          >
-            {entry.childContext}
-          </Text>
-        </View>
-        <View style={styles.heartRow}>
-          <Text variant="micro" color="coral" style={styles.heartGlyph}>
-            ♥
-          </Text>
-          <Text
-            variant="micro"
-            color="coral"
-            style={styles.heartCount}
-            testID={`${testID}-hearts`}
-          >
-            {entry.heartCount}
-          </Text>
+          {entry.childStatusText ? (
+            <Text
+              variant="micro"
+              color="muted"
+              style={styles.context}
+              numberOfLines={1}
+              testID={`${testID}-context`}
+            >
+              {entry.childStatusText}
+            </Text>
+          ) : null}
         </View>
       </View>
 
-      <Text
-        variant="cardTitle"
-        color="primary"
-        style={styles.question}
-        testID={`${testID}-question`}
-      >
-        {entry.question}
-      </Text>
+      {entry.questionText ? (
+        <Text
+          variant="cardTitle"
+          color="primary"
+          style={styles.question}
+          testID={`${testID}-question`}
+        >
+          {entry.questionText}
+        </Text>
+      ) : null}
 
       <Text
         variant="bodySmall"
@@ -108,7 +104,7 @@ export function OtherEntryCard({
         style={styles.answer}
         testID={`${testID}-answer`}
       >
-        {answerBody}
+        {previewBody}
         {hasEllipsis ? (
           <Text variant="bodySmall" color="muted">
             {ELLIPSIS_MARKER}
@@ -143,14 +139,6 @@ const styles = StyleSheet.create({
   context: {
     flexShrink: 1,
   },
-  heartRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    flexShrink: 0,
-  },
-  heartGlyph: {},
-  heartCount: {},
   question: {
     marginTop: spacing[1],
   },
