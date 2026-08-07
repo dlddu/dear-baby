@@ -1,5 +1,7 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: AC-006-02 (Case A 입력 흐름 — 첫 아이 임신 중).
+#
 # Onboarding Case A — 임신만 (Q1=Y · Q2=N) 풀 시나리오.
 #
 # Verifies AC-006-02 의 전체 흐름: Q1 → Q2 → A1 → A2 (예정일 선택) → A3 →

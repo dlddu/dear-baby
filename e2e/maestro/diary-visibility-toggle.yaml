@@ -1,5 +1,7 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: AC-008-07 (공개/비공개 토글 — 사후 변경).
+#
 # Diary visibility toggle — ⋯ 액션 시트의 공개·비공개 전환 (PRD-008
 # AC-008-07). diary-r1 은 fixture 상 private 으로 시드되므로 토글 후
 # 상세 배지 testID 가 "diary-detail-visibility-public" 로 바뀐다.

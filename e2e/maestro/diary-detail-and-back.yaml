@@ -1,5 +1,7 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: AC-008-04 (기록 상세 — 진입과 전체 표시).
+#
 # Diary detail — open a card, verify detail content, return to list
 # (PRD-008 AC-008-04).
 
