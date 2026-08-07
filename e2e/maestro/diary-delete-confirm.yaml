@@ -1,5 +1,7 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: AC-008-06 (기록 삭제 — 확인 모달).
+#
 # Diary delete — open ⋯ → 삭제 → confirm modal → delete (PRD-008 AC-008-06).
 # After delete the user returns to the list and the deleted card is gone.
 

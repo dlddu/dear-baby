@@ -1,5 +1,7 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: AC-006-03 (Case B 입력 흐름 — 양육 + 임신 중).
+#
 # Onboarding Case B — 양육 + 임신 (양육 2명·다태 2명) 풀 시나리오.
 #
 # Verifies AC-006-03 의 전체 흐름: Q1·Q2 → b0 (안내 ①) → b1 → [b2 → b2-purpose]×2

@@ -1,5 +1,7 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: AC-007-07 (오늘의 질문 카드 — 책 진행도 표시).
+#
 # PRD-007 TC-007-07 — 홈 책 진행도 (AC-007-07).
 #
 # 두 분기를 한 flow 로 묶어 확인한다. recordsCount mock 의 결정적 fallback

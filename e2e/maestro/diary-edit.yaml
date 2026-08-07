@@ -1,5 +1,7 @@
 appId: ${APP_ID}
 ---
+# 검증 대상: AC-008-05 (기록 편집 — 사후 편집).
+#
 # Diary edit — open ⋯ → 편집, change body, save, verify the list and detail
 # reflect the new body (PRD-008 AC-008-05).
 
