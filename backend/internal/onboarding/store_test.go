@@ -51,6 +51,9 @@ CREATE TABLE records (
   audio_s3_key  TEXT,
   question_text TEXT,
   visibility    TEXT NOT NULL CHECK(visibility IN ('private','public')),
+  stage_kind    TEXT,
+  stage_days    INTEGER,
+  stage_months  INTEGER,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE fetuses (
