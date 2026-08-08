@@ -23,6 +23,8 @@ import (
 // DefaultBaseURL is the OpenRouter production endpoint. Tests and CI
 // override this via OPENROUTER_BASE_URL so they hit a local mock rather
 // than spending real credits.
+//
+// mock-exception: MB-4 — MB-4 치환의 주입 지점(기본값은 실 공급자).
 const DefaultBaseURL = "https://openrouter.ai/api/v1"
 
 // tracerName is the otel.Tracer name spans are bucketed under. Stable

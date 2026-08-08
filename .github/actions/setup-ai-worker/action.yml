@@ -65,6 +65,9 @@ runs:
       run: |
         go build -trimpath -o worker-bin ./cmd/worker
 
+    # mock-exception: MB-4 — LLM 공급자로의 HTTP 왕복만 치환한다. 이 액션은
+    # e2e-android.yml·e2e-ios.yml·integration.yml 이 모두 쓰므로, maestro e2e
+    # 레인에서도 워커→백엔드→SSE→앱 구간은 실제 컴포넌트로 돈다.
     # Start the mock OpenRouter server in the background. Only runs when
     # openrouter-base-url is empty — callers that want to talk to a real
     # provider supply their own baseURL and skip this entirely.
@@ -110,6 +113,7 @@ runs:
       env:
         REDIS_URL: ${{ inputs.redis-url }}
         OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        # mock-exception: MB-4 — 워커를 위 mock 으로 물리는 주입 지점.
         OPENROUTER_BASE_URL: ${{ steps.worker_base_url.outputs.value }}
         OPENROUTER_MODEL: ${{ inputs.openrouter-model }}
         LOG_LEVEL: ${{ inputs.log-level }}

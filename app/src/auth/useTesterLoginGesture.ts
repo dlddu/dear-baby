@@ -12,6 +12,9 @@ import { useCallback, useRef } from 'react';
 // stumbling into the tester flow by random taps and prevents stale
 // progress (e.g., a user tapping the corner once an hour ago) from
 // counting toward a later sequence.
+//
+// mock-exception: MB-2 — 외부 Google/Apple OAuth 왕복은 CI 에서 재현할 수 없어, 이
+// 제스처가 여는 password-login 이 신원 공급자를 대신한다(세션 수립 이후는 전부 실제 경로).
 export const TESTER_LOGIN_GESTURE = {
   MIN_LEFT: 5,
   MAX_LEFT: 7,

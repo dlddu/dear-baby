@@ -1,5 +1,8 @@
 appId: ${APP_ID}
 ---
+# mock-exception: MB-2 — 외부 OAuth 공급자 왕복이 CI 에서 불가능해 tester-login 이
+# 그 자리를 대신한다. 이 subflow 는 그 대체 경로의 도달 방법만 줄인다(치환 없음).
+#
 # Fast tester-login subflow for the flows that log in as *setup* rather
 # than as the thing under test. Caller must launch the app and arrive at
 # the landing screen first.

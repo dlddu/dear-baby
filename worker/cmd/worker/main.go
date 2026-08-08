@@ -49,6 +49,9 @@ func run(logger *slog.Logger) error {
 	}
 	// Optional: when set, redirects the OpenRouter client to a local
 	// mock so CI integration runs don't burn credits.
+	//
+	// mock-exception: MB-4 — MB-4 치환의 주입 지점. 비어 있으면 실 OpenRouter 로
+	// 나가므로 프로덕션 동작은 바뀌지 않는다.
 	openrouterBaseURL := os.Getenv("OPENROUTER_BASE_URL")
 
 	bootCtx, bootCancel := context.WithTimeout(context.Background(), 30*time.Second)

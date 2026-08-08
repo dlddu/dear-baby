@@ -103,6 +103,7 @@ jobs:
             --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC" \
             --from-literal=LANGFUSE_BASE_URL="${LF_BASE:-https://us.cloud.langfuse.com}"
 
+      # mock-exception: MB-4 — LLM 공급자로의 HTTP 왕복만 치환한다(비결정적 산출 + 실 크레딧 소모).
       # Stand up the mock OpenRouter server in-cluster. The worker's
       # OPENROUTER_BASE_URL env (set below) points its OpenAI client at
       # this Service so chat.completions calls never leave the cluster.
