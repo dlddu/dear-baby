@@ -3,7 +3,7 @@ doc_id: GLOSSARY-001
 doc_type: glossary
 product: dear_baby
 created: 2026-04-15
-updated: 2026-08-05
+updated: 2026-08-08
 ---
 
 # 용어집 (Glossary)
@@ -41,11 +41,14 @@ updated: 2026-08-05
 | 세션 | `Session` | `session` | — (JWT) | 인증 상태. `accessToken` + `refreshToken` + `user` 로 구성 | `app/src/api/types.ts:10` |
 | 기록 *(제안)* | `Record` | `record`, `records` | `records` / `record_id` | 사용자가 작성한 일기 단위. 음성 또는 텍스트로 작성되며 미디어 첨부 가능 | PRD-001, PRD-005 |
 | 음성 일기 *(제안)* | `Record` (subtype: `type: 'voice'`) | `voiceRecord` | `records.type = 'voice'` | 음성 녹음에서 시작된 기록. 별도 타입이 아닌 `Record` 의 하위 분류 | PRD-001, V-004 |
-| 오늘의 질문 *(제안)* | `DailyQuestion` | `dailyQuestion`, `todaysQuestion` | `daily_questions` / `question_id` | 임신 주차 기반으로 매일 제공되는 프롬프트 | PRD-002, V-005 |
+| 오늘의 질문 *(제안)* | `DailyQuestion` | `dailyQuestion`, `todaysQuestion` | `daily_questions` / `question_id` | **아이 단계(임신 주차 또는 생후 나이) 기반**으로 매일 제공되는 프롬프트. 단계는 선택 속성이 아니라 기본 속성이다 | PRD-002, V-005 |
 | 서사 *(제안)* | `Narrative` | `narrative` | `narratives` / `narrative_id` | AI가 여러 기록을 엮어 생성한 편지 형식의 이야기 | PRD-003, V-003 |
 | 실물 책 *(제안)* | `Book` | `book` | `books` / `book_id` | 서사와 미디어로 제작된 물리적 책 제품 | PRD-004, V-006 |
 | 미디어 *(제안)* | `Media` | `media`, `mediaItem` | `media` / `media_id`, `media_type` | 기록에 첨부된 사진/영상/음성 메모 | PRD-005, V-007 |
-| 임신 주차 *(제안)* | `PregnancyWeek` (number) | `pregnancyWeek`, `currentWeek` | `pregnancy_week` | 출산 예정일 기반으로 계산된 현재 주차. 사용자가 직접 입력할 수도 있다 | PRD-002, AC-002-02, PRD-006, AC-006-02 |
+| 아이 단계 *(제안)* | `ChildStage` (`{ kind: 'pregnancy'; week: number } \| { kind: 'postnatal'; days: number }`) | `stage`, `childStage` | — (파생 값) | 아이가 지금 어느 시기에 있는지. **임신 주차 축과 생후 나이 축 중 정확히 하나**에 속하며 두 값을 동시에 갖지 않는다. 출산 전환이 축을 바꾸는 유일한 사건. 산출 불가 시 `null` (= 단계 없음) | PRD-002 질문 모델, ENG-001, ENG-011 |
+| 임신 주차 *(제안)* | `PregnancyWeek` (number) | `pregnancyWeek`, `currentWeek` | `pregnancy_week` | 출산 예정일 기반으로 계산된 현재 주차. `ChildStage` 의 임신 축. 사용자가 직접 입력할 수도 있다 | PRD-002, AC-002-02, PRD-006, AC-006-02, ENG-001 |
+| 생후 나이 *(제안)* | `PostnatalAge` (number, 일 단위) | `postnatalAge`, `daysOld` | `birth_date` 에서 파생 | 생년월일 기반으로 계산된 경과 시간. `ChildStage` 의 양육 축. 출생 당일이 **1일째**이며, 개월·연 환산은 30일 나눗셈이 아니라 **달력 기준**. 상한 없음 | PRD-002, AC-002-02, PRD-007 AC-007-01, ENG-001 |
+| 단계 스냅샷 *(제안)* | `StageSnapshot` (`ChildStage \| null`) | `stageAtWriting` | `records` 의 단계 컬럼 (축 + 값, **nullable**; 컬럼명은 구현 시 확정) | 기록·답변이 **작성될 당시**의 아이 단계. 저장 시점에 계산해 **물리 저장**한다. 시간 경과·출산 전환으로는 불변이나, **기준값(예정일·출생일) 정정 시 재계산**된다 (ENG-013). 단계 산출 불가 상태로 작성된 기록은 `null` | PRD-002 AC-002-03, ENG-011, ENG-013 |
 | 출산 예정일 *(제안)* | `DueDate` (ISO 8601 date string) | `dueDate` | `due_date` | EDD. 사용자가 입력하며 임신 주차 계산의 기준 | PRD-002, AC-002-02, PRD-006, AC-006-02 |
 | 임신 아이 수 *(제안)* | `FetusCount` (`1 \| 2 \| 3`) | `fetusCount` | — (frontend only) | 동시에 품고 있는 태아 수. 단태/쌍둥이/세쌍둥이+ 의 입력 표기. 백엔드 영속화는 추후 PR | PRD-006, AC-006-02 |
 | 태명 *(제안)* | `Nickname` (string) | `nickname` | — (frontend only) | 태아 또는 아이의 애칭. 선택 입력 | PRD-006, AC-006-02 |
