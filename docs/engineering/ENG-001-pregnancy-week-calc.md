@@ -120,7 +120,21 @@ updated: 2026-08-08
 - 피커 상한 (45 주): 예정일 입력 화면들의 `MAX_DATE` — `a2.tsx` (Case A 태아 정보) · `b2.tsx`·`b5.tsx` (Case B) · `c2.tsx` (Case C). 경로는 `app/app/(onboarding)/` *(2026-08-08 정정: 기존 `welcome.tsx` 경로는 실재하지 않는 죽은 링크였고, 실제로는 케이스별 화면 4곳에 분산돼 있다 — 상한 정책 변경 시 4곳을 함께 고쳐야 한다)*
 - 배지 렌더: [`app/src/components/HomeQuestionCard.tsx`](../../app/src/components/HomeQuestionCard.tsx) *(2026-08-08 정정: 기존 `QuestionCard.tsx` 경로는 실재하지 않는 죽은 링크였다)*
 - 홈 조합: [`app/app/(tabs)/index.tsx`](../../app/app/(tabs)/index.tsx)
-- 생후 나이 산출: **미구현** — 위 "생후 나이" 절이 구현 시 기준
+- **단계 스냅샷 계산기 (양축, 서버)**: [`backend/internal/records/stage.go`](../../backend/internal/records/stage.go)
+  — `computeStageSnapshot` 이 위 두 절과 "단계 산출 불가 판정" 을 그대로 구현한
+  단일 권위다 (ENG-013 이 이 결과를 `records` 컬럼에 물리 저장한다)
+  *(2026-08-08 정정: 기존 "생후 나이 산출: **미구현**" 서술은 이 구현으로 해소됐다)*
+- 생후 나이 라벨 포맷터: [`app/src/utils/childLabel.ts`](../../app/src/utils/childLabel.ts)
+  (`formatChildAgeLabel`)
+
+> ⚠️ **말일 절사 규칙은 아직 한 곳에만 반영돼 있다.** 위 "생후 나이" 절의
+> "말일 출생(1/31 → 2/28)은 해당 월의 마지막 날로 절사한다" 를 구현한 것은
+> `backend/internal/records/stage.go` 의 `calendarMonthsBetween` 뿐이다.
+> 기록 시점을 **소급 계산**하는 나머지 두 곳 — `backend/internal/records/community.go`
+> 의 `monthsBetween`(커뮤니티 카드 아이 현황)과 `app/src/utils/childLabel.ts` 의
+> `monthsBetween`(홈 헤더·일기 칩) — 은 `day < birth.day` 만 보아 1/31 생을
+> 2/28 에 0개월로 센다. 두 소급 계산기를 스냅샷 소비로 전환하는 후속 작업에서
+> 함께 정리한다.
 
 ## 관련 문서
 
