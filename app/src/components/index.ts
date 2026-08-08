@@ -35,3 +35,5 @@ export { OtherEntryCard } from './OtherEntryCard';
 export type { OtherEntryCardProps } from './OtherEntryCard';
 export { BookProgress } from './BookProgress';
 export type { BookProgressProps } from './BookProgress';
+export { VisibilityToggle } from './VisibilityToggle';
+export type { VisibilityToggleProps } from './VisibilityToggle';

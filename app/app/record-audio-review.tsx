@@ -29,6 +29,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../src/components/Button';
 import { RecordQuestionHeader } from '../src/components/RecordQuestionHeader';
 import { Text } from '../src/components/Text';
+import { VisibilityToggle } from '../src/components/VisibilityToggle';
+import type { RecordVisibility } from '../src/api/types';
 import { useAuth } from '../src/auth/AuthContext';
 import { useActiveChild } from '../src/context/ActiveChildContext';
 import * as draftStore from '../src/drafts/draftStore';
@@ -62,6 +64,10 @@ export default function RecordAudioReviewScreen() {
   const { createVoiceRecord } = useAuth();
   const { activeChild } = useActiveChild();
   const [content, setContent] = useState('');
+  // AC-001-06 — 저장 시점 공개 여부. 음성·텍스트 두 경로 모두 같은 토글을
+  // 쓰고 기본값은 비공개다(서버 기본값과 동일). 저장 후 변경은 일기 탭의
+  // 사후 토글(AC-008-07) 소관.
+  const [visibility, setVisibility] = useState<RecordVisibility>('private');
   const [phase, setPhase] = useState<Phase>('transcribing');
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
   // disposed prevents the cleanup effect from deleting the audio when
@@ -140,6 +146,7 @@ export default function RecordAudioReviewScreen() {
       const record = await createVoiceRecord(trimmed, {
         subjectId: activeChild.subjectId,
         questionText: question || undefined,
+        visibility,
       });
       await persistDraftOnSuccess(record.id, record.created_at);
       router.replace('/(tabs)');
@@ -148,7 +155,16 @@ export default function RecordAudioReviewScreen() {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
-  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question, activeChild]);
+  }, [
+    canSave,
+    createVoiceRecord,
+    persistDraftOnSuccess,
+    router,
+    trimmed,
+    question,
+    activeChild,
+    visibility,
+  ]);
 
   const handleSaveAndUpload = useCallback(async () => {
     if (!canSave) return;
@@ -161,6 +177,7 @@ export default function RecordAudioReviewScreen() {
       const record = await createVoiceRecord(trimmed, {
         subjectId: activeChild.subjectId,
         questionText: question || undefined,
+        visibility,
       });
       await persistDraftOnSuccess(record.id, record.created_at);
       // Fire the upload — uploadAudio handles its own errors and
@@ -180,7 +197,16 @@ export default function RecordAudioReviewScreen() {
       Alert.alert('저장에 실패했어요', '잠시 후 다시 시도해 주세요.');
       setPhase('editing');
     }
-  }, [canSave, createVoiceRecord, persistDraftOnSuccess, router, trimmed, question, activeChild]);
+  }, [
+    canSave,
+    createVoiceRecord,
+    persistDraftOnSuccess,
+    router,
+    trimmed,
+    question,
+    activeChild,
+    visibility,
+  ]);
 
   const handleCancel = useCallback(() => {
     router.back();
@@ -260,6 +286,13 @@ export default function RecordAudioReviewScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
+          <VisibilityToggle
+            value={visibility}
+            onChange={setVisibility}
+            disabled={phase !== 'editing'}
+            testID="record-audio-review-visibility"
+          />
+          <View style={{ height: spacing[3] }} />
           <Button
             title={uploadButtonTitle}
             leading="☁️"
