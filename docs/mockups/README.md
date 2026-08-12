@@ -1,14 +1,18 @@
 # DearBaby — Mockups
 
-페이지 단위 mockup 39개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
+페이지 단위 mockup 42개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
 
 ## 빠른 보기
 
-진입점은 단일 파일이다.
+최신 `main`의 목업은 GitHub Pages에서 바로 확인할 수 있다.
+
+- **[GitHub Pages에서 보기](https://dlddu.github.io/dear-baby/)**
+
+로컬 진입점은 단일 파일이다.
 
 - **[`index.html`](index.html)** — 빌드된 단일 HTML (브라우저로 열기)
 
-이 파일 하나에 39개 화면 + 갤러리가 모두 인라인 번들된다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
+이 파일 하나에 42개 화면 + 갤러리가 모두 인라인 번들된다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
 
 ## 디렉토리 구조
 
@@ -46,7 +50,13 @@ pnpm install
 pnpm dev    # http://localhost:5173 에서 hot reload
 ```
 
-## 39개 페이지 일람
+## GitHub Pages 배포
+
+`main`의 `docs/mockups/source/` 또는 Pages workflow가 변경되면
+`.github/workflows/mockups-pages.yml`이 Vite 빌드 결과를 자동으로 배포한다.
+수동 재배포는 GitHub Actions의 **Deploy Mockups to GitHub Pages** workflow에서 실행할 수 있다.
+
+## 42개 페이지 일람
 
 | ID | 화면 | 여정 / Stage |
 |----|------|--------------|
@@ -89,6 +99,9 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-37 | 일기 탭 — 다자녀 통합 (콩이+하준) + 필터 | Diary Browsing · 6½-2 |
 | M-38 | 기록 상세 + ⋯ 액션 시트 | Diary Browsing · 6½-3·4 |
 | M-39 | 일기 탭 — 빈 상태 (기록 0건) | Diary Browsing · 6½-1 |
+| M-40 | 기록 편집 (사후) | Diary Browsing · 6½-4 |
+| M-41 | 삭제 확인 모달 | Diary Browsing · 6½-4 |
+| M-42 | 필터 시트 (다자녀) | Diary Browsing · 6½-2 |
 
 ## ★ 감정 봉우리 페이지
 
@@ -104,7 +117,7 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | 가치 | 핵심 mockup |
 |------|-------------|
 | V-001 감정 보존 | M-01, M-22, M-24 ★, M-29 ★, M-36, M-38 |
-| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22, M-35, M-39 |
+| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22, M-35, M-39, M-40, M-41, M-42 |
 | V-003 서사적 의미 부여 | M-29 ★, M-30, M-32, M-36, M-37 |
 | V-004 음성-텍스트 자동 변환 | M-19, M-20, M-27 |
 | V-005 아이 단계별 맞춤 질문 | M-17, M-26 |
