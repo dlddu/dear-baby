@@ -61,7 +61,7 @@
 
 ### Mockups (페이지 단위 시각 산출물)
 - [Mockups Index — 매핑 인덱스 + 재빌드 방법](mockups/README.md)
-- [Mockups (브라우저로 열기) — 39개 화면 단일 React 번들](mockups/index.html)
+- [Mockups (브라우저로 열기) — 42개 화면 단일 React 번들](index.html)
 - [Mockups Source — React + Tailwind 소스 (재현 가능)](mockups/source/)
 
 ### 테스트 문서

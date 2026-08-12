@@ -8,26 +8,27 @@
 
 - **[GitHub Pages에서 보기](https://dlddu.github.io/dear-baby/)**
 
-로컬 진입점은 단일 파일이다.
+로컬 진입점도 Pages가 사용하는 단일 파일이다.
 
-- **[`index.html`](index.html)** — 빌드된 단일 HTML (브라우저로 열기)
+- **[`docs/index.html`](../index.html)** — 빌드된 단일 HTML (브라우저로 열기)
 
 이 파일 하나에 42개 화면 + 갤러리가 모두 인라인 번들된다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
 
 ## 디렉토리 구조
 
 ```
-docs/mockups/
-├── index.html          ← 빌드된 번들 (브라우저로 열기)
-├── README.md           ← 이 파일
-└── source/             ← React 소스 (재빌드 가능)
-    ├── src/
-    │   ├── App.tsx
-    │   ├── components/  (PhoneFrame, Common 프리미티브)
-    │   └── screens/     (6개 여정별 화면 모듈)
-    ├── package.json
-    ├── tailwind.config.js
-    └── ...
+docs/
+├── index.html          ← Pages 진입점 + 빌드된 번들
+└── mockups/
+    ├── README.md       ← 이 파일
+    └── source/         ← React 소스 (재빌드 가능)
+        ├── src/
+        │   ├── App.tsx
+        │   ├── components/  (PhoneFrame, Common 프리미티브)
+        │   └── screens/     (6개 여정별 화면 모듈)
+        ├── package.json
+        ├── tailwind.config.js
+        └── ...
 ```
 
 ## 재빌드 방법
@@ -39,7 +40,7 @@ cd docs/mockups/source
 pnpm install
 # Anthropic web-artifacts-builder 스킬의 bundle 스크립트 사용
 bash /path/to/web-artifacts-builder/scripts/bundle-artifact.sh
-cp bundle.html ../index.html
+cp bundle.html ../../index.html
 ```
 
 또는 개발 모드:
@@ -52,9 +53,13 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 
 ## GitHub Pages 배포
 
-`main`의 `docs/mockups/source/` 또는 Pages workflow가 변경되면
-`.github/workflows/mockups-pages.yml`이 Vite 빌드 결과를 자동으로 배포한다.
-수동 재배포는 GitHub Actions의 **Deploy Mockups to GitHub Pages** workflow에서 실행할 수 있다.
+저장소 **Settings → Pages → Build and deployment**에서 다음과 같이 설정한다.
+
+- Source: **Deploy from a branch**
+- Branch: **main**
+- Folder: **/docs**
+
+`main`에 병합된 `docs/index.html`이 별도 GitHub Actions workflow 없이 게시된다.
 
 ## 42개 페이지 일람
 
