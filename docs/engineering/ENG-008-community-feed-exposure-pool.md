@@ -17,8 +17,8 @@ status: draft
 ## 범위
 
 피드 조회 쿼리의 **모수(어떤 기록이 후보에 드는가)** 만 다룬다. 순서는
-[ENG-007](community-feed-default-sort.md), 유사 시기 가중치는
-[ENG-011](community-similar-stage-recommendation.md) 소관.
+[ENG-007](ENG-007-community-feed-default-sort.md), 유사 시기 가중치는
+[ENG-011](ENG-011-community-similar-stage-recommendation.md) 소관.
 
 ## 확정된 제약 (상위 문서에서 내려온 것)
 
@@ -27,9 +27,9 @@ status: draft
 - 공개(`visibility = public`) 상태의 기록만 포함한다. 재비공개 즉시 제외
   (PRD-008 AC-008-07).
 - 삭제된 기록은 delete marker 기준으로 전 조회 경로에서 제외
-  ([ENG-012](record-delete-marker.md)).
+  ([ENG-012](ENG-012-record-delete-marker.md)).
 - 케이스(임신/양육) 간 혼합 금지 — **작성 당시** 케이스 기준
-  ([ENG-011](community-similar-stage-recommendation.md) 확정).
+  ([ENG-011](ENG-011-community-similar-stage-recommendation.md) 확정).
 - 사진은 노출하지 않고 텍스트 본문만 공개 대상 (PRD-009 AC-009-10).
 
 ## 초안

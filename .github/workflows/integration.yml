@@ -270,7 +270,7 @@ jobs:
       # ─── End-to-end: voice record + audio upload via MinIO ────────────
       #
       # Verifies the full three-step contract documented in
-      # docs/engineering/audio-storage.md:
+      # docs/engineering/ENG-005-audio-storage.md:
       #
       #   1. POST /records {source: voice}         → record_id, audio_s3_key=null
       #   2. POST /records/{id}/audio/upload-url    → presigned PUT + key

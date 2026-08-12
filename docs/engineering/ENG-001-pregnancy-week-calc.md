@@ -126,4 +126,4 @@ updated: 2026-08-08
 
 - [PRD-002: 매일 다른 질문 알림](../prd/PRD-002-daily-questions.md) — 단계를 기본 속성으로 갖는 질문 모델
 - [PRD-007 AC-007-01](../prd/PRD-007-home-screen.md) — 단계 **표기 형식**의 단일 소스
-- [ENG-011: 커뮤니티 유사 시기 추천](community-similar-stage-recommendation.md) — 단계 반경·케이스 경계
+- [ENG-011: 커뮤니티 유사 시기 추천](ENG-011-community-similar-stage-recommendation.md) — 단계 반경·케이스 경계

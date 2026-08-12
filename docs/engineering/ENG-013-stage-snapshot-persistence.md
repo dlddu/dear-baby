@@ -129,7 +129,7 @@ stage = f(기록 작성일, 대상 아이의 기준값)
 ## 관련 문서
 
 - [PRD-002 AC-002-03](../prd/PRD-002-daily-questions.md) — 기록에 작성 당시 단계가 남는다는 인수 조건
-- [ENG-001: 아이 단계 산출 정책](pregnancy-week-calc.md) — `f` 의 계산식과 경계값
-- [ENG-011: 커뮤니티 유사 시기 추천](community-similar-stage-recommendation.md) — 스냅샷의 최대 소비처
+- [ENG-001: 아이 단계 산출 정책](ENG-001-pregnancy-week-calc.md) — `f` 의 계산식과 경계값
+- [ENG-011: 커뮤니티 유사 시기 추천](ENG-011-community-similar-stage-recommendation.md) — 스냅샷의 최대 소비처
 - [PRD-008 AC-008-03](../prd/PRD-008-diary-tab.md) — 기록 카드 아이 컨텍스트 칩
 - [용어집](../glossary.md) — `StageSnapshot`

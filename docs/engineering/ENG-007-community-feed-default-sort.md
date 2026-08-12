@@ -21,11 +21,11 @@ status: draft
 
 - 커뮤니티 탭 피드(PRD-009 AC-009-02)와 홈 "다른 엄마들의 기록" 섹션
   (PRD-009 AC-009-14)의 **기본 정렬 축** 하나만 다룬다.
-- 유사 시기 가중치는 [ENG-011](community-similar-stage-recommendation.md)이
+- 유사 시기 가중치는 [ENG-011](ENG-011-community-similar-stage-recommendation.md)이
   확정 정의하며, 본 문서의 기본 정렬 **위에** 적용된다.
-- 노출 풀([ENG-008](community-feed-exposure-pool.md)) ·
-  페이지네이션([ENG-009](community-feed-pagination.md)) ·
-  본인 기록 노출([ENG-010](community-feed-own-records.md))은 각자의 문서에서
+- 노출 풀([ENG-008](ENG-008-community-feed-exposure-pool.md)) ·
+  페이지네이션([ENG-009](ENG-009-community-feed-pagination.md)) ·
+  본인 기록 노출([ENG-010](ENG-010-community-feed-own-records.md))은 각자의 문서에서
   다룬다 (한 번호 한 내용 원칙).
 
 ## 초안
