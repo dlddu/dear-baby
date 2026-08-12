@@ -11,6 +11,7 @@ export type ScreenId =
   | "M31" | "M32" | "M33" | "M34"
   | "M36" | "M37" | "M38" | "M39"
   | "M40" | "M41" | "M42"
+  | "M43"
 
 interface MockupCard {
   id: string
@@ -99,6 +100,13 @@ const groups: { num: string; title: string; cards: MockupCard[] }[] = [
       { id: "M-42", name: "필터 시트 (다자녀)", meta: "아이 · 기간 · 미디어 · 공개여부 · 적용", navigate: "M42", tags: [{ kind: "case-b", label: "Case B" }, { kind: "value", label: "V-002" }] },
     ],
   },
+  {
+    num: "PRD-009",
+    title: "Community (커뮤니티 탭 · 여정 문서 미작성)",
+    cards: [
+      { id: "M-43", name: "커뮤니티 — 메인 피드", meta: "유사 시기 · 오늘의 질문 · 타입 필터 · 공개 기록", navigate: "M43", tags: [{ kind: "value", label: "V-008" }, { kind: "value", label: "V-002" }, { kind: "value", label: "V-005" }] },
+    ],
+  },
 ]
 
 const tagStyles = {
@@ -123,7 +131,7 @@ export function GalleryScreen({ onNavigate }: Props) {
         </div>
       </div>
       <div className="text-[15px] text-ink-sub mb-2">
-        42개 mockup · 6개 사용자 여정에 정렬 · 디자인 시스템 토큰 1:1 적용
+        43개 mockup · 6개 사용자 여정 + 커뮤니티(PRD-009) · 디자인 시스템 토큰 1:1 적용
       </div>
       <div className="font-hand text-[22px] text-coral mb-10">
         "기록을 책으로 — 사라지지 않는 마음"
@@ -174,7 +182,7 @@ export function GalleryScreen({ onNavigate }: Props) {
       {/* footer note */}
       <section className="mt-16">
         <div className="bg-ivory rounded-db-md p-6 shadow-db-sm text-[14px] leading-[1.7] text-ink">
-          <strong>스코프</strong> · 42개 페이지 · 모바일 393 × 852 (iPhone 15 base)<br />
+          <strong>스코프</strong> · 43개 페이지 · 모바일 393 × 852 (iPhone 15 base)<br />
           <strong>참조 문서</strong> · <code>docs/journeys/*</code> · <code>docs/design-system/*</code> · <code>docs/values/product-values.md</code><br />
           <strong>★ 감정 봉우리 페이지</strong> · M-24 (출생일 입력) · M-29 (서사 미리보기)<br />
           <strong>케이스 분기</strong> · A 임신 only · B 임신+양육 · C 양육 only<br />
