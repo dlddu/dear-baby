@@ -11,7 +11,7 @@ dear-baby 의 화면을 코드로 구현할 때는 **반드시** 아래 절차�
 
 mockup 은 React + Tailwind 기반 단일 번들이다.
 
-- **번들 (브라우저로 보기)**: `docs/mockups/index.html` — 갤러리에서 39개 화면 모두 클릭 가능
+- **번들 (브라우저로 보기)**: `docs/index.html` — 갤러리에서 43개 화면 모두 클릭 가능 (GitHub Pages 진입점)
 - **소스 (코드 참조)**: `docs/mockups/source/src/`
   - `components/PhoneFrame.tsx`, `components/Common.tsx` — 공통 프리미티브
   - `screens/Onboarding.tsx` — M-01 ~ M-16, M-35
@@ -21,13 +21,14 @@ mockup 은 React + Tailwind 기반 단일 번들이다.
   - `screens/BirthDateScreen.tsx` — M-24 ★
   - `screens/AINarrative.tsx` — M-27 ~ M-30
   - `screens/BookProduction.tsx` — M-31 ~ M-34
-  - `screens/Diary.tsx` — M-36 ~ M-39 (일기 탭)
+  - `screens/Diary.tsx` — M-36 ~ M-42 (일기 탭 · 조회 + 사후 관리)
+  - `screens/Community.tsx` — M-43 (커뮤니티 탭 메인)
 
 ## 절차
 
 ### Step 1 — Mockup 매칭 확인 (필수, 우회 금지)
 
-1. `docs/mockups/README.md` 의 35개 페이지 일람표를 연다.
+1. `docs/mockups/README.md` 의 43개 페이지 일람표를 연다.
 2. 지금 만들려는 화면이 어느 mockup(M-NN)에 해당하는지 식별한다.
 3. 해당 mockup 의 React 소스를 **반드시 먼저 view 한다** — 위치는 mockups/README.md 의 "디자인 시스템 매핑" 섹션 참조. 추출할 정보:
    - 페이지 구조 (PhoneFrame > TopBar / 본문 / BottomAction / Tabbar 등)

@@ -54,6 +54,7 @@ import {
   M41_DiaryDeleteConfirm,
   M42_DiaryFilterSheet,
 } from "@/screens/Diary"
+import { M43_CommunityMain } from "@/screens/Community"
 
 export default function App() {
   const [screen, setScreen] = useState<ScreenId>("gallery")
@@ -116,6 +117,8 @@ export default function App() {
       {screen === "M40" && Phone(M40_DiaryEdit)}
       {screen === "M41" && Phone(M41_DiaryDeleteConfirm)}
       {screen === "M42" && Phone(M42_DiaryFilterSheet)}
+
+      {screen === "M43" && Phone(M43_CommunityMain)}
     </div>
   )
 }

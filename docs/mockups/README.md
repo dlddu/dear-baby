@@ -1,6 +1,6 @@
 # DearBaby — Mockups
 
-페이지 단위 mockup 42개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. 모든 mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md` 에서 도출되었다.
+페이지 단위 mockup 43개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md`, `docs/prd/` 에서 도출되었다.
 
 ## 빠른 보기
 
@@ -12,7 +12,7 @@
 
 - **[`docs/index.html`](../index.html)** — 빌드된 단일 HTML (브라우저로 열기)
 
-이 파일 하나에 42개 화면 + 갤러리가 모두 인라인 번들된다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
+이 파일 하나에 43개 화면 + 갤러리가 모두 인라인 번들된다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
 
 ## 디렉토리 구조
 
@@ -25,7 +25,7 @@ docs/
         ├── src/
         │   ├── App.tsx
         │   ├── components/  (PhoneFrame, Common 프리미티브)
-        │   └── screens/     (6개 여정별 화면 모듈)
+        │   └── screens/     (6개 여정별 화면 모듈 + Community.tsx)
         ├── package.json
         ├── tailwind.config.js
         └── ...
@@ -61,7 +61,7 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 
 `main`에 병합된 `docs/index.html`이 별도 GitHub Actions workflow 없이 게시된다.
 
-## 42개 페이지 일람
+## 43개 페이지 일람
 
 | ID | 화면 | 여정 / Stage |
 |----|------|--------------|
@@ -107,6 +107,7 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-40 | 기록 편집 (사후) | Diary Browsing · 6½-4 |
 | M-41 | 삭제 확인 모달 | Diary Browsing · 6½-4 |
 | M-42 | 필터 시트 (다자녀) | Diary Browsing · 6½-2 |
+| **M-43** | **커뮤니티 — 메인 피드** | **Community · 여정 미작성 · PRD-009 AC-009-02·03·04·06** |
 
 ## ★ 감정 봉우리 페이지
 
@@ -122,12 +123,13 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | 가치 | 핵심 mockup |
 |------|-------------|
 | V-001 감정 보존 | M-01, M-22, M-24 ★, M-29 ★, M-36, M-38 |
-| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22, M-35, M-39, M-40, M-41, M-42 |
+| V-002 기록의 부담 제거 | M-17, M-18, M-19, M-22, M-35, M-39, M-40, M-41, M-42, M-43 |
 | V-003 서사적 의미 부여 | M-29 ★, M-30, M-32, M-36, M-37 |
 | V-004 음성-텍스트 자동 변환 | M-19, M-20, M-27 |
-| V-005 아이 단계별 맞춤 질문 | M-17, M-26 |
+| V-005 아이 단계별 맞춤 질문 | M-17, M-26, M-43 |
 | V-006 실물 책 완성품 | M-31, M-32 |
 | V-007 멀티미디어 감정 표현 | M-21, M-32, M-33, M-38 |
+| V-008 공감을 통한 연결 | M-43 |
 
 ## 디자인 시스템 매핑
 
@@ -173,15 +175,20 @@ Tailwind 사용:
 
 ## 정합성 검증 (design-doc-structure-validator)
 
-- ✅ 모든 mockup 이 5개 사용자 여정 stage 와 1:1 매핑
-- ✅ 모든 mockup 이 1개 이상 가치(V-001~V-007)와 연결
+- ✅ M-01~M-42 는 6개 사용자 여정 stage 와 1:1 매핑
+- 🟡 **M-43 (커뮤니티)은 여정 문서 부재** — 커뮤니티 사용자 여정이 아직 작성되지 않아 여정 stage 대신 PRD-009 의 AC 에 직접 매핑했다. 여정 문서 작성 시 stage 매핑으로 전환한다
+- ✅ 모든 mockup 이 1개 이상 가치(V-001~V-008)와 연결
 - ✅ Tailwind config 에 정의된 디자인 시스템 토큰만 사용 (raw hex 색상은 dear-baby palette 만 등장)
 - ✅ ★ 감정 봉우리 (M-24, M-29) 가 사용자 여정 문서가 명시한 정서적 정점에 위치
 - ⚠️ 다음은 임시 값이며 비즈니스/디자인 결정 후 갱신 필요:
   - M-31 표지 큐레이션 4종 — 디자인 본 작업 시 재정의
   - M-33 가격 (₩42,000 / ₩28,000) — 비즈니스 결정 사항
   - M-34 단계 소요시간 (1~2일 등) — 운영 합의 후 재확정
+  - M-43 커뮤니티 피드의 노출 순서 — ENG-007~010 미확정. mockup 의 카드 순서는 명세가 아닌 예시다
+- ⚠️ **커뮤니티 탭 잔여 화면 미작성**: 게시글 상세(AC-009-07) · 같은 질문 답변 모아보기(AC-009-05) · 공개 전환 유도 팝업(AC-009-04·05) · 빈/예외 상태(AC-009-13) · 신고 시트(AC-009-11)
+- ⚠️ **CTA 반경 불일치**: M-43 CTA 는 디자인 시스템 `components.md` 규정대로 12px(`rounded-db-sm`)를 쓰지만, 공용 `<PrimaryButton>` 은 `rounded-full` 이라 다른 화면들과 형태가 다르다. 어느 쪽을 정본으로 할지 미결
 
 ## 개발 메모
 
+- **번들 드리프트 이력** (2026-08-08 해소): M-40~42 추가(#142) 이후 번들이 재빌드되지 않아 소스 42개 / 번들 39개로 어긋난 채 방치됐다. #176 의 Pages 전환 빌드로 번들은 42개까지 따라잡았고, M-43 추가와 함께 다시 빌드해 소스=번들=README 를 동기화했다. 번들은 이제 `docs/index.html` 하나이며 **Pages 가 그대로 게시하므로**, 소스를 고치면 반드시 재빌드해 같은 커밋에 담을 것.
 - **이전 정적 HTML 버전** (2026-05-06 작성, vanilla HTML + 외부 styles.css) 은 sandbox 에서 외부 CSS 가 로드되지 않는 문제로 폐기되었다. 2026-05-06 같은 날 React 기반으로 재작성됨.
