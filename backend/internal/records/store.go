@@ -160,6 +160,20 @@ func (s *Store) Create(ctx context.Context, userStore *users.Store, userID, cont
 		rec.CreatedAt = t
 	}
 
+	// 단계 스냅샷 (ENG-013 AC-002-03): 저장 시점에 계산해 박는다. created_at
+	// 은 SQLite 가 정하므로 INSERT 뒤에 읽어 계산한다 — 같은 트랜잭션 안이라
+	// 스냅샷 없는 기록이 중간 상태로 노출되지 않는다. 단계를 산출할 수 없으면
+	// 세 컬럼 모두 NULL 로 남는다 (AC-002-05).
+	basis, err := loadSubjectStageBasis(ctx, tx, subjectID)
+	if err != nil {
+		return nil, err
+	}
+	snap := computeStageSnapshot(basis.kind, basis.dueDate, basis.birthDate, rec.CreatedAt)
+	if err := writeSnapshotTx(ctx, tx, id, snap); err != nil {
+		return nil, err
+	}
+	rec.StageKind, rec.StageDays, rec.StageMonths = snap.Kind, snap.Days, snap.Months
+
 	profile, err := userStore.GetProfileTx(ctx, tx, userID)
 	if err != nil {
 		return nil, err
@@ -191,14 +205,18 @@ func (s *Store) GetByIDForUser(ctx context.Context, userID, recordID string) (*R
 	var (
 		audioKey     sql.NullString
 		questionText sql.NullString
+		stageKind    sql.NullString
+		stageDays    sql.NullInt64
+		stageMonths  sql.NullInt64
 		createdAt    string
 		rec          Record
 	)
 	err := s.DB.QueryRowContext(ctx, `
-		SELECT id, user_id, subject_id, source, content, question_text, audio_s3_key, visibility, created_at
+		SELECT id, user_id, subject_id, source, content, question_text, audio_s3_key, visibility,
+		       stage_kind, stage_days, stage_months, created_at
 		FROM records
 		WHERE id = ? AND user_id = ?
-	`, recordID, userID).Scan(&rec.ID, &rec.UserID, &rec.SubjectID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, (*string)(&rec.Visibility), &createdAt)
+	`, recordID, userID).Scan(&rec.ID, &rec.UserID, &rec.SubjectID, (*string)(&rec.Source), &rec.Content, &questionText, &audioKey, (*string)(&rec.Visibility), &stageKind, &stageDays, &stageMonths, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -213,10 +231,29 @@ func (s *Store) GetByIDForUser(ctx context.Context, userID, recordID string) (*R
 		v := questionText.String
 		rec.QuestionText = &v
 	}
+	applyStageColumns(&rec, stageKind, stageDays, stageMonths)
 	if t, err := time.Parse(sqliteTimeLayout, createdAt); err == nil {
 		rec.CreatedAt = t
 	}
 	return &rec, nil
+}
+
+// applyStageColumns copies the scanned stage_* columns onto rec. Kept in one
+// place so every read path renders the 단계 스냅샷 identically — a path that
+// forgets it would silently return a null stage for rows that have one.
+func applyStageColumns(rec *Record, kind sql.NullString, days, months sql.NullInt64) {
+	if kind.Valid {
+		v := kind.String
+		rec.StageKind = &v
+	}
+	if days.Valid {
+		v := int(days.Int64)
+		rec.StageDays = &v
+	}
+	if months.Valid {
+		v := int(months.Int64)
+		rec.StageMonths = &v
+	}
 }
 
 // ListFilter narrows the diary list. SubjectIDs is OR-ed across the set;
@@ -267,7 +304,8 @@ func (s *Store) ListForUser(ctx context.Context, userID string, filter ListFilte
 	// follow-up COUNT.
 	args = append(args, limit+1)
 	q := `
-		SELECT id, user_id, subject_id, source, content, question_text, audio_s3_key, visibility, created_at
+		SELECT id, user_id, subject_id, source, content, question_text, audio_s3_key, visibility,
+		       stage_kind, stage_days, stage_months, created_at
 		FROM records
 		WHERE ` + strings.Join(clauses, " AND ") + `
 		ORDER BY created_at DESC, id DESC
@@ -286,10 +324,13 @@ func (s *Store) ListForUser(ctx context.Context, userID string, filter ListFilte
 			rec          Record
 			audioKey     sql.NullString
 			questionText sql.NullString
+			stageKind    sql.NullString
+			stageDays    sql.NullInt64
+			stageMonths  sql.NullInt64
 			createdAt    string
 		)
 		if err := rows.Scan(&rec.ID, &rec.UserID, &rec.SubjectID, (*string)(&rec.Source), &rec.Content,
-			&questionText, &audioKey, (*string)(&rec.Visibility), &createdAt); err != nil {
+			&questionText, &audioKey, (*string)(&rec.Visibility), &stageKind, &stageDays, &stageMonths, &createdAt); err != nil {
 			return nil, "", fmt.Errorf("scan record: %w", err)
 		}
 		if audioKey.Valid {
@@ -300,6 +341,7 @@ func (s *Store) ListForUser(ctx context.Context, userID string, filter ListFilte
 			v := questionText.String
 			rec.QuestionText = &v
 		}
+		applyStageColumns(&rec, stageKind, stageDays, stageMonths)
 		if t, err := time.Parse(sqliteTimeLayout, createdAt); err == nil {
 			rec.CreatedAt = t
 		}
@@ -440,14 +482,18 @@ func (s *Store) AttachAudio(ctx context.Context, userID, recordID, audioS3Key st
 	var (
 		audioKey     sql.NullString
 		questionText sql.NullString
+		stageKind    sql.NullString
+		stageDays    sql.NullInt64
+		stageMonths  sql.NullInt64
 		createdAt    string
 		rec          Record
 	)
 	if err := tx.QueryRowContext(ctx, `
-		SELECT id, user_id, subject_id, source, content, question_text, audio_s3_key, visibility, created_at
+		SELECT id, user_id, subject_id, source, content, question_text, audio_s3_key, visibility,
+		       stage_kind, stage_days, stage_months, created_at
 		FROM records WHERE id = ?
 	`, recordID).Scan(&rec.ID, &rec.UserID, &rec.SubjectID, (*string)(&rec.Source), &rec.Content,
-		&questionText, &audioKey, (*string)(&rec.Visibility), &createdAt); err != nil {
+		&questionText, &audioKey, (*string)(&rec.Visibility), &stageKind, &stageDays, &stageMonths, &createdAt); err != nil {
 		return nil, fmt.Errorf("fetch record: %w", err)
 	}
 	if audioKey.Valid {
@@ -458,6 +504,7 @@ func (s *Store) AttachAudio(ctx context.Context, userID, recordID, audioS3Key st
 		v := questionText.String
 		rec.QuestionText = &v
 	}
+	applyStageColumns(&rec, stageKind, stageDays, stageMonths)
 	if t, err := time.Parse(sqliteTimeLayout, createdAt); err == nil {
 		rec.CreatedAt = t
 	}

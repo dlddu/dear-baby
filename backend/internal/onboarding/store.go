@@ -8,6 +8,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"github.com/dlddu/dear-baby/backend/internal/records"
 )
 
 // ErrNotFound is returned when no onboarding row matches the given user id.
@@ -130,10 +132,16 @@ func (s *Store) UpsertCaseA(ctx context.Context, userID string, fetuses []Fetus)
 	if _, err := tx.ExecContext(ctx, `DELETE FROM fetuses WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("delete fetuses: %w", err)
 	}
+	var touched []string
 	for i, f := range fetuses {
-		if err := insertFetusTx(ctx, tx, userID, i, f); err != nil {
+		subjectID, err := insertFetusTx(ctx, tx, userID, i, f)
+		if err != nil {
 			return fmt.Errorf("insert fetus %d: %w", i, err)
 		}
+		touched = append(touched, subjectID)
+	}
+	if err := recomputeStageSnapshotsTx(ctx, tx, touched); err != nil {
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
@@ -165,18 +173,26 @@ func (s *Store) UpsertCaseB(ctx context.Context, userID string, children []Child
 	if _, err := tx.ExecContext(ctx, `DELETE FROM children WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("delete children: %w", err)
 	}
+	var touched []string
 	for i, c := range children {
-		if err := insertChildTx(ctx, tx, userID, i, c); err != nil {
+		subjectID, err := insertChildTx(ctx, tx, userID, i, c)
+		if err != nil {
 			return fmt.Errorf("insert child %d: %w", i, err)
 		}
+		touched = append(touched, subjectID)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM fetuses WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("delete fetuses: %w", err)
 	}
 	for i, f := range fetuses {
-		if err := insertFetusTx(ctx, tx, userID, i, f); err != nil {
+		subjectID, err := insertFetusTx(ctx, tx, userID, i, f)
+		if err != nil {
 			return fmt.Errorf("insert fetus %d: %w", i, err)
 		}
+		touched = append(touched, subjectID)
+	}
+	if err := recomputeStageSnapshotsTx(ctx, tx, touched); err != nil {
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
@@ -207,10 +223,16 @@ func (s *Store) UpsertCaseC(ctx context.Context, userID string, children []Child
 	if _, err := tx.ExecContext(ctx, `DELETE FROM children WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("delete children: %w", err)
 	}
+	var touched []string
 	for i, c := range children {
-		if err := insertChildTx(ctx, tx, userID, i, c); err != nil {
+		subjectID, err := insertChildTx(ctx, tx, userID, i, c)
+		if err != nil {
 			return fmt.Errorf("insert child %d: %w", i, err)
 		}
+		touched = append(touched, subjectID)
+	}
+	if err := recomputeStageSnapshotsTx(ctx, tx, touched); err != nil {
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
@@ -243,40 +265,45 @@ func ensureSubjectIDTx(ctx context.Context, tx *sql.Tx, userID string, kind Subj
 	return id, nil
 }
 
-func insertFetusTx(ctx context.Context, tx *sql.Tx, userID string, ordinal int, f Fetus) error {
+// insertFetusTx inserts one fetus row and returns the record_subjects.id it
+// hangs off, so the caller can recompute that subject's 단계 스냅샷 before
+// committing (ENG-013 T1).
+func insertFetusTx(ctx context.Context, tx *sql.Tx, userID string, ordinal int, f Fetus) (string, error) {
 	subjectID, err := ensureSubjectIDTx(ctx, tx, userID, SubjectKindFetus, ordinal)
 	if err != nil {
-		return err
+		return "", err
 	}
 	purposes, err := json.Marshal(f.Purposes)
 	if err != nil {
-		return fmt.Errorf("marshal purposes: %w", err)
+		return "", fmt.Errorf("marshal purposes: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO fetuses (id, user_id, ordinal, nickname, gender, pregnancy_week, due_date, purposes_json)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, subjectID, userID, ordinal, nullableString(f.Nickname), nullableString(f.Gender), nullableInt(f.PregnancyWeek), nullableString(f.DueDate), string(purposes)); err != nil {
-		return fmt.Errorf("insert fetus: %w", err)
+		return "", fmt.Errorf("insert fetus: %w", err)
 	}
-	return nil
+	return subjectID, nil
 }
 
-func insertChildTx(ctx context.Context, tx *sql.Tx, userID string, ordinal int, c Child) error {
+// insertChildTx inserts one child row and returns the record_subjects.id it
+// hangs off (see insertFetusTx — ENG-013 T2).
+func insertChildTx(ctx context.Context, tx *sql.Tx, userID string, ordinal int, c Child) (string, error) {
 	subjectID, err := ensureSubjectIDTx(ctx, tx, userID, SubjectKindChild, ordinal)
 	if err != nil {
-		return err
+		return "", err
 	}
 	purposes, err := json.Marshal(c.Purposes)
 	if err != nil {
-		return fmt.Errorf("marshal purposes: %w", err)
+		return "", fmt.Errorf("marshal purposes: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO children (id, user_id, ordinal, name, gender, birth_date, bio, purposes_json)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, subjectID, userID, ordinal, nullableString(c.Name), nullableString(c.Gender), nullableString(c.BirthDate), nullableString(c.Bio), string(purposes)); err != nil {
-		return fmt.Errorf("insert child: %w", err)
+		return "", fmt.Errorf("insert child: %w", err)
 	}
-	return nil
+	return subjectID, nil
 }
 
 func listFetuses(ctx context.Context, q rowQuerier, userID string) ([]Fetus, error) {
@@ -406,6 +433,33 @@ func (s *Store) ensureRow(ctx context.Context, userID string) error {
 		INSERT OR IGNORE INTO onboarding (user_id) VALUES (?)
 	`, userID); err != nil {
 		return fmt.Errorf("ensure onboarding row: %w", err)
+	}
+	return nil
+}
+
+// recomputeStageSnapshotsTx rebuilds the 단계 스냅샷 of every record belonging
+// to the subjects this upsert just re-seeded (ENG-013 재계산 트리거 T1
+// `due_date` 수정 · T2 `birth_date` 수정). The three UpsertCase* functions are
+// currently the **only** write path for due_date / birth_date, so binding the
+// recalculation here satisfies ENG-013's "기준값 갱신은 데이터 계층의 단일
+// 지점을 거치게 하고, 재계산을 그 지점에 묶는다". Any future 기준값 editor
+// (설정 탭 아이 정보 수정 · 출산 전환) must route through the same point.
+//
+// It deliberately does **not** compare old and new 기준값 first. Recalculation
+// is idempotent and scoped to one child's records (수십~수백 행), so running it
+// unconditionally costs nothing — while a comparison introduces exactly the
+// failure mode ENG-013 warns about, since a field left out of the comparison is
+// a missed trigger. "값이 바뀌었나" 대신 "기준값 write 경로를 통과했나" 로 잡는다.
+//
+// Subjects dropped from the list are *not* in `subjectIDs` and so are never
+// recomputed — their fetuses / children row is gone, and recomputing them would
+// NULL out the whole history. RecomputeSnapshotsForSubjectTx guards that case
+// again from the inside.
+func recomputeStageSnapshotsTx(ctx context.Context, tx *sql.Tx, subjectIDs []string) error {
+	for _, subjectID := range subjectIDs {
+		if _, err := records.RecomputeSnapshotsForSubjectTx(ctx, tx, subjectID); err != nil {
+			return fmt.Errorf("recompute stage snapshots (%s): %w", subjectID, err)
+		}
 	}
 	return nil
 }
