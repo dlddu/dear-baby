@@ -1,10 +1,9 @@
-import { ReactNode } from "react"
+import type { ReactNode } from "react"
 import { PhoneFrame } from "@/components/PhoneFrame"
 import {
   TopBar,
   BottomAction,
   PrimaryButton,
-  SecondaryButton,
   Badge,
   FrameCard,
   Chip,
@@ -12,7 +11,6 @@ import {
   FieldLabel,
   QuestionHeader,
   ProgressDots,
-  Row,
   Input,
   BackToGallery,
 } from "@/components/Common"
