@@ -38,6 +38,8 @@ export interface Recorder {
 // returns a fixed duration. Maestro and unit tests hit this path; the
 // transcript and upload stages also short-circuit elsewhere so the
 // fake bytes are never read.
+//
+// mock-exception: MB-1 — CI 러너·에뮬레이터에는 구동 가능한 마이크 하드웨어가 없다.
 class FixtureRecorder implements Recorder {
   private startedAt = 0;
 
@@ -120,6 +122,7 @@ class NativeRecorder implements Recorder {
 }
 
 export function createRecorder(): Recorder {
+  // mock-exception: MB-1 — 마이크 캡처만 치환하고, 이후 저장·업로드·목록 반영은 실제 경로로 e2e 한다.
   return E2E_AUDIO_FIXTURE ? new FixtureRecorder() : new NativeRecorder();
 }
 

@@ -31,6 +31,9 @@ export const POSTHOG_HOST: string =
 //   - the STT engine returns a canned Korean transcript without loading
 //     any model
 // Production builds must leave this unset.
+//
+// mock-exception: MB-1 — Maestro 는 디바이스 마이크를 구동할 수 없고, 온디바이스
+// whisper 추론은 매 CI 실행마다 모델 다운로드를 요구하며 산출도 비결정적이다.
 export const E2E_AUDIO_FIXTURE: boolean =
   process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === 'true' ||
   process.env.EXPO_PUBLIC_E2E_AUDIO_FIXTURE === '1';
@@ -49,6 +52,9 @@ export const E2E_AUDIO_FIXTURE: boolean =
 // Production builds must leave this unset. Only .github/workflows/e2e-*.yml
 // injects it, and app/app/(landing)/__tests__/index.test.tsx locks the
 // default-off behaviour.
+//
+// mock-exception: MB-2 — 외부 OAuth 공급자를 CI 에서 왕복할 수 없어 tester-login 이
+// 그 자리를 대신하며, 이 플래그는 그 대체 경로의 *도달 방법* 만 줄인다(치환 없음).
 export const E2E_FAST_TESTER_LOGIN: boolean =
   process.env.EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN === 'true' ||
   process.env.EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN === '1';

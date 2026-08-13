@@ -17,6 +17,7 @@ appId: ${APP_ID}
 # `backend/reset-user $TEST_USER_EMAIL` before this flow runs —
 # plus EXPO_PUBLIC_E2E_AUDIO_FIXTURE=1 in the app build.
 #
+# mock-exception: MB-1 — Maestro 는 디바이스 마이크를 구동할 수 없고 온디바이스 STT 는 비결정적이다.
 # The fixture flag is critical: Maestro can't drive the microphone, the
 # whisper model would have to be downloaded on every run, and CI doesn't
 # carry AWS credentials. With the flag set, the recorder produces a

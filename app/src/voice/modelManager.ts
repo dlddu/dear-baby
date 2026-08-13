@@ -53,12 +53,14 @@ export type DownloadProgress = {
 let inflight: Promise<string> | null = null;
 
 export async function isModelDownloaded(): Promise<boolean> {
+  // mock-exception: MB-1 — whisper 모델 다운로드는 MB-1 치환 범위에 함께 들어간다(추론을 하지 않으므로 모델도 불필요).
   if (E2E_AUDIO_FIXTURE) return true;
   const info = await FileSystem.getInfoAsync(MODEL_PATH);
   return info.exists && !info.isDirectory && (info.size ?? 0) > 0;
 }
 
 export async function deleteModel(): Promise<void> {
+  // mock-exception: MB-1 — 위와 같은 이유로 삭제할 실제 모델 파일이 없다.
   if (E2E_AUDIO_FIXTURE) return;
   await FileSystem.deleteAsync(MODEL_PATH, { idempotent: true });
 }
@@ -70,6 +72,7 @@ export async function deleteModel(): Promise<void> {
 export async function ensureModel(
   onProgress?: (p: DownloadProgress) => void,
 ): Promise<string> {
+  // mock-exception: MB-1 — 매 CI 실행마다 수백 MB 모델을 내려받는 것은 재현 가능한 e2e 의 전제가 아니다.
   if (E2E_AUDIO_FIXTURE) {
     // The fixture path is never read — whisperEngine short-circuits
     // before opening the file. We return a sentinel so callers can

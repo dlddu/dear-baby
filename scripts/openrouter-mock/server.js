@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// mock-exception: MB-4 — LLM 생성은 비결정적이고 실 호출은 크레딧을 소모한다. 치환은
+// 공급자로의 HTTP 왕복 하나뿐이고, enqueue→worker→backend→SSE→앱 구간은 실제로 e2e 한다.
 // Minimal OpenRouter mock for CI. Speaks just enough of the
 // /v1/chat/completions contract to satisfy the openai SDK that the
 // worker uses, so integration runs don't need a real OPENROUTER_API_KEY

@@ -78,6 +78,7 @@ export async function transcribe(
   audioPath: string,
   options: TranscribeOptions = {},
 ): Promise<string> {
+  // mock-exception: MB-1 — 온디바이스 whisper 추론은 CI 에서 재현 불가·비결정적이다.
   if (E2E_AUDIO_FIXTURE) {
     // Deterministic transcript for Maestro. The string is intentionally
     // recognisable so the assertion in the .yaml flow can match it

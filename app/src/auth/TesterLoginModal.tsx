@@ -29,6 +29,9 @@ export type TesterLoginModalProps = {
 // resulting session into AuthContext exactly like the OAuth buttons.
 // The modal is mounted in production builds — gating happens via the
 // gesture, not a build flag.
+//
+// mock-exception: MB-2 — OAuth 신원 공급자 왕복만 대신한다. 토큰 발급·세션 저장·
+// 이후 모든 인증 flow 는 실제 백엔드(`POST /auth/password-login`)로 e2e 한다.
 export function TesterLoginModal({ visible, onClose }: TesterLoginModalProps) {
   const { setSession } = useAuth();
   const [email, setEmail] = useState('');

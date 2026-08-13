@@ -1,3 +1,5 @@
+# mock-exception: MB-4 — LLM 생성은 비결정적이고 실 호출은 크레딧을 소모한다.
+# (in-cluster 변형 — 호스트 프로세스 변형은 .github/actions/setup-ai-worker 참조.)
 # CI-only manifest: stands up the openrouter-mock server inside the
 # kind cluster used by the integration workflow. The mock script is
 # loaded into a ConfigMap by the workflow, mounted into a stock

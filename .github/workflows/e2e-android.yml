@@ -33,11 +33,14 @@ jobs:
       MAESTRO_TEST_USER_EMAIL: "tester@dear-baby.test"
       MAESTRO_TEST_USER_PASSWORD: "ci-tester-password-do-not-reuse"
       REDIS_URL: "redis://localhost:6379"
+      # mock-exception: MB-1 — CI 러너에는 구동 가능한 마이크가 없고 온디바이스 whisper 추론은 비결정적이다.
       # Drive the voice maestro flow with a deterministic recorder + STT.
       # The upload step is NOT short-circuited — it actually hits the
       # MinIO instance set up below, so the records-audio backend
       # contract gets exercised end-to-end in CI.
       EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
+      # mock-exception: MB-2 — 외부 OAuth 공급자를 CI 에서 왕복할 수 없어 tester-login 이 그 자리를 대신한다.
+      # (이 플래그 자체는 치환이 아니라 그 대체 경로의 도달 방법 단축이다.)
       # Render the E2E-only `tester-login-fast` hit zone on the landing
       # screen so subflows/tester-login-fast.yaml can open the tester-login
       # modal in one press instead of replaying the 15-tap corner gesture
@@ -156,7 +159,9 @@ jobs:
         working-directory: app/android
         env:
           EXPO_PUBLIC_API_URL: http://10.0.2.2:8080
+          # mock-exception: MB-1 — 위 job env 와 동일한 사유(마이크 부재 + 비결정적 STT). APK 빌드 시점에도 인라인돼야 한다.
           EXPO_PUBLIC_E2E_AUDIO_FIXTURE: "1"
+          # mock-exception: MB-2 — 위 job env 와 동일한 사유(CI 에서 OAuth 공급자 왕복 불가).
           EXPO_PUBLIC_E2E_FAST_TESTER_LOGIN: "1"
         run: |
           echo "EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL"

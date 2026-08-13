@@ -301,6 +301,9 @@ export default function Landing() {
         onPress={onRightPress}
         style={[styles.cornerHit, styles.cornerHitTopRight]}
       />
+      {/* mock-exception: MB-2 — MB-2 대체 경로(tester-login)의 도달 방법만 15탭 제스처에서
+          히트존 1회로 줄인다. 모달·POST /auth/password-login·세션 기록은 동일하고,
+          제스처 원경로는 e2e/maestro/login.yaml 이 계속 단정한다. */}
       {E2E_FAST_TESTER_LOGIN && (
         <Pressable
           testID="tester-login-fast"
