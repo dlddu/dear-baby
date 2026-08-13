@@ -7,6 +7,11 @@ export const colors = {
     peach: '#F5C6A8',
     /** Coral 10% alpha — 선택 옵션 카드 등 약한 강조 배경 */
     coralTint: '#D4836B1A',
+    /**
+     * Peach 35% alpha — 커뮤니티 피드 카드의 `자유일기` 인라인 배지 배경.
+     * 시각 출처: docs/mockups/source/src/screens/Community.tsx (M-43) 의 `bg-peach/35`.
+     */
+    peachTint: '#F5C6A859',
   },
   bg: {
     cream: '#FAF6F1',

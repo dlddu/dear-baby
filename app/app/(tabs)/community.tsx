@@ -1,41 +1,57 @@
 // 커뮤니티 탭 — PRD-009 의 메인 화면.
 //
-// 이 슬라이스의 범위:
+// **시각 출처: docs/mockups/source/src/screens/Community.tsx (M-43 · 커뮤니티 탭 메인).**
+// 레포 스킬 `.claude/skills/screen-with-mockup-and-design-system` 이 요구하는 대로
+// M-43 을 먼저 읽고 그 구조·카피·토큰을 1:1 로 옮겼다. M-43 의 화면 구조는
+// AC-009-02 의 ①~⑤ 와 같은 순서다.
+//
+//   ① 상단 헤더            → CommunityHeader (M-43 L62-72)
+//   ② 나와 비슷한 엄마들의 기록 → 본 파일의 similarStage 행 (M-43 L74-84)
+//   ③ 오늘의 질문 카드      → **이번 슬라이스 범위 밖 (아래 이탈 1)**
+//   ④ 콘텐츠 타입 필터      → CommunityTypeFilter (M-43 L131-146)
+//   ⑤ 공개 기록 피드        → CommunityFeedCard (M-43 L148-153, L166-217)
+//
+// 이 슬라이스가 닫는 AC:
 //   - AC-009-03 상단 상태값: 현재 활성 아이 기준 "임신 20주차" / "생후 5개월".
-//     아이를 전환하면 상태값과 피드가 함께 갱신된다. 사용자가 시기를 직접
-//     고르는 필터는 1차 런치에서 제공하지 않는다(자동 추천만).
-//   - AC-009-06 콘텐츠 타입 필터: 전체(기본) / 질문답변 / 자유일기.
-//     거르는 주체는 서버다 — 커서 페이지네이션(ENG-009) 안에서 클라이언트가
-//     다시 거르면 "이 페이지엔 없지만 다음 페이지엔 있는" 상태가 빈 화면으로
-//     보인다.
-//   - AC-009-13 중 커뮤니티 피드 3행: 공개 기록 0건 / 필터 결과 0건 /
-//     네트워크 오류. 세 문구는 AC 표의 문자열 그대로다.
+//     아이를 전환하면 상태값과 피드가 함께 갱신된다. M-43 이 이 값을 beige pill
+//     에 `▼` 와 함께 그리지만 **`<div>` 로(=누를 수 없게)** 그렸고, AC-009-03 도
+//     "1차 런치에서는 사용자가 직접 필터를 변경하는 기능을 제공하지 않는다" 이다.
+//     그래서 여기서도 Pressable 이 아닌 View 다 — 글리프를 지우면 목업 이탈이고,
+//     누를 수 있게 만들면 AC 위반이다.
+//   - AC-009-06 콘텐츠 타입 필터: 전체(기본) / 질문답변 / 자유일기. 거르는 주체는
+//     서버다 — 커서 페이지네이션(ENG-009) 안에서 클라이언트가 다시 거르면
+//     "이 페이지엔 없지만 다음 페이지엔 있는" 상태가 빈 화면으로 보인다.
+//   - AC-009-13 중 커뮤니티 피드 3행: 공개 기록 0건 / 필터 결과 0건 / 네트워크
+//     오류. 세 문구는 AC 표의 문자열 그대로다. (M-43 에는 빈/예외 상태 목업이
+//     없다 — PRD-009 "남은 후속 작업" 이 미작성으로 열거한 화면 중 하나다.)
 //
-// 범위 밖(각각 후속 슬라이스):
-//   - AC-009-04 오늘의 질문 카드(내 답변 상태 조회 경로가 아직 없다) →
-//     화면 구조 ③이 비어 있다.
-//   - AC-009-07 게시글 상세. 그래서 카드는 아직 탭해도 이동하지 않는다
-//     (onPress 를 넘기지 않아 Pressable 이 button 역할조차 갖지 않는다).
-//   - AC-009-08 공감 / AC-009-09 댓글 → 카드에 공감·댓글 수를 찍지 않는다.
-//     likes/comments 테이블이 없어 0 을 찍으면 그것도 지어낸 값이다
-//     (OtherEntryCard 주석의 같은 이유).
-//   - ENG-011 유사 시기 가중 랭킹. 지금 정렬은 서버의 최신순(ENG-007)이다.
+// ── M-43 대비 이탈 (원인은 전부 데이터 부재) ─────────────────────────────────
+//  1. **③ 오늘의 질문 카드 미구현.** AC-009-04 의 CTA 는 내 답변 상태로 3분기하는데
+//     그중 "답변했고 공개 → 같은 질문 답변 모아보기 화면" 의 목적지가 화면·목업
+//     모두 미작성이고(PRD-009 가 직접 열거), 레포 스킬 Step 3 이 목업 없는 화면
+//     구현을 금지한다. 분기 판정에 필요한 "내 오늘 질문 답변 상태" 조회 경로도
+//     없다 — records 는 `question_id` 가 아니라 `question_text` 만 갖는다.
+//     카드만 그려 놓고 CTA 가 아무 데도 못 가면 그건 충족이 아니라 새 거짓말이다.
+//  2. 피드 카드의 공감 수·댓글 수·자유일기 제목 — CommunityFeedCard 주석 참조.
+//  3. 카드 탭 → 상세(AC-009-07) 이동 없음 — 상세 화면 미구현.
 //
-// 노출 풀·정렬·마스킹·50자 컷은 전부 서버가 끝내고 오므로 이 화면은 받은
-// 것을 그대로 그린다.
+// 노출 풀·정렬·마스킹·50자 컷은 전부 서버가 끝내고 오므로(ENG-007~010, AC-009-10)
+// 이 화면은 받은 것을 그대로 그린다.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getUnreadCount } from '../../src/api/notifications';
 import {
   DEFAULT_FEED_TYPE,
   getCommunityFeed,
   type CommunityFeedItem,
   type CommunityFeedType,
 } from '../../src/api/community';
-import { OtherEntryCard } from '../../src/components/OtherEntryCard';
-import { Pill } from '../../src/components/Pill';
+import { CommunityFeedCard } from '../../src/components/CommunityFeedCard';
+import { CommunityHeader } from '../../src/components/CommunityHeader';
+import { CommunityTypeFilter } from '../../src/components/CommunityTypeFilter';
 import { Text } from '../../src/components/Text';
 import { useActiveChild } from '../../src/context/ActiveChildContext';
 import { colors } from '../../src/theme/colors';
@@ -43,12 +59,11 @@ import { radius } from '../../src/theme/radius';
 import { spacing } from '../../src/theme/spacing';
 import { formatCommunityStageLabel } from '../../src/utils/communityStageLabel';
 
-// AC-009-06 필터 항목. 순서·라벨은 AC 표 그대로(전체 → 질문답변 → 자유일기).
-const FILTERS: { value: CommunityFeedType; label: string }[] = [
-  { value: 'all', label: '전체' },
-  { value: 'question', label: '질문답변' },
-  { value: 'diary', label: '자유일기' },
-];
+// M-43 ② 의 섹션 타이틀. 카피는 한 글자도 바꾸지 않는다.
+const SIMILAR_STAGE_TITLE = '나와 비슷한 엄마들의 기록';
+// M-43 의 stage pill 우측 글리프. 자동 추천 기준을 가리키는 표식일 뿐 조작
+// 어포던스가 아니다 (AC-009-03 수동 필터 미제공).
+const STAGE_PILL_GLYPH = '▼';
 
 // AC-009-13 문구. 화면이 아니라 상수로 두어 테스트가 AC 표와 문자열을
 // 직접 대조할 수 있게 한다.
@@ -65,6 +80,7 @@ export default function CommunityTab() {
   const [entries, setEntries] = useState<CommunityFeedItem[]>([]);
   const [cursor, setCursor] = useState('');
   const [loadingMore, setLoadingMore] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // 활성 아이의 subject 가 노출 풀을 고른다(임신 case → 태아 기록, 육아
   // case → 아이 기록; ENG-008 케이스 혼합 금지). 그래서 아이를 바꾸면
@@ -80,6 +96,23 @@ export default function CommunityTab() {
       activeChild.dueOrBirthDate,
     );
   }, [activeChild]);
+
+  // 헤더의 미읽음 dot — 일기 탭과 **같은 소스**를 쓴다. 커뮤니티 알림
+  // (AC-009-12)은 1차 제외라 이 값은 공용 알림 스텁이며, 백엔드 알림 API 가
+  // 도착하면 두 탭이 한 번에 따라온다.
+  useEffect(() => {
+    let cancelled = false;
+    getUnreadCount()
+      .then((n) => {
+        if (!cancelled) setUnreadCount(n);
+      })
+      .catch(() => {
+        if (!cancelled) setUnreadCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 첫 페이지: subject 나 필터가 바뀔 때마다 커서를 버리고 처음부터.
   useEffect(() => {
@@ -140,36 +173,39 @@ export default function CommunityTab() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']} testID="community-tab">
-      {/* ① 상단 헤더 + ② 나와 비슷한 엄마들의 기록(상태값) — AC-009-02·03 */}
-      <View style={styles.header}>
-        <Text variant="h2" color="primary">
-          커뮤니티
+      {/* ① 상단 헤더 — M-43 L62-72 */}
+      <CommunityHeader hasUnreadNotification={unreadCount > 0} />
+
+      {/* ② 나와 비슷한 엄마들의 기록 — M-43 L74-84 / AC-009-03 */}
+      <View style={styles.similarStageRow}>
+        <Text variant="h3Bold" color="primary" style={styles.similarStageTitle}>
+          {SIMILAR_STAGE_TITLE}
         </Text>
         {stageLabel ? (
-          <Text
-            variant="bodySmall"
-            color="secondary"
-            testID="community-stage-label"
-          >
-            {stageLabel} · 비슷한 시기의 기록
-          </Text>
+          <View style={styles.stagePill} testID="community-stage-pill">
+            <Text
+              variant="caption"
+              color="primary"
+              style={styles.stagePillText}
+              testID="community-stage-pill-label"
+            >
+              {stageLabel}
+            </Text>
+            <Text style={styles.stagePillGlyph} color="secondary">
+              {STAGE_PILL_GLYPH}
+            </Text>
+          </View>
         ) : null}
       </View>
 
-      {/* ④ 콘텐츠 타입 필터 — AC-009-06 */}
-      <View style={styles.filterRow} testID="community-type-filter">
-        {FILTERS.map((f) => (
-          <Pill
-            key={f.value}
-            label={f.label}
-            selected={filter === f.value}
-            onPress={() => setFilter(f.value)}
-            testID={`community-filter-${f.value}`}
-          />
-        ))}
+      {/* ③ 오늘의 질문 카드 — 이번 슬라이스 범위 밖 (파일 상단 이탈 1) */}
+
+      {/* ④ 콘텐츠 타입 필터 — M-43 L131-146 / AC-009-06 */}
+      <View style={styles.filterRow}>
+        <CommunityTypeFilter value={filter} onChange={setFilter} />
       </View>
 
-      {/* ⑤ 공개 기록 피드 */}
+      {/* ⑤ 공개 기록 피드 — M-43 L148-153 */}
       {notice ? (
         <View style={styles.notice} testID={notice.testID}>
           <Text variant="bodySmall" color="muted">
@@ -186,9 +222,8 @@ export default function CommunityTab() {
           onEndReachedThreshold={0.5}
           onEndReached={handleEndReached}
           renderItem={({ item }) => (
-            <OtherEntryCard
+            <CommunityFeedCard
               entry={item}
-              showTypeBadge
               testID={`community-feed-entry-${item.id}`}
             />
           )}
@@ -203,30 +238,47 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg.cream,
   },
-  header: {
-    paddingHorizontal: spacing[5],
-    paddingTop: spacing[6],
-    gap: spacing[1],
-  },
-  filterRow: {
+  // M-43: px-5 pt-5 pb-3, justify-between, gap-3
+  similarStageRow: {
     flexDirection: 'row',
-    gap: spacing[2],
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[3],
     paddingHorizontal: spacing[5],
-    paddingTop: spacing[4],
-    paddingBottom: spacing[2],
+    paddingTop: spacing[5],
+    paddingBottom: spacing[3],
+  },
+  similarStageTitle: { flexShrink: 1 },
+  // M-43: bg-beige rounded-full px-3.5 py-2 gap-1.5, flex-shrink-0
+  stagePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.bg.beige,
+    borderRadius: radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: spacing[2],
+  },
+  // M-43 의 pill 텍스트는 13px/semibold — caption(13/400) 위에 굵기만 얹는다.
+  stagePillText: { fontWeight: '600' },
+  stagePillGlyph: { fontSize: 10, lineHeight: 14 },
+  // M-43: px-5 pb-3 (필터 컨테이너의 좌우 여백)
+  filterRow: {
+    paddingHorizontal: spacing[5],
+    paddingBottom: spacing[3],
   },
   listContent: {
     paddingHorizontal: spacing[5],
-    paddingTop: spacing[2],
     paddingBottom: spacing[8],
   },
+  // M-43: space-y-3
   separator: {
-    height: spacing[2],
+    height: spacing[3],
   },
-  // 빈 상태·오류 상태의 자리. 카드와 같은 표면을 쓰되 내용은 문구 한 줄.
+  // 빈 상태·오류 상태의 자리. M-43 에 대응 목업이 없어(빈/예외 상태 화면 미작성)
+  // 피드 카드와 같은 표면을 쓰되 내용은 문구 한 줄로 둔다.
   notice: {
     marginHorizontal: spacing[5],
-    marginTop: spacing[2],
     backgroundColor: colors.surface.ivory,
     borderRadius: radius.md,
     padding: spacing[4],

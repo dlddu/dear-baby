@@ -12,7 +12,7 @@
 // 그 함수가 피드 카드의 "아이 현황" 을 만들기 때문에, 같은 화면에서 내
 // 상태값과 남의 카드가 같은 어휘를 쓰게 된다.
 //
-// 계산 규칙은 ENG-001 (docs/engineering/pregnancy-week-calc.md): 만삭 280일,
+// 계산 규칙은 ENG-001 (docs/engineering/ENG-001-pregnancy-week-calc.md): 만삭 280일,
 // daysPregnant = 280 - (예정일 - 오늘), 주차 = floor(daysPregnant / 7).
 // 경계 밖(과거 5주 초과·미래 45주 초과·미래 생일)이면 null 을 돌려주고,
 // 화면은 그 줄을 아예 그리지 않는다 — 없는 값을 지어내지 않는다.

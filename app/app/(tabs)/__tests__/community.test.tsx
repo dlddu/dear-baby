@@ -1,11 +1,15 @@
-// PRD-009 커뮤니티 탭 메인 화면.
+// PRD-009 커뮤니티 탭 메인 화면 — M-43 재작업분.
 //
 // 이 슬라이스가 완결한다고 주장하는 AC 세 개를 화면 레벨에서 잠근다:
 //   - AC-009-03: 상단 상태값 표시 · 활성 아이 전환 시 갱신 · 수동 시기 필터
-//     미제공.
+//     미제공(= stage pill 이 눌리지 않는다).
 //   - AC-009-06: 전체/질문답변/자유일기 3종 · 기본값 전체 · 선택이 서버
 //     요청의 `type` 으로 나간다(클라이언트가 페이지 안에서 거르지 않는다).
 //   - AC-009-13(커뮤니티 피드 3행): 0건 · 필터 결과 0건 · 네트워크 오류.
+//
+// 더해 M-43 이 요구하는 화면 골격(①헤더 ②유사 시기 ④필터 ⑤피드)과, ③ 오늘의
+// 질문 카드가 **의도적으로 없다는 것**을 함께 잠근다 — 나중에 누가 자리만
+// 채워 넣으면 이탈 기록과 코드가 어긋나기 때문이다.
 //
 // 노출 풀·정렬은 서버(ENG-007·008·010) 몫이라 고정 응답으로 화면 표면만 본다.
 
@@ -34,6 +38,11 @@ jest.mock('../../../src/api/community', () => ({
   getCommunityFeed: (options: unknown) => mockGetCommunityFeed(options),
 }));
 
+const mockGetUnreadCount = jest.fn();
+jest.mock('../../../src/api/notifications', () => ({
+  getUnreadCount: () => mockGetUnreadCount(),
+}));
+
 // 활성 아이는 테스트마다 바꿔야 하므로(AC-009-03 전환 갱신) 가변 홀더를 둔다.
 let mockActiveChild: {
   kind: 'fetus' | 'child';
@@ -60,8 +69,8 @@ const FETUS = {
   kind: 'fetus' as const,
   ordinal: 1,
   subjectId: 'subj-fetus',
-  // 2026-08-07 기준 D-140 → 임신 20주차. 테스트가 오늘 날짜에 의존하지
-  // 않도록 renderTab 이 실행 시점을 기준으로 예정일을 계산한다.
+  // 테스트가 오늘 날짜에 의존하지 않도록 renderTab 실행 시점을 기준으로
+  // 예정일을 계산한다 (D-140 → 임신 20주차).
   dueOrBirthDate: null as string | null,
   displayName: '콩이',
   profileImageUrl: null,
@@ -114,23 +123,55 @@ async function renderTab() {
 beforeEach(() => {
   mockGetCommunityFeed.mockReset();
   mockGetCommunityFeed.mockResolvedValue(page([item('r-1'), item('r-2')]));
+  mockGetUnreadCount.mockReset();
+  mockGetUnreadCount.mockResolvedValue(1);
   mockActiveChild = { ...FETUS, dueOrBirthDate: dayOffset(140) };
 });
 
-describe('CommunityTab — 화면 골격', () => {
+// M-43 의 화면 구조를 코드가 실제로 그리는지 — 요소 유무와 순서.
+describe('M-43 — 화면 골격', () => {
   it('keeps the community-tab testID the 5탭 e2e flow asserts', async () => {
     const { getByTestId } = await renderTab();
     expect(getByTestId('community-tab')).toBeTruthy();
   });
 
-  it('renders the feed cards with a content-type badge (AC-009-02 카드 요소)', async () => {
+  it('① 헤더는 가운데 "커뮤니티" 와 알림 종을 갖는다', async () => {
+    const { getByTestId, getByText } = await renderTab();
+    expect(getByTestId('community-header')).toBeTruthy();
+    expect(getByText('커뮤니티')).toBeTruthy();
+    expect(getByTestId('community-header-bell')).toBeTruthy();
+    // 미읽음이 있으면 coral dot 이 뜬다 (M-43 의 `bg-coral` 점).
+    expect(getByTestId('community-header-unread-dot')).toBeTruthy();
+  });
+
+  it('미읽음이 0이면 헤더 dot 이 사라진다', async () => {
+    mockGetUnreadCount.mockResolvedValue(0);
+    const { queryByTestId } = await renderTab();
+    expect(queryByTestId('community-header-unread-dot')).toBeNull();
+  });
+
+  it('② 유사 시기 영역의 카피는 목업 문자열 그대로다', async () => {
+    const { getByText } = await renderTab();
+    expect(getByText('나와 비슷한 엄마들의 기록')).toBeTruthy();
+  });
+
+  // ③ 오늘의 질문 카드는 이번 슬라이스 이탈 1 — AC-009-04 의 CTA 목적지가
+  // 미구현·목업 미작성이라 일부러 그리지 않는다. 카피가 새어 들어오면 그건
+  // 갈 곳 없는 CTA 가 생겼다는 뜻이므로 여기서 막는다.
+  it('③ 오늘의 질문 카드는 그리지 않는다 (이탈 1 — 목적지 미구현)', async () => {
+    const { queryByText } = await renderTab();
+    expect(queryByText('오늘의 질문')).toBeNull();
+    expect(queryByText('다른 엄마들의 답변 보기')).toBeNull();
+  });
+
+  it('⑤ 피드 카드가 마스킹 표시명과 아이 현황을 그린다 (AC-009-02)', async () => {
     const { getByTestId } = await renderTab();
     expect(getByTestId('community-feed-entry-r-1')).toBeTruthy();
     expect(getByTestId('community-feed-entry-r-1-alias').props.children).toBe(
       'seo***1',
     );
-    expect(getByTestId('community-feed-entry-r-1-type').props.children).toBe(
-      '질문답변',
+    expect(getByTestId('community-feed-entry-r-1-stage').props.children).toBe(
+      '임신 20주차',
     );
   });
 });
@@ -138,7 +179,7 @@ describe('CommunityTab — 화면 골격', () => {
 describe('AC-009-03 — 상단 상태값', () => {
   it('임산부는 임신 N주차', async () => {
     const { getByTestId } = await renderTab();
-    expect(getByTestId('community-stage-label').props.children).toContain(
+    expect(getByTestId('community-stage-pill-label').props.children).toBe(
       '임신 20주차',
     );
   });
@@ -146,7 +187,7 @@ describe('AC-009-03 — 상단 상태값', () => {
   it('양육자는 생후 N개월', async () => {
     mockActiveChild = { ...CHILD, dueOrBirthDate: dayOffset(-160) };
     const { getByTestId } = await renderTab();
-    expect(getByTestId('community-stage-label').props.children).toContain(
+    expect(getByTestId('community-stage-pill-label').props.children).toBe(
       '생후 5개월',
     );
   });
@@ -167,12 +208,18 @@ describe('AC-009-03 — 상단 상태값', () => {
     );
   });
 
+  // "1차 런치에서는 사용자가 직접 필터를 변경하는 기능을 제공하지 않는다."
+  // M-43 도 이 pill 을 `<div>` 로 그렸다 — 누를 수 있게 만들면 AC 위반이다.
+  it('stage pill 은 표시 전용이다 — 버튼 역할도 onPress 도 없다', async () => {
+    const { getByTestId } = await renderTab();
+    const pill = getByTestId('community-stage-pill');
+    expect(pill.props.accessibilityRole).toBeUndefined();
+    expect(pill.props.onStartShouldSetResponder).toBeUndefined();
+  });
+
   it('사용자가 시기를 직접 고르는 필터는 없다 — 타입 칩 3개가 전부다', async () => {
     const { getByTestId } = await renderTab();
-    const chips = getByTestId('community-type-filter').props.children;
-    expect(Array.isArray(chips) ? chips.length : 0).toBe(3);
     // 라벨도 AC-009-06 표 그대로 — 시기(주차/개월) 칩은 하나도 없다.
-    // (본문에서 텍스트로 찾으면 카드의 타입 배지와 겹치므로 칩만 짚는다.)
     for (const [value, label] of [
       ['all', '전체'],
       ['question', '질문답변'],
@@ -187,11 +234,22 @@ describe('AC-009-03 — 상단 상태값', () => {
 
 describe('AC-009-06 — 콘텐츠 타입 필터', () => {
   it('기본 선택값은 전체이고 첫 요청은 type=all 로 나간다', async () => {
-    await renderTab();
+    const { getByTestId } = await renderTab();
     expect(mockGetCommunityFeed).toHaveBeenCalledTimes(1);
     expect(mockGetCommunityFeed).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'all' }),
     );
+    // 선택 상태도 `전체` 하나뿐이어야 한다.
+    expect(
+      getByTestId('community-filter-all').props.accessibilityState.selected,
+    ).toBe(true);
+    expect(
+      getByTestId('community-filter-question').props.accessibilityState
+        .selected,
+    ).toBe(false);
+    expect(
+      getByTestId('community-filter-diary').props.accessibilityState.selected,
+    ).toBe(false);
   });
 
   it('칩을 고르면 그 타입으로 서버에 다시 요청한다', async () => {
