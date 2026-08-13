@@ -3,7 +3,7 @@
 // 임산부 모드:
 //   - 잔여일 ≥ 101  → `{weeks}주차`  (예: "28주차")
 //   - 잔여일 ≤ 100  → `D-{days}`     (예: "D-36")
-//   - 계산 규칙은 docs/engineering/pregnancy-week-calc.md 의 LMP 기준
+//   - 계산 규칙은 docs/engineering/ENG-001-pregnancy-week-calc.md 의 LMP 기준
 //     (만삭 = 280일 = 40주). 잔여일이 음수(과거)거나 calcPregnancy 의
 //     허용 범위를 벗어나면 null 반환 — 그 시점에는 헤더가 child 모드로
 //     스왑되어야 한다 (출산 전환 플로우의 책임).

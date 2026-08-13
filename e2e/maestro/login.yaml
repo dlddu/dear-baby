@@ -1,6 +1,6 @@
 appId: ${APP_ID}
 ---
-# 검증 대상: docs/engineering/client-login-process.md (ENG-003)
+# 검증 대상: docs/engineering/ENG-003-client-login-process.md (ENG-003)
 #
 # 인증은 제품 PRD/AC 계층이 아니라 엔지니어링 노트로 관리한다. 이 flow 는
 # 그 노트가 기술한 "테스터 로그인 게이트 + 세션 수립 후 온보딩 분기" 동작을

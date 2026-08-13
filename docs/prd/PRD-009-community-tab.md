@@ -135,7 +135,7 @@ updated: 2026-08-08
     | AI 질문 답변 | 공개 설정 시 노출 |
     | 자유 일기 | 공개 설정 시 노출 |
     | 비공개 기록 | 미노출 |
-    | 삭제된 기록 | 미노출 ([ENG-012](../engineering/record-delete-marker.md) delete marker 기준) |
+    | 삭제된 기록 | 미노출 ([ENG-012](../engineering/ENG-012-record-delete-marker.md) delete marker 기준) |
     | 임시 저장 기록 | 미노출 — 서버 미전송 로컬 상태라 구조적으로 노출 불가 ([AC-001-07](PRD-001-voice-diary.md)) |
 
   - 커뮤니티 탭에는 별도의 `글쓰기` 버튼을 제공하지 않는다
@@ -165,14 +165,14 @@ updated: 2026-08-08
   - 피드 카드를 탭하면 게시글 상세 화면(AC-009-07)으로 이동한다
   - 피드에 **어떤 기록이 어떤 순서로** 노출되는지(노출 풀·기본 정렬·페이지네이션·본인
     기록 포함 여부)는 본 AC의 검증 범위가 아니다 — 미확정 초안
-    [ENG-008](../engineering/community-feed-exposure-pool.md)·[ENG-007](../engineering/community-feed-default-sort.md)·[ENG-009](../engineering/community-feed-pagination.md)·[ENG-010](../engineering/community-feed-own-records.md)이
-    관리하고, 유사 시기 가중치만 [ENG-011](../engineering/community-similar-stage-recommendation.md)로 확정되어 있다
+    [ENG-008](../engineering/ENG-008-community-feed-exposure-pool.md)·[ENG-007](../engineering/ENG-007-community-feed-default-sort.md)·[ENG-009](../engineering/ENG-009-community-feed-pagination.md)·[ENG-010](../engineering/ENG-010-community-feed-own-records.md)이
+    관리하고, 유사 시기 가중치만 [ENG-011](../engineering/ENG-011-community-similar-stage-recommendation.md)로 확정되어 있다
 
 ### AC-009-03: 상단 필터 — 유사 시기 자동 추천
 
 - **설명**: 메인 상단에 현재 선택된 아이 기준 상태값이 표시된다. 유사 시기 우선 노출의 정의는 ENG-011이 담당한다
 - **달성 가치**: V-008
-- **참조**: [PRD-006 AC-006-09 (활성 아이 컨텍스트)](PRD-006-onboarding-cases.md), [ENG-011 (유사 시기 추천 — 확정)](../engineering/community-similar-stage-recommendation.md)
+- **참조**: [PRD-006 AC-006-09 (활성 아이 컨텍스트)](PRD-006-onboarding-cases.md), [ENG-011 (유사 시기 추천 — 확정)](../engineering/ENG-011-community-similar-stage-recommendation.md)
 - **조건**:
   - 상단에 현재 선택된 아이 기준의 상태값을 표시한다:
 
@@ -184,7 +184,7 @@ updated: 2026-08-08
 
   - 활성 아이 전환 시 상태값과 추천 기준이 전환된 아이로 갱신된다 ([AC-006-09](PRD-006-onboarding-cases.md): 커뮤니티 탭은 선택된 아이의 케이스·주차 컨텍스트로 진입)
   - **1차 런치에서는 사용자가 직접 필터를 변경하는 기능을 제공하지 않고**, 현재 선택된 아이 상태 기준으로 자동 추천한다 (임산부/양육자 상세 필터는 후순위)
-  - "비슷한 시기"의 정의와 적용은 [ENG-011](../engineering/community-similar-stage-recommendation.md)을 따른다 (**확정**: 반경 임신 ±4주/생후 ±1개월 · 케이스 혼합 금지 · 기록의 **작성 당시** 단계 기준 · 하드 필터가 아닌 정렬 가중치). 본 AC의 검증 범위는 상태값 표시·아이 전환 갱신·수동 필터 미제공까지이며, 우선 노출 순서 자체의 검증은 ENG-011과 기본 정렬(ENG-007) 확정 이후의 재개발 범위다
+  - "비슷한 시기"의 정의와 적용은 [ENG-011](../engineering/ENG-011-community-similar-stage-recommendation.md)을 따른다 (**확정**: 반경 임신 ±4주/생후 ±1개월 · 케이스 혼합 금지 · 기록의 **작성 당시** 단계 기준 · 하드 필터가 아닌 정렬 가중치). 본 AC의 검증 범위는 상태값 표시·아이 전환 갱신·수동 필터 미제공까지이며, 우선 노출 순서 자체의 검증은 ENG-011과 기본 정렬(ENG-007) 확정 이후의 재개발 범위다
 
 ### AC-009-04: 오늘의 질문 카드 — CTA 상태 분기
 
@@ -197,7 +197,7 @@ updated: 2026-08-08
     | 요소 | 설명 |
     |------|------|
     | 라벨 | 오늘의 질문 |
-    | 질문 텍스트 | 홈과 동일한 오늘의 질문 (현재는 [ENG-002](../engineering/weekly-questions-plan.md) 고정 풀 플레이스홀더) |
+    | 질문 텍스트 | 홈과 동일한 오늘의 질문 (현재는 [ENG-002](../engineering/ENG-002-weekly-questions-plan.md) 고정 풀 플레이스홀더) |
     | 안내 문구 | 내 답변을 공개하면 같은 질문에 답한 기록을 볼 수 있어요 |
     | CTA 버튼 | 다른 엄마들의 답변 보기 |
 
@@ -211,7 +211,7 @@ updated: 2026-08-08
 
   - 카드의 목적은 사용자가 같은 질문에 답한 다른 엄마들의 기록을 보도록 유도하는 것이다
   - **전제 (확정)**: 본 AC와 AC-009-05는 오늘의 질문이 사용자 간 공유(`question_id` 동일)됨을
-    전제한다. 현재 질문은 [ENG-002](../engineering/weekly-questions-plan.md) 고정 풀(사용자 간
+    전제한다. 현재 질문은 [ENG-002](../engineering/ENG-002-weekly-questions-plan.md) 고정 풀(사용자 간
     동일)이므로 전제가 성립하며, **현 상태를 가정하고 확정**한다. ENG-002 본 구현에서 질문
     생성 방식이 사용자별로 달라지는 안이 채택되면 본 AC·AC-009-05의 모아보기 전제를 재검토한다
 
@@ -219,7 +219,7 @@ updated: 2026-08-08
 
 - **설명**: 특정 AI 질문에 대한 공개 답변을 모아 보여주되, 내 답변을 공개한 사용자만 열람할 수 있다
 - **달성 가치**: V-005, V-008
-- **참조**: [PRD-008 AC-008-07 (사후 전환)](PRD-008-diary-tab.md), [ENG-002 (질문 풀 — AC-009-04의 전제 공유)](../engineering/weekly-questions-plan.md)
+- **참조**: [PRD-008 AC-008-07 (사후 전환)](PRD-008-diary-tab.md), [ENG-002 (질문 풀 — AC-009-04의 전제 공유)](../engineering/ENG-002-weekly-questions-plan.md)
 - **조건**:
   - 열람 권한은 상호 공개 기반으로 운영한다:
 
@@ -296,7 +296,7 @@ updated: 2026-08-08
 
   - 비공개 전환 시 해당 기록은 커뮤니티 피드와 같은 질문 답변 모아보기 화면에서 **즉시 제거**된다
   - 단, 비공개 전환 시 기존 공감/댓글 데이터는 삭제하지 않고 보존한다. 이후 다시 공개 전환할 경우 기존 공감/댓글 데이터가 함께 복구된다
-  - **삭제 시**에는 게시글과 누적 공감·댓글이 모든 사용자 화면에서 함께 소멸하며 복구 경로가 없다 — 비공개 전환(보존·복원)과 대칭되는 소멸 동작이다. 확인 모달·비가역 규정은 [AC-008-06](PRD-008-diary-tab.md), 서버 측 처리는 [ENG-012 delete marker](../engineering/record-delete-marker.md)를 따른다
+  - **삭제 시**에는 게시글과 누적 공감·댓글이 모든 사용자 화면에서 함께 소멸하며 복구 경로가 없다 — 비공개 전환(보존·복원)과 대칭되는 소멸 동작이다. 확인 모달·비가역 규정은 [AC-008-06](PRD-008-diary-tab.md), 서버 측 처리는 [ENG-012 delete marker](../engineering/ENG-012-record-delete-marker.md)를 따른다
 
 ### AC-009-08: 공감
 
@@ -315,7 +315,7 @@ updated: 2026-08-08
     | 본인 글 공감 | 불가 |
     | 표시 방식 | 하트 아이콘 + 카운트 |
 
-  - **본인 글 공감 불가는 도달 경로와 무관하게 적용된다** — 커뮤니티 피드, 같은 질문 답변 모아보기, 일기 탭을 경유한 상세 진입 등 어떤 화면에서 본인 기록에 도달해도 동일하다 (피드 내 본인 기록 노출 여부([ENG-010](../engineering/community-feed-own-records.md), 미확정)와 무관하게 성립)
+  - **본인 글 공감 불가는 도달 경로와 무관하게 적용된다** — 커뮤니티 피드, 같은 질문 답변 모아보기, 일기 탭을 경유한 상세 진입 등 어떤 화면에서 본인 기록에 도달해도 동일하다 (피드 내 본인 기록 노출 여부([ENG-010](../engineering/ENG-010-community-feed-own-records.md), 미확정)와 무관하게 성립)
   - 댓글 공감(AC-009-09)에도 동일 정책을 적용한다: 본인이 작성한 댓글에는 공감할 수 없다
 
 ### AC-009-09: 댓글/대댓글 — 1depth 제한
@@ -394,7 +394,7 @@ updated: 2026-08-08
   - 사유 제출 시 접수가 완료되고 토스트 `신고가 접수되었어요`가 표시된다
   - 같은 사용자가 같은 대상(게시글 또는 댓글)을 중복 신고할 수 없다 — 이미 신고한 대상에서 재시도 시 `이미 신고한 기록이에요` 안내를 표시한다
   - 접수 직후 해당 콘텐츠는 **신고자의 화면에서 숨김** 처리된다 (다른 사용자에게는 영향 없음)
-  - **범위 밖 (명시)**: 접수 이후의 운영 검토·제재·자동 숨김 임계값 등 처리 프로세스는 운영 도구 영역으로 본 AC에서 다루지 않는다. 신고된 콘텐츠가 작성자에 의해 삭제되어도 운영 확인이 가능하도록 데이터는 [ENG-012 delete marker](../engineering/record-delete-marker.md)로 보존된다
+  - **범위 밖 (명시)**: 접수 이후의 운영 검토·제재·자동 숨김 임계값 등 처리 프로세스는 운영 도구 영역으로 본 AC에서 다루지 않는다. 신고된 콘텐츠가 작성자에 의해 삭제되어도 운영 확인이 가능하도록 데이터는 [ENG-012 delete marker](../engineering/ENG-012-record-delete-marker.md)로 보존된다
   - 사용자 차단·검색·상세 필터의 런치 범위는 하단 [1차 런치 범위](#1차-런치-범위-원문-4-19) 표를 단일 소스로 한다 (본 AC에 중복 표기하지 않는다)
 
 ### AC-009-12: 커뮤니티 알림 *(1차 런치 제외)*
@@ -461,7 +461,7 @@ updated: 2026-08-08
 | like_count | 공감 수 |
 | comment_count | 댓글 수 |
 | created_at | 작성일 |
-| deleted_at | 소프트 딜리트 marker ([ENG-012](../engineering/record-delete-marker.md) 확정 정책) |
+| deleted_at | 소프트 딜리트 marker ([ENG-012](../engineering/ENG-012-record-delete-marker.md) 확정 정책) |
 
 주요 API 예시:
 
@@ -501,7 +501,7 @@ updated: 2026-08-08
 | 커뮤니티 알림 | **제외** (설정 탭 보류 — AC-009-12) |
 | 사용자 차단 | 후순위 ¹ |
 | 검색 | 후순위 |
-| 인기순 정렬 | 후순위 — 도입 시 기본 정렬과의 관계는 [ENG-007](../engineering/community-feed-default-sort.md) 소관 |
+| 인기순 정렬 | 후순위 — 도입 시 기본 정렬과의 관계는 [ENG-007](../engineering/ENG-007-community-feed-default-sort.md) 소관 |
 | 임산부/양육자 상세 필터 | 후순위 |
 
 > ¹ **리스크 메모**: UGC를 다루는 iOS 앱은 App Store 심사 가이드라인 1.2에 따라 신고와 함께
@@ -519,14 +519,14 @@ updated: 2026-08-08
 
 | 편입 당시 미확정 항목 | 해소 (2026-08-05) |
 |---|---|
-| 피드 정렬 기준 | AC 밖으로 분리 — [ENG-007](../engineering/community-feed-default-sort.md) 초안 (구 홈 피드의 공감순 초안도 그쪽에 이력 보존). 확정 시 재개발 |
-| 노출 풀·페이지네이션·본인 기록 노출 | 동일 — [ENG-008](../engineering/community-feed-exposure-pool.md)·[ENG-009](../engineering/community-feed-pagination.md)·[ENG-010](../engineering/community-feed-own-records.md) 초안 |
-| 유사 시기 "비슷한" 범위 | **확정** — [ENG-011](../engineering/community-similar-stage-recommendation.md): 임신 ±4주/생후 ±1개월, 케이스 혼합 금지, 작성 당시 단계 기준, 정렬 가중치 |
+| 피드 정렬 기준 | AC 밖으로 분리 — [ENG-007](../engineering/ENG-007-community-feed-default-sort.md) 초안 (구 홈 피드의 공감순 초안도 그쪽에 이력 보존). 확정 시 재개발 |
+| 노출 풀·페이지네이션·본인 기록 노출 | 동일 — [ENG-008](../engineering/ENG-008-community-feed-exposure-pool.md)·[ENG-009](../engineering/ENG-009-community-feed-pagination.md)·[ENG-010](../engineering/ENG-010-community-feed-own-records.md) 초안 |
+| 유사 시기 "비슷한" 범위 | **확정** — [ENG-011](../engineering/ENG-011-community-similar-stage-recommendation.md): 임신 ±4주/생후 ±1개월, 케이스 혼합 금지, 작성 당시 단계 기준, 정렬 가중치 |
 | 다자녀 아이 전환 시 피드 갱신 | **확정** — 이미 [AC-006-09](PRD-006-onboarding-cases.md)가 규정. AC-009-03에 반영 |
 | 닉네임 마스킹 규칙 | **확정** — AC-009-10: 이메일 로컬파트, 앞 3자+`***`+끝 1자 (4자 이하 첫 1자+`***`), 용어는 `MaskedDisplayName` |
-| 신고 접수 후 처리 프로세스 | **범위 밖 확정** — AC-009-11은 접수까지. 운영 처리는 운영 도구 영역, 데이터 보존은 [ENG-012](../engineering/record-delete-marker.md) |
+| 신고 접수 후 처리 프로세스 | **범위 밖 확정** — AC-009-11은 접수까지. 운영 처리는 운영 도구 영역, 데이터 보존은 [ENG-012](../engineering/ENG-012-record-delete-marker.md) |
 | 임시 저장·작성 시점 공개 설정의 정의 부재 | **확정** — [PRD-001 AC-001-06·07](PRD-001-voice-diary.md) 신설 (기본 비공개) |
-| 삭제 시 공감·댓글 처리 | **확정** — 화면 소멸·비가역, 서버 delete marker ([ENG-012](../engineering/record-delete-marker.md), 파기 기한은 그쪽 열린 항목) |
+| 삭제 시 공감·댓글 처리 | **확정** — 화면 소멸·비가역, 서버 delete marker ([ENG-012](../engineering/ENG-012-record-delete-marker.md), 파기 기한은 그쪽 열린 항목) |
 | 재비공개 시 모아보기 열람 권한 | **확정** — 즉시 소멸 (AC-009-05) |
 | 댓글 작성자 표시 | **확정** — 게시글 규칙 준용 + 작성자 배지 (AC-009-09) |
 | 초기 빈 상태 vs mock data | **확정** — mock 삭제, 빈 카드+CTA (AC-009-13·14) |

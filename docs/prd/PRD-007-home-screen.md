@@ -109,7 +109,7 @@ updated: 2026-08-08
   - **임산부 모드**:
     - 출산 예정일까지의 잔여일이 **101일 이상**이면 `00주차` 형식으로 표시 (예: `28주차`)
     - 잔여일이 **100일 이하**가 되면 `D-00` 형식으로 표시 (예: `D-36`)
-    - 주차/D-day는 시스템 날짜 기준으로 매일 자동 갱신된다 (계산 규칙은 [engineering/pregnancy-week-calc.md](../engineering/pregnancy-week-calc.md) 따름)
+    - 주차/D-day는 시스템 날짜 기준으로 매일 자동 갱신된다 (계산 규칙은 [engineering/ENG-001-pregnancy-week-calc.md](../engineering/ENG-001-pregnancy-week-calc.md) 따름)
   - **양육자 모드**:
     - 생년월일 기준 누적 개월 수가 **12개월 이하**이면 `mm개월 (nn일째)` 형식으로 표시 (예: `5개월 (152일째)`)
     - **13개월 이상**이 되면 `nn살 (nn일째)` 형식으로 표시 (예: `2살 (430일째)`)
@@ -205,7 +205,7 @@ updated: 2026-08-08
 
 ### AC-007-09: 타인 기록 피드 — 노출 로직 *(ENG로 이관)*
 
-- **설명**: 피드 노출 로직(공개 상태 필터·정렬·본인 기록 처리)은 미확정 상태로 분리되어 엔지니어링 초안 [ENG-007](../engineering/community-feed-default-sort.md)·[ENG-008](../engineering/community-feed-exposure-pool.md)·[ENG-010](../engineering/community-feed-own-records.md)이 관리한다 (2026-08-05). 확정 시 재개발한다
+- **설명**: 피드 노출 로직(공개 상태 필터·정렬·본인 기록 처리)은 미확정 상태로 분리되어 엔지니어링 초안 [ENG-007](../engineering/ENG-007-community-feed-default-sort.md)·[ENG-008](../engineering/ENG-008-community-feed-exposure-pool.md)·[ENG-010](../engineering/ENG-010-community-feed-own-records.md)이 관리한다 (2026-08-05). 확정 시 재개발한다
 - **이관 사유**: 정렬 기준·랜덤성·본인 기록 노출 여부가 모두 미결정이어서 AC(검증 가능 조건)로 성립하지 않음
 
 ### AC-007-10: 하단 네비게이션 바

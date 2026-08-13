@@ -87,7 +87,7 @@ gap 이 하나 늘었다. **의도된 미충족**이며 아래 "본 구현" 에�
 ## 본 구현에서 다루지 않는 범위
 
 - Stage 2 의 **AI 미리보기** (`onboarding.ai_preview`) — 이미 구현되어 있고
-  스코프가 다르다. 경계는 [`docs/engineering/ai-preview-scopes.md`](./ai-preview-scopes.md)
+  스코프가 다르다. 경계는 [`docs/engineering/ENG-004-ai-preview-scopes.md`](./ENG-004-ai-preview-scopes.md)
   참고.
 - Stage 3 의 서사체 AI — 별도 계획.
 
@@ -96,8 +96,8 @@ gap 이 하나 늘었다. **의도된 미충족**이며 아래 "본 구현" 에�
 - PRD: [`docs/prd/PRD-002-daily-questions.md`](../prd/PRD-002-daily-questions.md)
   (AC-002-01 ~ AC-002-05)
 - Mockup: [`docs/mockups/`](../mockups)
-- 단계 산출: [`docs/engineering/pregnancy-week-calc.md`](./pregnancy-week-calc.md)
+- 단계 산출: [`docs/engineering/ENG-001-pregnancy-week-calc.md`](./ENG-001-pregnancy-week-calc.md)
   (ENG-001 — 임신 주차 · 생후 나이 양축)
-- 단계 반경: [`docs/engineering/community-similar-stage-recommendation.md`](./community-similar-stage-recommendation.md)
+- 단계 반경: [`docs/engineering/ENG-011-community-similar-stage-recommendation.md`](./ENG-011-community-similar-stage-recommendation.md)
   (ENG-011 — 작성 당시 단계 기준, 케이스 혼합 금지)
-- AI 피처 경계: [`docs/engineering/ai-preview-scopes.md`](./ai-preview-scopes.md)
+- AI 피처 경계: [`docs/engineering/ENG-004-ai-preview-scopes.md`](./ENG-004-ai-preview-scopes.md)
