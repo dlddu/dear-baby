@@ -1,0 +1,32 @@
+name: Journey ↔ Mockup Map
+
+# 사용자 여정(docs/journeys) ↔ 여정 mockup(docs/mockups · docs/index.html) 매핑 레지스트리 검사.
+#
+# ci.yml 에 얹지 않고 별도 워크플로로 둔 이유는 mockup-route-map.yml 과 같다: ci.yml 의
+# paths-filter 가 `ci: - '.github/workflows/ci.yml'` 를 갖고 있고 deploy-testflight /
+# deploy-play-internal 의 조건이 `app == 'true' || ci == 'true'` 라서 **ci.yml 을 한 줄만
+# 고쳐도 내부 테스터 배포가 발화한다**. 문서·체커 변경이 배포를 트리거하지 않도록 검사만 따로 돌린다.
+#
+# 체커는 의존성이 없어 러너에 기본 설치된 node 로 그대로 실행된다.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check journey ↔ mockup map
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Check registry
+        run: node scripts/check-journey-mockup-map.mjs

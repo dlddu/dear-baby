@@ -2,6 +2,8 @@
 
 페이지 단위 mockup 43개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md`, `docs/prd/` 에서 도출되었다.
 
+아래 일람 표의 `여정 / Stage` 칸은 **[여정 ↔ 목업 매핑 레지스트리](../journey-mockup-map.md)의 반영물**이다(그 레지스트리가 매핑의 SSOT이고, `scripts/check-journey-mockup-map.mjs` 가 양쪽 일치를 CI 에서 강제한다). 구현 라우트와의 대응은 [목업 ↔ 라우트 매핑 레지스트리](../mockup-route-map.md)가 담당한다.
+
 ## 빠른 보기
 
 최신 `main`의 목업은 GitHub Pages에서 바로 확인할 수 있다.
@@ -65,49 +67,49 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 
 | ID | 화면 | 여정 / Stage |
 |----|------|--------------|
-| M-01 | 가입 · OAuth | Onboarding · 1-1 |
-| M-02 | Q1 — 임신 중인가요? | Onboarding · 2-1 |
-| M-03 | Q2 — 양육 아이가 있나요? | Onboarding · 2-2 |
-| M-04 | A1 — 임신 아이 수 | Onboarding · 3-A1 (Case A) |
-| M-05 | A2 — 태아 정보 (예정일·태명·성별·임신 주차) | Onboarding · 3-A2 (Case A) |
-| M-06 | A3 — 기록 목적 | Onboarding · 3-A3 (Case A) |
-| M-07 | B0 — 안내 ① | Onboarding · 4-B0 (Case B) |
-| M-08 | B1 — 양육 아이 수 | Onboarding · 4-B1 (Case B) |
-| M-09 | B2 — 양육 아이 정보 | Onboarding · 4-B2 (Case B) |
-| **M-35** | **B2-Purpose — 양육 아이 기록 목적 (1:1, AC-006-03 준수)** | **Onboarding · 4-B2-Purpose (Case B)** |
-| M-10 | B3 — 안내 ② | Onboarding · 4-B3 (Case B) |
-| M-11 | B4 — 임신 아이 수 | Onboarding · 4-B4 (Case B) |
-| M-12 | B5 — 태아 정보 | Onboarding · 4-B5 (Case B) |
-| M-13 | B6 — 기록 목적 (아이별) | Onboarding · 4-B6 (Case B) |
-| M-14 | C1 — 양육 아이 수 | Onboarding · 5-C1 (Case C) |
-| M-15 | C2 — 아이 정보 | Onboarding · 5-C2 (Case C) |
-| M-16 | C3 — 기록 목적 | Onboarding · 5-C3 (Case C) |
-| M-17 | 홈 — 임신 모드 (단일) — **PRD-007 준수** | Daily Recording · 6-1 |
-| M-18 | 홈 — 다자녀 (Case B) — **PRD-007 준수** | Daily Recording · 6-1 |
-| M-19 | 음성 녹음 | Daily Recording · 6-2 |
-| M-20 | AI STT 결과 편집 | Daily Recording · 6-3 |
-| M-21 | 사진·영상·음성 첨부 | Daily Recording · 6-4 |
-| M-22 | 기록 저장 완료 | Daily Recording · 6-5 |
+| M-01 | 가입 · OAuth | Onboarding · 2 |
+| M-02 | Q1 — 임신 중인가요? | Onboarding · 3 |
+| M-03 | Q2 — 양육 아이가 있나요? | Onboarding · 3 |
+| M-04 | A1 — 임신 아이 수 | Onboarding · 4 · Case A (A1) |
+| M-05 | A2 — 태아 정보 (예정일·태명·성별·임신 주차) | Onboarding · 4 · Case A (A2) |
+| M-06 | A3 — 기록 목적 | Onboarding · 4 · Case A (A3) |
+| M-07 | B0 — 안내 ① | Onboarding · 4 · Case B (B0) |
+| M-08 | B1 — 양육 아이 수 | Onboarding · 4 · Case B (B1) |
+| M-09 | B2 — 양육 아이 정보 | Onboarding · 4 · Case B (B2) |
+| **M-35** | **B2-Purpose — 양육 아이 기록 목적 (1:1, AC-006-03 준수)** | **Onboarding · 4 · Case B (B2-Purpose)** |
+| M-10 | B3 — 안내 ② | Onboarding · 4 · Case B (B3) |
+| M-11 | B4 — 임신 아이 수 | Onboarding · 4 · Case B (B4) |
+| M-12 | B5 — 태아 정보 | Onboarding · 4 · Case B (B5) |
+| M-13 | B6 — 기록 목적 (아이별) | Onboarding · 4 · Case B (B6) |
+| M-14 | C1 — 양육 아이 수 | Onboarding · 4 · Case C (C1) |
+| M-15 | C2 — 아이 정보 | Onboarding · 4 · Case C (C2) |
+| M-16 | C3 — 기록 목적 | Onboarding · 4 · Case C (C3) |
+| M-17 | 홈 — 임신 모드 (단일) — **PRD-007 준수** | Daily Recording · 5 |
+| M-18 | 홈 — 다자녀 (Case B) — **PRD-007 준수** | Daily Recording · 5 |
+| M-19 | 음성 녹음 | Daily Recording · 6 |
+| M-20 | AI STT 결과 편집 | Daily Recording · 6 |
+| M-21 | 사진·영상·음성 첨부 | Daily Recording · 6 |
+| M-22 | 기록 저장 완료 | Daily Recording · 6 |
 | M-23 | 출산 확인 모달 | Birth Conversion · 7-2 |
 | **M-24 ★** | **출생일 입력** | **Birth Conversion · 7-3 (감정 봉우리)** |
-| M-25 | 설정 + D+14 배너 | Birth Conversion · 7-2 alt |
-| M-26 | 양육자 모드 첫 홈 — **PRD-007 준수 + 환영 리본** | Birth Conversion · 7-4 |
-| M-27 | AI 서사 요청 | AI Narrative · 8-1 |
-| M-28 | AI 처리 로딩 | AI Narrative · 8-2 |
-| **M-29 ★** | **서사 미리보기** | **AI Narrative · 8-3 (감정 봉우리)** |
-| M-30 | 서사 편집 | AI Narrative · 8-3 alt |
-| M-31 | 표지·레이아웃 선택 | Book Production · 9-1 |
-| M-32 | 전체 미리보기 | Book Production · 9-2 |
-| M-33 | 결제 | Book Production · 9-3 |
-| M-34 | 제작·배송 추적 | Book Production · 9-4 |
-| M-36 | 일기 탭 — 목록 (단일 아이 통합) | Diary Browsing · 6½-1·2 |
+| M-25 | 설정 + D+14 배너 | Birth Conversion · 7-4 |
+| M-26 | 양육자 모드 첫 홈 — **PRD-007 준수 + 환영 리본** | Birth Conversion · 8 |
+| M-27 | AI 서사 요청 | AI Narrative · 9-1 |
+| M-28 | AI 처리 로딩 | AI Narrative · 9-1 |
+| **M-29 ★** | **서사 미리보기** | **AI Narrative · 9-2 (감정 봉우리)** |
+| M-30 | 서사 편집 | AI Narrative · 9-3 |
+| M-31 | 표지·레이아웃 선택 | Book Production · 10-1 |
+| M-32 | 전체 미리보기 | Book Production · 10-2 |
+| M-33 | 결제 | Book Production · 10-3 |
+| M-34 | 제작·배송 추적 | Book Production · 11 |
+| M-36 | 일기 탭 — 목록 (단일 아이 통합) | Diary Browsing · 6½-1, 6½-2 |
 | M-37 | 일기 탭 — 다자녀 통합 (콩이+하준) + 필터 | Diary Browsing · 6½-2 |
-| M-38 | 기록 상세 + ⋯ 액션 시트 | Diary Browsing · 6½-3·4 |
+| M-38 | 기록 상세 + ⋯ 액션 시트 | Diary Browsing · 6½-3, 6½-4 |
 | M-39 | 일기 탭 — 빈 상태 (기록 0건) | Diary Browsing · 6½-1 |
 | M-40 | 기록 편집 (사후) | Diary Browsing · 6½-4 |
 | M-41 | 삭제 확인 모달 | Diary Browsing · 6½-4 |
 | M-42 | 필터 시트 (다자녀) | Diary Browsing · 6½-2 |
-| **M-43** | **커뮤니티 — 메인 피드** | **Community · 여정 미작성 · PRD-009 AC-009-02·03·04·06** |
+| **M-43** | **커뮤니티 — 메인 피드** | **Community · 여정 미작성 (고아 진입점) · PRD-009 AC-009-02·03·04·06** |
 
 ## ★ 감정 봉우리 페이지
 
@@ -175,8 +177,10 @@ Tailwind 사용:
 
 ## 정합성 검증 (design-doc-structure-validator)
 
-- ✅ M-01~M-42 는 6개 사용자 여정 stage 와 1:1 매핑
-- 🟡 **M-43 (커뮤니티)은 여정 문서 부재** — 커뮤니티 사용자 여정이 아직 작성되지 않아 여정 stage 대신 PRD-009 의 AC 에 직접 매핑했다. 여정 문서 작성 시 stage 매핑으로 전환한다
+- ✅ M-01~M-42 는 6개 사용자 여정의 갤러리 그룹 6개에 빠짐없이 속한다(떠 있는 카드 0장) — 전수 매핑은 [여정 ↔ 목업 매핑 레지스트리](../journey-mockup-map.md) §2
+- 🟡 **여정 25단계 중 5단계가 미시각화** — 제품 외부 3(발견 · 책 수령 · 선물)과 제품 내부 2(D-7 푸시 알림 · 서사 확정). 레지스트리 §3 원장 참조
+- 🟡 **화면 라벨의 단계 번호 34장이 구 체계** — `PhoneFrame` 라벨이 인용하는 `Stage <id>` 가 여정 문서에 없는 번호다(예: M-31~M-34 가 인용하는 `9-1`~`9-4` 는 문서상 AI Narrative 의 것이고 Book Production 은 `10-1`~`11`). 위 일람 표는 **여정 문서 기준으로 정정돼 있고**, 라벨 정정은 `data-journey`/`data-step` 도입·재빌드와 함께 하는 후속 작업이다. 레지스트리 §5 원장 참조
+- 🟡 **M-43 (커뮤니티)은 여정 문서 부재** — 커뮤니티 사용자 여정이 아직 작성되지 않아 여정 stage 대신 PRD-009 의 AC 에 직접 매핑했다(레지스트리 §4 고아 진입점 원장 1건). 여정 문서 작성 시 stage 매핑으로 전환한다
 - ✅ 모든 mockup 이 1개 이상 가치(V-001~V-008)와 연결
 - ✅ Tailwind config 에 정의된 디자인 시스템 토큰만 사용 (raw hex 색상은 dear-baby palette 만 등장)
 - ✅ ★ 감정 봉우리 (M-24, M-29) 가 사용자 여정 문서가 명시한 정서적 정점에 위치
