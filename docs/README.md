@@ -58,6 +58,7 @@
 - [AI Narrative Journey — AI 서사 생성·편집](journeys/ai-narrative-journey.md)
 - [Book Production Journey — 책 주문 · 배송 · 선물](journeys/book-production-journey.md)
 - [Diary Browsing Journey — 일기 탭 · 누적 기록 재방문 · 사후 관리](journeys/diary-browse-journey.md)
+- [Login & Session Journey — 자동 로그인 · 인증 실패 · 세션 만료 · 로그아웃](journeys/login-journey.md) (PRD 없음 — ENG-003·ENG-006 매핑)
 
 ### Mockups (페이지 단위 시각 산출물)
 - [Mockups Index — 매핑 인덱스 + 재빌드 방법](mockups/README.md)
