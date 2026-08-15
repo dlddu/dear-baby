@@ -17,7 +17,7 @@
 | 원칙 | 설명 |
 |------|------|
 | **🧩 플로우 단위 분할** | 각 문서는 하나의 자족적 사용자 플로우(온보딩 / 일상 기록 / 출산 전환 / AI 서사 / 책 제작)를 다룬다 |
-| **🔗 PRD 1:1 매핑** | 각 플로우 문서는 가능한 PRD-001~007 중 1~2개와 1:1 매핑된다 |
+| **🔗 PRD 1:1 매핑** | 각 플로우 문서는 가능한 PRD-001~009 중 1~2개와 1:1 매핑된다. **유일한 예외는 7 Login & Session** — 인증은 제품 기능이 아니라 기록 귀속·세션 유지를 떠받치는 기반이므로 PRD/AC 대신 엔지니어링 노트(ENG-003·ENG-006)에 매핑된다 ([doc-tracker](../doc-tracker.md) 방침) |
 | **🌊 인계 명시** | 각 문서는 앞 플로우로부터 무엇을 인계받고, 다음 플로우로 무엇을 인계하는지 명시한다 |
 | **🧭 가치 추적** | 각 단계에서 어떤 제품 가치(V-001~V-007)가 작동하는지 명시한다 |
 
@@ -93,6 +93,8 @@ flowchart TD
 ```
 
 > **감정 봉우리(peak moment)는 4곳**: ① 출산 전환 ② AI 서사 생성 ③ 책 수령 ④ 아이에게 선물. 이 4지점이 디어베이비의 정체성을 결정한다.
+>
+> 위 흐름도의 **📲 가입** 노드는 [Login & Session Journey](login-journey.md)의 L2다. 그 이후 모든 노드는 세션이 살아 있다는 전제 위에 있고, 세션이 끊기면 어느 노드에서든 가입 노드로 되돌아온다 — 그 되돌아오는 경로가 위 흐름도에는 그려지지 않는다(모든 노드에서 나가는 선이 되어 읽을 수 없어지므로). 해당 경로는 로그인 여정 문서가 단독으로 다룬다.
 
 ---
 
@@ -108,10 +110,13 @@ flowchart TD
 | 4 | [AI Narrative Journey](ai-narrative-journey.md) | AI 서사 생성·편집 | PRD-003 | 🌸🌼🌿 |
 | 5 | [Book Production Journey](book-production-journey.md) | 책 주문 · 배송 · 선물 | PRD-004 | 🌸🌼🌿 |
 | 6 | [Diary Browsing Journey](diary-browse-journey.md) | 일기 탭 진입 · 시간 그룹 스크롤 · 상세 재현 · 사후 관리 | PRD-008 (+ PRD-001·005·006·007) | 🌸🌼🌿 (🌼 강) |
+| 7 | [Login & Session Journey](login-journey.md) | 자동 로그인 · 로그인 실패 · 세션 만료 · 로그아웃 | **PRD 없음** — ENG-003·ENG-006 | 🌸🌼🌿 (케이스 무관) |
 
 > 화살표(←/→)로 표시되는 인계 관계: 1 → 2 → (Case A·B만) 3 → 2(양육자 모드) → 4 → 5
 >
 > **6 Diary Browsing**은 2의 곁가지 루프로, 비주기 트리거로 진행되며 1·2·3·4·5 어느 시점에서도 진입 가능하다 (4·5 직전에 정리 동선으로 자주 진입).
+>
+> **7 Login & Session**은 순차 플로우가 아니라 **1~6 전체의 아래에 깔린 기반 루프**다. 앱을 여는 모든 순간에 통과하며(대개 자동 로그인으로 무감각하게), 세션이 만료되면 어느 여정의 어느 시점에서도 랜딩으로 축출된다. 여정 1의 Stage 2(가입)는 이 여정의 L2와 같은 화면(M-01)을 공유한다.
 
 ---
 
@@ -164,6 +169,7 @@ flowchart TD
 | 4. AI Narrative | ●● | | ●●● | ●● | | | ●● |
 | 5. Book Production | ●● | | ●● | | | ●●● | ● |
 | 6. Diary Browsing | ●●● | ●● | ●● | | | | ●● |
+| 7. Login & Session | ●● | ●●● | | | | | |
 
 > ●●● 핵심 가치 / ●● 보조 가치 / ● 부수 가치
 
@@ -187,6 +193,7 @@ flowchart TD
 | 4 | AI Narrative | "내 글을 AI가 고친다"는 거부감 | [→ AI Narrative Journey](ai-narrative-journey.md) |
 | 5 | Book Production | 가격 부담, 배송 지역 제약 | [→ Book Production Journey](book-production-journey.md) |
 | 6 | Diary Browsing | 누적 100건+ 시 못 찾기, 영구 삭제 후 후회 | [→ Diary Browsing Journey](diary-browse-journey.md) |
+| 7 | Login & Session | 로그인 실패 시 완전 무반응, 세션 만료 축출에 설명 부재 | [→ Login & Session Journey](login-journey.md) |
 
 ---
 

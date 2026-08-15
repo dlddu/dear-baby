@@ -9,7 +9,7 @@
 | **관련 시스템 흐름** | [`flows/onboarding-flow.md`](../flows/onboarding-flow.md) |
 | **관련 화면** | [`mockups/`](../mockups) |
 | **관련 페르소나** | 🌸 Case A · 🌼 Case B · 🌿 Case C 모두 |
-| **앞 플로우로부터 인계** | (없음 — 첫 플로우) |
+| **앞 플로우로부터 인계** | 인증 상태 `onboarding`(세션 수립 O · `onboarded_at` 없음) ← [Login & Session Journey](login-journey.md) L2 |
 | **다음 플로우로 인계** | 케이스(A/B/C) · 활성 아이 정보 · 임신 주차/예정일 또는 양육 일수 → [Daily Recording Journey](daily-recording-journey.md) |
 
 ---
@@ -83,6 +83,8 @@ flowchart TD
 | **시스템 응답** | 백엔드 인증 시스템 (`backend/internal/users`, `oauth_accounts`, `RefreshStore`) |
 | **페인포인트 / 기회** | ⚠️ Google/Apple 외 옵션이 없을 때 일부 사용자 이탈 가능 → 🌱 가입 단계가 짧을수록 진입 부담 ↓ |
 
+> **본 Stage는 [Login & Session Journey](login-journey.md)의 L2와 같은 화면(M-01)을 공유한다.** 본 문서는 "처음 가입하는 사용자의 첫인상"까지만 다루고, 그 이후 반복되는 재진입·인증 실패·세션 만료·로그아웃은 로그인 여정이 단독으로 다룬다. 특히 **로그인 실패 시 아무 반응이 없는 문제**(로그인 여정 L3)와 **세션 만료 축출에 설명이 없는 문제**(L6)는 온보딩 이탈에도 직접 영향을 주므로, 본 플로우의 페인포인트 2와 함께 읽어야 한다.
+
 ### Stage 3 — 🔀 케이스 분기 (Q1·Q2 두 독립 체크)
 
 | 축 | 내용 |
@@ -147,7 +149,7 @@ flowchart TD
 | # | 단계 | 페인포인트 | 완화 메커니즘 (현재) | 추가 기회 |
 |---|---|---|---|---|
 | 1 | Stage 1 | 음성 인식 / AI 책 품질에 대한 의구심 | (제품 외부) | 데모 영상·실제 책 샘플 노출 |
-| 2 | Stage 2 | OAuth 외 옵션 부재 시 일부 이탈 | 1탭 로그인 자체가 짧음 | 이메일 옵션 추가 검토 |
+| 2 | Stage 2 | OAuth 외 옵션 부재 시 일부 이탈 | 1탭 로그인 자체가 짧음 | 이메일 옵션 추가 검토 · 실패 시 무반응 문제는 [Login & Session Journey](login-journey.md) L3 참조 |
 | 3 | Stage 3 | "임신 X · 양육 X" 미정의 | (PRD-006 미해결) | 향후 케이스 검토 |
 | 4 | Stage 4 (Case B) | 8화면 — 중도 이탈 위험 (다자녀일 경우 더 길어짐: 양육 N명 → B2 + B2-Purpose × N) | B0·B3 안내 화면 + 단계 인디케이터 ①→② · 양육은 아이별 1:1, 태아는 1회 입력으로 인지 부담 최소화 | 입력 진행률 % 표시, "이만큼 남았어요" 카피 |
 | 5 | Stage 4 | 시스템 톤 카피의 정서적 거리감 | mockup 카피 가이드 | 모든 신규 카피 작성 시 가이드 강제 적용 |
@@ -186,5 +188,6 @@ flowchart TD
 - [`flows/onboarding-flow.md`](../flows/onboarding-flow.md) — 시스템 흐름도
 - [`mockups/`](../mockups) — 화면 mockup
 - [`prd/PRD-006-onboarding-cases.md`](../prd/PRD-006-onboarding-cases.md) — Acceptance Criteria
+- [`journeys/login-journey.md`](login-journey.md) — Stage 2(가입)의 확장: 재진입 · 인증 실패 · 세션 만료 · 로그아웃
 - [→ 다음 플로우: Daily Recording Journey](daily-recording-journey.md)
 - [← 인덱스로 돌아가기](README.md)
