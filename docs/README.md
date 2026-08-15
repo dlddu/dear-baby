@@ -63,6 +63,7 @@
 - [Mockups Index — 매핑 인덱스 + 재빌드 방법](mockups/README.md)
 - [Mockups (브라우저로 열기) — 43개 화면 단일 React 번들](index.html)
 - [Mockups Source — React + Tailwind 소스 (재현 가능)](mockups/source/)
+- [여정 ↔ 목업 매핑 레지스트리](journey-mockup-map.md) — 여정·단계 ↔ 갤러리 그룹·M-NN 매핑 · 미시각화 원장 · 고아 진입점 원장 · 구 번호 라벨 원장
 - [목업 ↔ 라우트 매핑 레지스트리](mockup-route-map.md) — 구현 라우트 ↔ M-NN 매핑 · 미해소 위반 원장 · 이탈 허용목록
 
 ### 테스트 문서
