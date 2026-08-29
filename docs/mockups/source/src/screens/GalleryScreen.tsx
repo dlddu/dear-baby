@@ -183,7 +183,7 @@ export function GalleryScreen({ onNavigate }: Props) {
       <section className="mt-16">
         <div className="bg-ivory rounded-db-md p-6 shadow-db-sm text-[14px] leading-[1.7] text-ink">
           <strong>스코프</strong> · 43개 페이지 · 모바일 393 × 852 (iPhone 15 base)<br />
-          <strong>참조 문서</strong> · <code>docs/journeys/*</code> · <code>docs/design-system/*</code> · <code>docs/values/product-values.md</code><br />
+          <strong>참조 문서</strong> · <code>docs/user-journeys/*</code> · <code>docs/design-system/*</code> · <code>docs/values/product-values.md</code><br />
           <strong>★ 감정 봉우리 페이지</strong> · M-24 (출생일 입력) · M-29 (서사 미리보기)<br />
           <strong>케이스 분기</strong> · A 임신 only · B 임신+양육 · C 양육 only<br />
           <strong>디자인 토큰</strong> · Coral #D4836B · Peach #F5C6A8 · Cream #FAF6F1 · Sage #A8C5A0

@@ -13,7 +13,7 @@ related_prds:
   - PRD-006
   - PRD-007
 related_journeys:
-  - docs/journeys/diary-browse-journey.md
+  - docs/user-journeys/diary-browse-journey.md
 created: 2026-05-14
 updated: 2026-08-05
 ---

@@ -100,7 +100,7 @@ R5·R6 위반 중 **아직 고치지 않은 것**을 사유·해소 조건과 �
 |---|---|---|---|---|
 | L1 | `app/app/(onboarding)/b2-purpose.tsx` | R5 | 헤더 주석이 스스로를 "mockup 외 신설"로 선언하고 M-13(B6)을 대조군으로만 인용한다. 레지스트리의 매핑은 M-35 다. | 헤더 주석을 M-35 매핑 선언으로 갱신하고 "추가 mockup 이 필요 없다"는 문장을 제거한다. |
 | L2 | `app/app/(onboarding)/a2.tsx` | R6 | 인용 범위 `Onboarding.tsx:263-278` 이 M-05 블록(268–315) 밖에서 시작한다 — 목업 수정으로 줄이 밀렸다. | 인용 범위를 현재 M-05 블록 안으로 갱신한다. |
-| L3 | `app/app/record-text.tsx` | R6 | `docs/wireframes/onboarding.md L104-106` 을 인용하는데 그 폴더는 #92 "remove deprecated wireframes folder and all references" 에서 삭제됐다(그 PR 이 놓친 잔여 참조). | 인용을 제거하거나 현행 문서(`docs/journeys/daily-recording-journey.md` 등)로 교체한다. |
+| L3 | `app/app/record-text.tsx` | R6 | `docs/wireframes/onboarding.md L104-106` 을 인용하는데 그 폴더는 #92 "remove deprecated wireframes folder and all references" 에서 삭제됐다(그 PR 이 놓친 잔여 참조). | 인용을 제거하거나 현행 문서(`docs/user-journeys/daily-recording-journey.md` 등)로 교체한다. |
 | L4 | `app/src/utils/date.ts` | R6 | 같은 `docs/wireframes/onboarding.md` 를 인용한다 — #92 가 놓친 두 번째 잔여 참조. | L3 과 같다. |
 
 <!-- ledger:end -->
@@ -130,6 +130,6 @@ R5·R6 위반 중 **아직 고치지 않은 것**을 사유·해소 조건과 �
   목업 `tailwind.config.js` 의 `db-sm 0 2px 8px .06` · `db-md 0 4px 16px .08` · `db-lg 0 8px 24px .12` 는
   그 문서와 이름도 값도 다르다. **어긋난 두 소스가 모두 to-be 쪽**이므로 구현을 목업에 맞추는 기본
   방향을 그대로 적용하면 이미 정합인 구현 토큰 3개를 깨게 된다. 토큰 SSOT(`design-system/tokens.md`)에
-  목업 config 를 맞추는 것이 기본 방향이며, 목업 소스를 고치면 `docs/index.html` 재빌드가 같은 커밋에
+  목업 config 를 맞추는 것이 기본 방향이며, 목업 소스를 고치면 `docs/mockups/index.html` 재빌드가 같은 커밋에
   따라와야 하고 목업의 시각 자체가 바뀌므로 별도 슬라이스로 둔다.
 - **실행 스크린샷 픽셀 비교** — 모델 정의상 범위 밖(정적 대조로 확정).

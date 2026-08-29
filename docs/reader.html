@@ -103,17 +103,15 @@ const CONFIG = {
   // 허브 파일 경로 (docs/ 기준)
   hubPath: 'index.html',
   // 여정 mockup 이 사는 폴더 (docs/ 기준). 여정 mockup = <mockupBase><journey-id>/
-  // ⚠️ 이 레포는 docs/journeys/ 를 여정 "문서" 폴더로 쓰고 있다. 여정 단위 mockup 을 도입할 때 경로 충돌을 먼저 정리한다.
+  // 여정 mockup 은 docs/journeys/<journey-id>/index.html. 마이그레이션이 끝난 여정만 아래 정규식이 잡는다.
   mockupBase: 'journeys/',
   // "이 문서가 그 여정의 문서다" 를 확정하는 두 가지 근거. 각각 1번 그룹으로 여정 ID 를 잡는다.
-  // 이 레포의 여정 식별자 규약: <슬러그>-journey.md 파일 = 여정 1개, 단계는 Stage N (docs/journeys/ 는 현재 여정 "문서" 폴더다)
-  // 여정 mockup 이 아직 없으므로 두 정규식은 의도적으로 아무것도 잡지 않는다
-  // (잡게 두면 존재하지 않는 mockup 으로 가는 끊긴 링크가 헤더에 뜬다).
-  // 여정 단위 mockup 을 만들면 아래 두 줄을 이 레포 규약으로 고친다:
-  //   journeyIdInMeta: /\|[^|\n]*여정\s*ID[^|\n]*\|\s*`?(JRN-[\w-]+)`?\s*\|/
-  //   journeyIdInPath: /journeys\/([a-z-]+)-journey\.md$/
-  journeyIdInMeta: /(?!)/,
-  journeyIdInPath: /(?!)/,
+  // 이 레포의 여정 식별자 규약: docs/user-journeys/<슬러그>-journey.md = 여정 1개, 단계는 `STP-<슬러그>`
+  // 아직 여정 mockup 이 없는 여정까지 잡으면 존재하지 않는 페이지로 가는 끊긴 링크가
+  // 헤더에 뜬다. 그래서 지금은 마이그레이션이 끝난 diary-browse 만 잡는다. 여정을 옮길 때마다 아래 두 정규식에 추가한다.
+  //   전체 규약: journeyIdInMeta: /\|[^|\n]*여정\s*식별자[^|\n]*\|\s*`?([a-z-]+)`?\s*\|/ / journeyIdInPath: /user-journeys\/([a-z-]+)-journey\.md$/
+  journeyIdInMeta: /\|[^|\n]*여정\s*식별자[^|\n]*\|\s*`?(diary-browse)`?\s*\|/,
+  journeyIdInPath: /user-journeys\/(diary-browse)-journey\.md$/,
   // 문서 제목 접미사
   siteTitle: '디어베이비 문서',
 };

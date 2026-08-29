@@ -11,7 +11,8 @@ dear-baby 의 화면을 코드로 구현할 때는 **반드시** 아래 절차�
 
 mockup 은 React + Tailwind 기반 단일 번들이다.
 
-- **번들 (브라우저로 보기)**: `docs/index.html` — 갤러리에서 43개 화면 모두 클릭 가능 (GitHub Pages 진입점)
+- **번들 (브라우저로 보기)**: `docs/mockups/index.html` — 갤러리에서 43개 화면 모두 클릭 가능
+- **문서 포털 허브**: `docs/index.html` — Pages 진입점. 여정 문서와 여정 mockup 을 나란히 연결
 - **소스 (코드 참조)**: `docs/mockups/source/src/`
   - `components/PhoneFrame.tsx`, `components/Common.tsx` — 공통 프리미티브
   - `screens/Onboarding.tsx` — M-01 ~ M-16, M-35

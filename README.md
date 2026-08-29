@@ -15,4 +15,5 @@
 
 제품 문서는 [docs/](docs/) 디렉토리에서 확인할 수 있습니다.
 
-- [목업 디자인 보기](https://dlddu.github.io/dear-baby/)
+- [문서 포털 (가치 · PRD · 여정 · 디자인 시스템)](https://dlddu.github.io/dear-baby/)
+- [목업 디자인 보기](https://dlddu.github.io/dear-baby/mockups/)
