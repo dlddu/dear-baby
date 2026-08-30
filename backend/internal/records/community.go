@@ -20,6 +20,43 @@ const (
 	maxFeedLimit     = 100
 )
 
+// FeedContentType is the 콘텐츠 타입 필터 of PRD-009 AC-009-06: 전체 /
+// 질문답변 / 자유일기. The distinction is structural rather than a stored
+// column — a record that carries the daily question it answered
+// (records.question_text, migration 0007) IS an AI 질문 답변, and one
+// without is a 자유 일기. That is the same rule the feed card already uses
+// to decide whether to print the question line, so no new column, no
+// migration and no second source of truth.
+//
+// The filter lives on the SERVER, not in the client: the feed is keyset
+// paginated (ENG-009), so a client that filtered a fetched page would show
+// an empty screen whenever a page happened to hold no matching records
+// while later pages did.
+type FeedContentType string
+
+const (
+	// FeedTypeAll is the AC-009-06 기본 선택값 — no extra predicate, so the
+	// query is byte-identical to the pre-filter one.
+	FeedTypeAll      FeedContentType = "all"
+	FeedTypeQuestion FeedContentType = "question"
+	FeedTypeDiary    FeedContentType = "diary"
+)
+
+// ParseFeedContentType maps the `type` query parameter onto the enum. An
+// empty value is the default (전체); anything unrecognised is rejected
+// rather than silently treated as 전체, so a client typo surfaces as a 400
+// instead of a wrong-looking feed.
+func ParseFeedContentType(raw string) (FeedContentType, bool) {
+	switch FeedContentType(raw) {
+	case "":
+		return FeedTypeAll, true
+	case FeedTypeAll, FeedTypeQuestion, FeedTypeDiary:
+		return FeedContentType(raw), true
+	default:
+		return "", false
+	}
+}
+
 // feedPreviewRunes caps the content preview shown on a community feed card.
 // PRD-009 AC-009-14 describes a "~50자 미리보기"; the full body is only ever
 // sent from the (future) community detail endpoint, so the list stays light
@@ -207,6 +244,13 @@ func (s *Store) SubjectKindForUser(ctx context.Context, userID, subjectID string
 // 'child' records — no case mixing). viewerKind is derived by the handler
 // from the caller's active subject_id.
 //
+// Content type (AC-009-06 콘텐츠 타입 필터): FeedTypeQuestion keeps only
+// records that answered a daily question, FeedTypeDiary only those that did
+// not, FeedTypeAll (the default) filters nothing. The predicate sits inside
+// the same WHERE as the exposure pool so the keyset cursor walks the
+// FILTERED pool — switching filters restarts from the head with an empty
+// cursor, which is what the screen does.
+//
 // Order (ENG-007 기본 정렬): creation time descending, id descending as a
 // stable tiebreaker. Similarity-stage weighting (ENG-011) is a later slice;
 // this slice ships the recency base sort that weighting sits on top of.
@@ -218,7 +262,7 @@ func (s *Store) SubjectKindForUser(ctx context.Context, userID, subjectID string
 // defaultFeedLimit.
 //
 // Returns the page and the next cursor (empty when the page wasn't full).
-func (s *Store) CommunityFeed(ctx context.Context, viewerUserID, viewerKind, cursor string, limit int) ([]FeedItem, string, error) {
+func (s *Store) CommunityFeed(ctx context.Context, viewerUserID, viewerKind string, contentType FeedContentType, cursor string, limit int) ([]FeedItem, string, error) {
 	if limit <= 0 || limit > maxFeedLimit {
 		limit = defaultFeedLimit
 	}
@@ -228,6 +272,15 @@ func (s *Store) CommunityFeed(ctx context.Context, viewerUserID, viewerKind, cur
 		"r.visibility = 'public'",
 		"rs.kind = ?",
 		"r.user_id != ?",
+	}
+	switch contentType {
+	case FeedTypeQuestion:
+		// TRIM() so a record persisted with an empty question string (an
+		// entry point that passed "" instead of omitting the field) is not
+		// counted as a 질문답변 with no question to show.
+		clauses = append(clauses, "r.question_text IS NOT NULL AND TRIM(r.question_text) != ''")
+	case FeedTypeDiary:
+		clauses = append(clauses, "(r.question_text IS NULL OR TRIM(r.question_text) = '')")
 	}
 	if cursor != "" {
 		clauses = append(clauses, "r.created_at < ?")

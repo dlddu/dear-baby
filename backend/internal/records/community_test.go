@@ -385,3 +385,143 @@ func TestCommunityFeedWithoutProfileRowStillReturnsRecord(t *testing.T) {
 		t.Fatalf("child_status_text = %q, want empty", got.Items[0].ChildStatusText)
 	}
 }
+
+// -- 콘텐츠 타입 필터 (AC-009-06) -------------------------------------------
+
+// seedTypeMixedPool seeds one viewer plus another author holding one 질문답변
+// record and one 자유일기 record, and returns the viewer's subject id. The
+// 자유일기 rows deliberately cover both shapes the column can take — NULL and
+// the empty string — because the app's createRecord omits question_text
+// entirely while a stray caller could still send "".
+func seedTypeMixedPool(t *testing.T, db *sql.DB) string {
+	t.Helper()
+	seedFeedUser(t, db, "viewer", "viewer1@x.com")
+	seedFeedUser(t, db, "other", "otheruser@x.com")
+	viewerSubj := seedSubject(t, db, "subj-viewer-f", "viewer", "fetus", 0)
+	otherSubj := seedSubject(t, db, "subj-other-f", "other", "fetus", 0)
+
+	q := "엄마, 오늘 저를 처음 알게 된 기분은 어땠어요?"
+	empty := ""
+	seedRecord(t, db, "r-diary-null", "other", otherSubj, "자유 일기 본문", "public", "2026-08-05 10:00:00", nil)
+	seedRecord(t, db, "r-question", "other", otherSubj, "질문 답변 본문", "public", "2026-08-05 11:00:00", &q)
+	seedRecord(t, db, "r-diary-empty", "other", otherSubj, "빈 질문 자유 일기", "public", "2026-08-05 12:00:00", &empty)
+	return viewerSubj
+}
+
+func feedIDs(items []FeedItem) []string {
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		out = append(out, it.ID)
+	}
+	return out
+}
+
+func TestCommunityFeed_ContentTypeFilter(t *testing.T) {
+	h, db := newFeedHandlers(t)
+	defer db.Close()
+	viewerSubj := seedTypeMixedPool(t, db)
+
+	cases := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		// AC-009-06 기본 선택값은 `전체` — type 을 아예 넘기지 않은 요청이
+		// 필터 이전과 같은 응답을 내야 한다.
+		{"default is 전체", "", []string{"r-diary-empty", "r-question", "r-diary-null"}},
+		{"explicit all", "&type=all", []string{"r-diary-empty", "r-question", "r-diary-null"}},
+		{"질문답변만", "&type=question", []string{"r-question"}},
+		{"자유일기만", "&type=diary", []string{"r-diary-empty", "r-diary-null"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := getFeed(t, h, "viewer", "?subject_id="+viewerSubj+tc.query)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+			}
+			got := feedIDs(decodeFeed(t, rec).Items)
+			if len(got) != len(tc.want) {
+				t.Fatalf("ids: got %v want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("ids: got %v want %v", got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+// An unknown type must not silently degrade to 전체 — a client typo would
+// then render a feed that looks filtered but isn't.
+func TestCommunityFeed_InvalidContentType_400(t *testing.T) {
+	h, db := newFeedHandlers(t)
+	defer db.Close()
+	viewerSubj := seedTypeMixedPool(t, db)
+
+	rec := getFeed(t, h, "viewer", "?subject_id="+viewerSubj+"&type=bogus")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d want 400 (body=%s)", rec.Code, rec.Body.String())
+	}
+}
+
+// The keyset cursor must walk the FILTERED pool, not the whole one:
+// otherwise page 2 of a 자유일기 feed would skip past 자유일기 rows that a
+// 질문답변 row happened to sit between.
+func TestCommunityFeed_ContentTypeFilterPaginates(t *testing.T) {
+	h, db := newFeedHandlers(t)
+	defer db.Close()
+
+	seedFeedUser(t, db, "viewer", "viewer1@x.com")
+	seedFeedUser(t, db, "other", "otheruser@x.com")
+	viewerSubj := seedSubject(t, db, "subj-viewer-f", "viewer", "fetus", 0)
+	otherSubj := seedSubject(t, db, "subj-other-f", "other", "fetus", 0)
+
+	q := "오늘의 질문"
+	// Interleaved so a whole-pool cursor would produce a different page 2.
+	seedRecord(t, db, "d1", "other", otherSubj, "자유 1", "public", "2026-08-05 10:00:00", nil)
+	seedRecord(t, db, "q1", "other", otherSubj, "질문 1", "public", "2026-08-05 11:00:00", &q)
+	seedRecord(t, db, "d2", "other", otherSubj, "자유 2", "public", "2026-08-05 12:00:00", nil)
+	seedRecord(t, db, "q2", "other", otherSubj, "질문 2", "public", "2026-08-05 13:00:00", &q)
+	seedRecord(t, db, "d3", "other", otherSubj, "자유 3", "public", "2026-08-05 14:00:00", nil)
+
+	rec := getFeed(t, h, "viewer", "?subject_id="+viewerSubj+"&type=diary&limit=2")
+	page1 := decodeFeed(t, rec)
+	if got := feedIDs(page1.Items); len(got) != 2 || got[0] != "d3" || got[1] != "d2" {
+		t.Fatalf("page1: got %v want [d3 d2]", got)
+	}
+	if page1.NextCursor == "" {
+		t.Fatal("page1 should have a next cursor")
+	}
+
+	rec = getFeed(t, h, "viewer", "?subject_id="+viewerSubj+"&type=diary&limit=2&cursor="+url.QueryEscape(page1.NextCursor))
+	page2 := decodeFeed(t, rec)
+	if got := feedIDs(page2.Items); len(got) != 1 || got[0] != "d1" {
+		t.Fatalf("page2: got %v want [d1]", got)
+	}
+	if page2.NextCursor != "" {
+		t.Errorf("page2 should be the last page, got cursor %q", page2.NextCursor)
+	}
+}
+
+func TestParseFeedContentType(t *testing.T) {
+	cases := []struct {
+		raw   string
+		want  FeedContentType
+		valid bool
+	}{
+		{"", FeedTypeAll, true},
+		{"all", FeedTypeAll, true},
+		{"question", FeedTypeQuestion, true},
+		{"diary", FeedTypeDiary, true},
+		{"All", "", false},
+		{"질문답변", "", false},
+		{"bogus", "", false},
+	}
+	for _, tc := range cases {
+		got, ok := ParseFeedContentType(tc.raw)
+		if ok != tc.valid || (ok && got != tc.want) {
+			t.Errorf("ParseFeedContentType(%q) = (%q, %v), want (%q, %v)", tc.raw, got, ok, tc.want, tc.valid)
+		}
+	}
+}
