@@ -14,7 +14,7 @@ related_prds:
   - PRD-004
   - PRD-006
 related_journeys:
-  - docs/journeys/daily-recording-journey.md
+  - docs/user-journeys/daily-recording-journey.md
 created: 2026-05-11
 updated: 2026-08-08
 ---

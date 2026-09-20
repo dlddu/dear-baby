@@ -51,18 +51,19 @@
 - [Onboarding Flow — 케이스 분기 온보딩 전체 흐름도](flows/onboarding-flow.md)
 
 ### 사용자 여정
-- [User Journeys — 사용자 여정 인덱스](journeys/README.md)
-- [Onboarding Journey — 발견 · 가입 · 케이스 분기 · 케이스별 입력](journeys/onboarding-journey.md)
-- [Daily Recording Journey — 홈 첫 진입 · 일상 기록 루틴](journeys/daily-recording-journey.md)
-- [Birth Conversion Journey — 출산 전환 (Case A · B)](journeys/birth-conversion-journey.md)
-- [AI Narrative Journey — AI 서사 생성·편집](journeys/ai-narrative-journey.md)
-- [Book Production Journey — 책 주문 · 배송 · 선물](journeys/book-production-journey.md)
-- [Diary Browsing Journey — 일기 탭 · 누적 기록 재방문 · 사후 관리](journeys/diary-browse-journey.md)
+- [User Journeys — 사용자 여정 인덱스](user-journeys/README.md)
+- [Onboarding Journey — 발견 · 가입 · 케이스 분기 · 케이스별 입력](user-journeys/onboarding-journey.md)
+- [Daily Recording Journey — 홈 첫 진입 · 일상 기록 루틴](user-journeys/daily-recording-journey.md)
+- [Birth Conversion Journey — 출산 전환 (Case A · B)](user-journeys/birth-conversion-journey.md)
+- [AI Narrative Journey — AI 서사 생성·편집](user-journeys/ai-narrative-journey.md)
+- [Book Production Journey — 책 주문 · 배송 · 선물](user-journeys/book-production-journey.md)
+- [Diary Browsing Journey — 일기 탭 · 누적 기록 재방문 · 사후 관리](user-journeys/diary-browse-journey.md)
 
 ### Mockups (페이지 단위 시각 산출물)
 - [Mockups Index — 매핑 인덱스 + 재빌드 방법](mockups/README.md)
-- [Mockups (브라우저로 열기) — 42개 화면 단일 React 번들](index.html)
+- [Mockups (브라우저로 열기) — 43개 화면 단일 React 번들](index.html)
 - [Mockups Source — React + Tailwind 소스 (재현 가능)](mockups/source/)
+- [목업 ↔ 라우트 매핑 레지스트리](mockup-route-map.md) — 구현 라우트 ↔ M-NN 매핑 · 미해소 위반 원장 · 이탈 허용목록
 
 ### 테스트 문서
 - [TEST-001: 음성 일기 기록 테스트](tests/TEST-001-voice-diary.md)

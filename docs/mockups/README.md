@@ -1,16 +1,17 @@
 # DearBaby — Mockups
 
-페이지 단위 mockup 43개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. mockup 은 `docs/journeys/`, `docs/design-system/`, `docs/values/product-values.md`, `docs/prd/` 에서 도출되었다.
+페이지 단위 mockup 43개. **React + Vite + Tailwind + shadcn/ui** 기반 단일 HTML 번들로 빌드된다. mockup 은 `docs/user-journeys/`, `docs/design-system/`, `docs/values/product-values.md`, `docs/prd/` 에서 도출되었다.
 
 ## 빠른 보기
 
 최신 `main`의 목업은 GitHub Pages에서 바로 확인할 수 있다.
 
-- **[GitHub Pages에서 보기](https://dlddu.github.io/dear-baby/)**
+- **[GitHub Pages에서 보기](https://dlddu.github.io/dear-baby/mockups/)** (문서 포털 진입점은 <https://dlddu.github.io/dear-baby/>)
 
 로컬 진입점도 Pages가 사용하는 단일 파일이다.
 
-- **[`docs/index.html`](../index.html)** — 빌드된 단일 HTML (브라우저로 열기)
+- **[`docs/mockups/index.html`](./index.html)** — 빌드된 단일 HTML 갤러리 (브라우저로 열기)
+- **[`docs/index.html`](../index.html)** — 문서 포털 허브 (Pages 진입점)
 
 이 파일 하나에 43개 화면 + 갤러리가 모두 인라인 번들된다. CDN 의존성 없음 (폰트만 Google Fonts CDN 사용).
 
@@ -40,7 +41,7 @@ cd docs/mockups/source
 pnpm install
 # Anthropic web-artifacts-builder 스킬의 bundle 스크립트 사용
 bash /path/to/web-artifacts-builder/scripts/bundle-artifact.sh
-cp bundle.html ../../index.html
+cp bundle.html ../index.html   # 갤러리 번들
 ```
 
 또는 개발 모드:
@@ -59,7 +60,8 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 - Branch: **main**
 - Folder: **/docs**
 
-`main`에 병합된 `docs/index.html`이 별도 GitHub Actions workflow 없이 게시된다.
+`main`에 병합된 `docs/` 가 별도 GitHub Actions workflow 없이 게시된다. 진입점은 문서 포털 허브
+`docs/index.html`이고, 이 갤러리는 `docs/mockups/index.html`(URL `/mockups/`)이다.
 
 ## 43개 페이지 일람
 
