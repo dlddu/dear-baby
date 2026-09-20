@@ -1,0 +1,38 @@
+name: Journey ↔ Mockup Map
+
+# 사용자 여정(docs/user-journeys) ↔ 여정 mockup(docs/mockups · docs/journeys/<id>) 매핑
+# 레지스트리 검사.
+#
+# 주의: 아래 checkout 은 이 레포의 다른 워크플로와 같은 관용구로 **PR head** 를 본다
+# (merge ref 가 아니다). 따라서 PR 초록은 "head 트리가 초록"이라는 뜻이지 "머지 결과가 초록"이
+# 아니다. base 가 움직이면 초록이 그대로 이식되지 않으므로, 머지 전에 머지 트리에서
+# `node scripts/check-journey-mockup-map.mjs` 를 직접 한 번 돌릴 것.
+#
+# ci.yml 에 얹지 않고 별도 워크플로로 둔 이유는 mockup-route-map.yml 과 같다: ci.yml 의
+# paths-filter 가 `ci: - '.github/workflows/ci.yml'` 를 갖고 있고 deploy-testflight /
+# deploy-play-internal 의 조건이 `app == 'true' || ci == 'true'` 라서 **ci.yml 을 한 줄만
+# 고쳐도 내부 테스터 배포가 발화한다**. 문서·체커 변경이 배포를 트리거하지 않도록 검사만 따로 돌린다.
+#
+# 체커는 의존성이 없어 러너에 기본 설치된 node 로 그대로 실행된다.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check journey ↔ mockup map
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Check registry
+        run: node scripts/check-journey-mockup-map.mjs
