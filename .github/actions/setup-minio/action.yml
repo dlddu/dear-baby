@@ -43,9 +43,24 @@ runs:
   steps:
     # Resolve the right binary URL for the runner's OS+arch. MinIO ships
     # static Go binaries for both linux + darwin in amd64 + arm64.
+    #
+    # Source is the GitHub release, not dl.min.io: upstream took the
+    # `https://dl.min.io/{server,client}/…/release/…` download paths down
+    # (they answer 410 Gone), which broke every e2e job at this step. The
+    # release assets carry the same static binaries and a `.sha256sum`
+    # sibling, so we pin an explicit release per tool and verify what we
+    # downloaded instead of following a floating "latest" pointer.
+    #
+    # MINIO_RELEASE matches scripts/minio/deployment.yaml so the host-run
+    # server (e2e) and the in-cluster one (integration) stay on one
+    # version. MC_RELEASE is pinned separately — mc and the server are
+    # released on their own cadences.
     - name: Detect platform
       id: plat
       shell: bash
+      env:
+        MINIO_RELEASE: RELEASE.2024-09-13T20-26-02Z
+        MC_RELEASE: RELEASE.2025-08-13T08-35-41Z
       run: |
         os=$(uname -s | tr '[:upper:]' '[:lower:]')
         arch=$(uname -m)
@@ -53,9 +68,19 @@ runs:
           x86_64) arch=amd64 ;;
           arm64|aarch64) arch=arm64 ;;
         esac
-        echo "minio_url=https://dl.min.io/server/minio/release/${os}-${arch}/minio" >> "$GITHUB_OUTPUT"
-        echo "mc_url=https://dl.min.io/client/mc/release/${os}-${arch}/mc" >> "$GITHUB_OUTPUT"
+        minio_base="https://github.com/minio/minio/releases/download/${MINIO_RELEASE}/minio.${os}-${arch}.${MINIO_RELEASE}"
+        mc_base="https://github.com/minio/mc/releases/download/${MC_RELEASE}/mc.${os}-${arch}.${MC_RELEASE}"
+        {
+          echo "minio_url=${minio_base}"
+          echo "minio_sha_url=${minio_base}.sha256sum"
+          echo "mc_url=${mc_base}"
+          echo "mc_sha_url=${mc_base}.sha256sum"
+        } >> "$GITHUB_OUTPUT"
 
+    # The published .sha256sum names the *unsuffixed* artifact
+    # (`minio.RELEASE.…`), not the platform-suffixed file we save, so
+    # `sha256sum -c` would fail on the filename. Compare the digest
+    # field alone.
     - name: Install MinIO + mc
       shell: bash
       run: |
@@ -64,6 +89,24 @@ runs:
         mkdir -p "$bin"
         curl -fsSL "${{ steps.plat.outputs.minio_url }}" -o "$bin/minio"
         curl -fsSL "${{ steps.plat.outputs.mc_url }}" -o "$bin/mc"
+        # sha256sum is coreutils (ubuntu); macOS runners only have shasum.
+        digest() {
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$1" | awk '{print $1}'
+          else
+            shasum -a 256 "$1" | awk '{print $1}'
+          fi
+        }
+        verify() {
+          want=$(curl -fsSL "$2" | awk '{print $1}')
+          got=$(digest "$1")
+          if [ "$want" != "$got" ]; then
+            echo "checksum mismatch for $1: want $want, got $got" >&2
+            exit 1
+          fi
+        }
+        verify "$bin/minio" "${{ steps.plat.outputs.minio_sha_url }}"
+        verify "$bin/mc" "${{ steps.plat.outputs.mc_sha_url }}"
         chmod +x "$bin/minio" "$bin/mc"
         echo "$bin" >> "$GITHUB_PATH"
 
