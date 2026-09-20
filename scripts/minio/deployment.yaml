@@ -29,7 +29,12 @@ spec:
     spec:
       containers:
         - name: minio
-          image: minio/minio:RELEASE.2024-09-13T20-26-02Z
+          # quay.io, not Docker Hub: docker.io/minio/minio stopped serving
+          # anonymous pulls (`insufficient_scope: authorization failed`),
+          # which left this Deployment in ImagePullBackOff and failed the
+          # integration job at "Wait for MinIO rollout". quay.io/minio/minio
+          # is upstream's own registry and carries the same tags.
+          image: quay.io/minio/minio:RELEASE.2024-09-13T20-26-02Z
           args: ["server", "/data", "--address", ":9000"]
           env:
             - name: MINIO_ROOT_USER
