@@ -49,6 +49,15 @@ func (v Visibility) Valid() bool {
 // the record_subjects row (i.e. the fetus / child this record is about)
 // and is required at every write site. Visibility flips between 'private'
 // and 'public' — toggleable post-creation via PATCH.
+//
+// StageKind / StageDays / StageMonths are the 단계 스냅샷 (ENG-013): the stage
+// the subject was at **when this record was written**, computed once at insert
+// and recomputed only when the 기준값 (due_date / birth_date) is corrected.
+// All three are null together when the stage could not be derived
+// (PRD-002 AC-002-05). StageKind is "pregnancy" | "postnatal"; StageDays is
+// daysPregnant on the 임신 축 (주수 = /7) and daysOld on the 양육 축
+// (출생 당일 = 0, "생후 n일째" = +1); StageMonths is the 달력 기준 만개월 and
+// exists only on the 양육 축.
 type Record struct {
 	ID           string     `json:"id"`
 	UserID       string     `json:"user_id"`
@@ -58,5 +67,8 @@ type Record struct {
 	QuestionText *string    `json:"question_text"`
 	AudioS3Key   *string    `json:"audio_s3_key"`
 	Visibility   Visibility `json:"visibility"`
+	StageKind    *string    `json:"stage_kind"`
+	StageDays    *int       `json:"stage_days"`
+	StageMonths  *int       `json:"stage_months"`
 	CreatedAt    time.Time  `json:"created_at"`
 }
