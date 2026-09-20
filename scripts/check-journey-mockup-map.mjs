@@ -3,9 +3,18 @@
  * 여정 ↔ 목업 매핑 레지스트리 검사기. 의존성 없음(node >= 18).
  *
  * 레지스트리 : docs/journey-mockup-map.md
- * 흐름 SSOT  : docs/journeys/*-journey.md (`### Stage <id>` 헤딩)
+ * 흐름 SSOT  : docs/user-journeys/*-journey.md
+ *              (`### Stage <번호>` 또는 슬러그 체계의 ``### `STP-<슬러그>` `` 헤딩)
  * 목업       : docs/mockups/source/src/screens (GalleryScreen.tsx 의 갤러리 그룹 + 화면 라벨)
- * 허브       : docs/index.html (빌드된 단일 번들 = GitHub Pages 진입점)
+ *              docs/mockups/source/src/journey/<id>.tsx (독립 여정 페이지의 단계 → 카드)
+ * 번들       : docs/mockups/index.html (빌드된 갤러리 번들)
+ *              docs/journeys/<id>/index.html (빌드된 독립 여정 페이지)
+ *
+ * 진입점 모형 — 갤러리 그룹과 독립 여정 페이지의 혼재를 명시적으로 다룬다.
+ *   한 여정의 **정규 진입점은 갤러리 그룹 1개**다(모델 규칙 2의 단위). 여정이 자기 페이지로
+ *   이관돼도 갤러리 그룹은 색인으로 남으므로, 페이지를 「그룹 대체」가 아니라 **추가 선언**으로
+ *   읽는다. 그래야 이관이 그룹을 고아로 만들지 않고(J7 래칫 무이동) 페이지 쪽 기계 대조(J10)를
+ *   덤으로 얻는다. 페이지가 없는 여정은 지금까지와 똑같이 그룹만으로 판정된다.
  *
  * 검사 항목
  *   J0 NO_MARKER     레지스트리·예외 섹션의 begin/end 마커가 없다.
@@ -14,12 +23,14 @@
  *   J3 ENTRYPOINT    갤러리 그룹이 실재하지 않거나, 두 여정이 같은 그룹을 지목하거나,
  *                    진입점 없는 여정이 「여정 mockup 예외」에 등재돼 있지 않다.
  *   J4 CARD_SET      단계 표의 카드 집합 ≠ 갤러리 그룹의 카드 집합(어느 방향이든).
- *   J5 STAGE_SET     단계 표의 단계 집합 ≠ 여정 문서의 `### Stage` 집합(어느 방향이든).
+ *   J5 STAGE_SET     단계 표의 단계 집합 ≠ 여정 문서의 단계 헤딩 집합(어느 방향이든).
  *   J6 UNVISUALIZED  대응 카드가 `—` 인 단계 집합 ≠ 미시각화 원장(또는 상한 초과·사유 없음).
  *   J7 ORPHAN        어느 여정도 지목하지 않은 갤러리 그룹 집합 ≠ 고아 원장(또는 상한 초과).
  *   J8 STALE_LABEL   화면 라벨이 인용한 `Stage <id>` 가 그 카드의 여정 문서에 없다 —
  *                    위반 집합 ≠ 구 번호 라벨 원장(또는 상한 초과).
- *   J9 SYNC          mockups/README.md 일람 표·번들 허브·집계 선언이 이 레지스트리와 어긋난다.
+ *   J9 SYNC          mockups/README.md 일람 표·번들·집계 선언이 이 레지스트리와 어긋난다.
+ *   J10 JOURNEY_PAGE 독립 여정 페이지를 선언한 여정에서 페이지 소스의 `data-step` 단계 집합·
+ *                    단계별 카드가 레지스트리와 어긋나거나, 빌드된 페이지가 뒤처졌다.
  *
  * J6·J7·J8 은 래칫이다: 등재된 위반은 통과시키되, 등재되지 않은 새 위반도 이미 고쳐졌는데
  * 원장에 남아 있는 공전 행도 실패다. 상한(`*-cap`)은 내리는 방향으로만 고친다.
@@ -32,16 +43,24 @@ import { join } from 'node:path';
 
 const ROOT = process.argv[2] ?? '.';
 const REGISTRY = 'docs/journey-mockup-map.md';
-const JOURNEY_DIR = 'docs/journeys';
+const JOURNEY_DIR = 'docs/user-journeys';
 const SCREENS_DIR = 'docs/mockups/source/src/screens';
+const JOURNEY_SRC_DIR = 'docs/mockups/source/src/journey';
 const GALLERY = `${SCREENS_DIR}/GalleryScreen.tsx`;
 const MOCKUPS_README = 'docs/mockups/README.md';
 const TRACKER = 'docs/doc-tracker.md';
-const BUNDLE = 'docs/index.html';
+const BUNDLE = 'docs/mockups/index.html';
 const NONE = '—';
 
-/** 여정 문서의 단계 식별자 — `4` · `6½-2` · `12-1`. */
-const STAGE_ID = String.raw`[0-9]+½?(?:-[0-9]+)?`;
+/** 구 번호 체계의 단계 식별자 — `4` · `6½-2` · `12-1`. */
+const NUM_STAGE_ID = String.raw`[0-9]+½?(?:-[0-9]+)?`;
+/** 슬러그 체계의 단계 식별자 — `STP-diary-enter`. 이관이 끝난 여정이 쓴다. */
+const SLUG_STAGE_ID = String.raw`STP-[a-z0-9]+(?:-[a-z0-9]+)*`;
+/**
+ * 단계 식별자 — 두 체계가 공존한다. 슬러그를 먼저 시도해야 `STP-…` 안의 숫자에
+ * 번호 패턴이 먼저 물리지 않는다.
+ */
+const STAGE_ID = `(?:${SLUG_STAGE_ID}|${NUM_STAGE_ID})`;
 /** 라벨이 인용하는 식별자 — 구 체계의 `3-A1` · `4-B2-Purpose` 까지 받아 낸다. */
 const LABEL_ID = String.raw`[0-9]+½?(?:-[0-9A-Za-z]+)*`;
 
@@ -76,7 +95,11 @@ function table(block) {
 
 const code = (s) => (s.match(/`([^`]+)`/) ?? [])[1] ?? '';
 const cardsIn = (s) => [...new Set(s.match(/M-\d{2}/g) ?? [])];
-const stageIn = (s) => (s.match(new RegExp(`Stage\\s+(${STAGE_ID})`)) ?? [])[1] ?? '';
+/** 표 셀의 단계 — 구 체계는 `Stage 6½-1`, 슬러그 체계는 백틱으로 감싼 `` `STP-…` ``. */
+const stageIn = (s) =>
+  (s.match(new RegExp(`(?:Stage\\s+(${NUM_STAGE_ID})|(${SLUG_STAGE_ID}))`)) ?? []).slice(1).find(Boolean) ?? '';
+/** 사람이 읽을 단계 표기 — 슬러그는 `Stage` 를 앞에 붙이지 않는다. */
+const stageLabel = (id) => (id.startsWith('STP-') ? `\`${id}\`` : `Stage ${id}`);
 const cap = (md, name) => Number((md.match(new RegExp(`<!--\\s*${name}-cap:\\s*(\\d+)\\s*-->`)) ?? [])[1] ?? NaN);
 const setEq = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 const minus = (a, b) => [...a].filter((x) => !b.has(x));
@@ -87,8 +110,12 @@ const journeyFiles = readdirSync(abs(JOURNEY_DIR))
   .filter((f) => f.endsWith('-journey.md'))
   .sort();
 
-/** 여정 문서 → 단계 식별자 배열 (`## 단계별 상세` 절의 `### Stage <id>` 헤딩) */
+/**
+ * 여정 문서 → 단계 식별자 배열 (`## 단계별 상세` 절의 단계 헤딩).
+ * 두 체계를 받는다 — 구 번호 `### Stage 6½-1` 과 이관된 슬러그 ``### `STP-diary-enter` ``.
+ */
 const docStages = new Map();
+const STAGE_HEADING = new RegExp(`^###\\s+(?:Stage\\s+(${NUM_STAGE_ID})|\`(${SLUG_STAGE_ID})\`)`, 'gm');
 for (const f of journeyFiles) {
   const md = read(`${JOURNEY_DIR}/${f}`);
   const body = md.match(/\n## 단계별 상세\n([\s\S]*?)(?=\n## |$)/);
@@ -97,7 +124,10 @@ for (const f of journeyFiles) {
     docStages.set(f, []);
     continue;
   }
-  const ids = [...body[1].matchAll(new RegExp(`^###\\s+Stage\\s+(${STAGE_ID})`, 'gm'))].map((m) => m[1]);
+  const ids = [...body[1].matchAll(STAGE_HEADING)].map((m) => m[1] ?? m[2]);
+  // 단계 헤딩이 하나도 안 잡히면 체계가 또 바뀐 것이다 — 「단계 0개」로 조용히 통과시키면
+  // 그 여정의 J5 가 통째로 무력해지므로 여기서 실패로 드러낸다.
+  if (!ids.length) fail('J5 STAGE_SET', `${f} — '## 단계별 상세' 에서 단계 헤딩을 하나도 읽지 못했다(식별자 체계가 바뀌었는지 확인할 것)`);
   docStages.set(f, ids);
 }
 
@@ -129,6 +159,28 @@ const labels = [];
 for (const f of readdirSync(abs(SCREENS_DIR)).filter((f) => f.endsWith('.tsx')))
   for (const m of read(`${SCREENS_DIR}/${f}`).matchAll(/label="([^"]*)"/g)) labels.push(m[1]);
 
+/**
+ * 독립 여정 페이지 소스 — `docs/mockups/source/src/journey/<id>.tsx`.
+ * `steps[]` 는 `id: "STP-…"` 로 시작해 다음 단계 전까지의 `id: "M-NN"` 을 자기 카드로 갖는다
+ * (`JourneyShell` 이 그대로 `data-step` · `data-journey` 로 내보내는 구조 그대로다).
+ */
+function readJourneyPage(id) {
+  const src = `${JOURNEY_SRC_DIR}/${id}.tsx`;
+  if (!existsSync(abs(src))) return null;
+  const text = read(src);
+  const steps = [];
+  for (const line of text.split('\n')) {
+    const s = line.match(new RegExp(`\\bid:\\s*"(${SLUG_STAGE_ID})"`));
+    if (s) {
+      steps.push({ id: s[1], cards: [] });
+      continue;
+    }
+    if (!steps.length) continue;
+    for (const c of line.matchAll(/\bid:\s*"(M-\d{2})"/g)) steps[steps.length - 1].cards.push(c[1]);
+  }
+  return { src, docPath: (text.match(/docPath:\s*"([^"]+)"/) ?? [])[1] ?? '', steps };
+}
+
 /* ---------- 2. 레지스트리 파싱 ---------- */
 
 const registryMd = read(REGISTRY);
@@ -148,9 +200,9 @@ for (const [name, n] of [
 ])
   if (!Number.isInteger(n)) fail('J6 UNVISUALIZED', `<!-- ${name}-cap: N --> 선언이 없다`);
 
-/** 여정 문서 → { group, stages, cards } */
+/** 여정 문서 → { group, page, stages, cards } */
 const registry = new Map();
-for (const [fileCell, groupCell, stageCount, cardCount] of journeyRows) {
+for (const [fileCell, groupCell, pageCell, stageCount, cardCount] of journeyRows) {
   const file = code(fileCell);
   if (!file) {
     fail('J2 PHANTOM_ROW', `여정 문서 칸을 백틱으로 감싼 파일명으로 적을 것: ${fileCell}`);
@@ -159,6 +211,7 @@ for (const [fileCell, groupCell, stageCount, cardCount] of journeyRows) {
   if (registry.has(file)) fail('J1 UNREGISTERED', `${file} — 여정 표에 행이 2개 이상이다`);
   registry.set(file, {
     group: groupCell.trim() === NONE ? null : code(groupCell),
+    page: pageCell === undefined || pageCell.trim() === NONE ? null : code(pageCell),
     declaredStages: Number(stageCount),
     declaredCards: Number(cardCount),
   });
@@ -178,12 +231,12 @@ for (const [fileCell, stageCell, cardCell, note = ''] of stageRows) {
     continue;
   }
   const bucket = mapped.get(file);
-  if (bucket.has(stage)) fail('J5 STAGE_SET', `${file} Stage ${stage} — 단계 표에 행이 2개 이상이다`);
+  if (bucket.has(stage)) fail('J5 STAGE_SET', `${file} ${stageLabel(stage)} — 단계 표에 행이 2개 이상이다`);
   const cards = cardCell.trim() === NONE ? [] : cardsIn(cardCell);
   if (cardCell.trim() !== NONE && !cards.length)
-    fail('J4 CARD_SET', `${file} Stage ${stage} — 대응 카드를 M-NN 또는 ${NONE} 로 적을 것: "${cardCell}"`);
+    fail('J4 CARD_SET', `${file} ${stageLabel(stage)} — 대응 카드를 M-NN 또는 ${NONE} 로 적을 것: "${cardCell}"`);
   if (cardCell.trim() === NONE && note.replace(/[*`]/g, '').trim().length < 10)
-    fail('J6 UNVISUALIZED', `${file} Stage ${stage} — 대응 카드가 없으면 비고에 사유를 적을 것(공백은 침묵으로 숨는다)`);
+    fail('J6 UNVISUALIZED', `${file} ${stageLabel(stage)} — 대응 카드가 없으면 비고에 사유를 적을 것(공백은 침묵으로 숨는다)`);
   bucket.set(stage, cards);
 }
 
@@ -234,8 +287,8 @@ for (const [file, row] of registry) {
   const docSet = new Set(docStages.get(file) ?? []);
   const mapSet = new Set(bucket.keys());
 
-  for (const s of minus(docSet, mapSet)) fail('J5 STAGE_SET', `${file} Stage ${s} — 문서에 있는데 단계 표에 없다`);
-  for (const s of minus(mapSet, docSet)) fail('J5 STAGE_SET', `${file} Stage ${s} — 단계 표에 있는데 문서에 없다(폐기된 식별자거나 오타)`);
+  for (const s of minus(docSet, mapSet)) fail('J5 STAGE_SET', `${file} ${stageLabel(s)} — 문서에 있는데 단계 표에 없다`);
+  for (const s of minus(mapSet, docSet)) fail('J5 STAGE_SET', `${file} ${stageLabel(s)} — 단계 표에 있는데 문서에 없다(폐기된 식별자거나 오타)`);
   if (row.declaredStages !== docSet.size)
     fail('J9 SYNC', `${file} — 여정 표의 단계 수 ${row.declaredStages} ≠ 문서 실측 ${docSet.size}`);
 
@@ -259,6 +312,71 @@ for (const [file, row] of registry) {
     fail('J9 SYNC', `${file} — 여정 표의 카드 수 ${row.declaredCards} ≠ 그룹 ${row.group} 실측 ${groupCards.size}`);
 }
 
+/* ---------- 4b. J10 독립 여정 페이지 ---------- */
+
+/*
+ * 갤러리 그룹은 카드 묶음일 뿐이라 「어느 카드가 어느 단계인지」를 소스에서 읽을 수 없다 —
+ * 그래서 J4 는 카드 집합만 대조하고 단계 귀속은 레지스트리의 손 선언을 믿는다. 독립 여정
+ * 페이지는 `steps[].screens[]` 로 그 귀속을 소스에 갖고 있으므로, 페이지가 있는 여정은
+ * 손 선언을 믿지 않고 소스와 직접 맞댄다(모델 규칙 3 의 양방향 기계 대조).
+ */
+const pagedJourneys = [];
+for (const [file, row] of registry) {
+  if (!row.page) continue;
+  pagedJourneys.push(row.page);
+
+  const page = readJourneyPage(row.page);
+  if (!page) {
+    fail('J10 JOURNEY_PAGE', `${file} → ${JOURNEY_SRC_DIR}/${row.page}.tsx — 여정 페이지 소스가 없다`);
+    continue;
+  }
+  if (page.docPath !== `${JOURNEY_DIR.replace(/^docs\//, '')}/${file}`)
+    fail(
+      'J10 JOURNEY_PAGE',
+      `${row.page}.tsx — docPath "${page.docPath}" 가 이 행의 여정 문서(${JOURNEY_DIR}/${file})를 가리키지 않는다`,
+    );
+
+  const bucket = mapped.get(file) ?? new Map();
+  const pageStages = new Set(page.steps.map((s) => s.id));
+  const mapSet = new Set(bucket.keys());
+  for (const s of minus(mapSet, pageStages))
+    fail('J10 JOURNEY_PAGE', `${row.page}.tsx — 단계 표의 ${stageLabel(s)} 가 여정 페이지에 없다`);
+  for (const s of minus(pageStages, mapSet))
+    fail('J10 JOURNEY_PAGE', `${row.page}.tsx — 여정 페이지의 ${stageLabel(s)} 가 단계 표에 없다`);
+
+  for (const step of page.steps) {
+    if (!bucket.has(step.id)) continue; // 위에서 이미 보고했다
+    const listed = new Set(bucket.get(step.id));
+    const actual = new Set(step.cards);
+    if (!setEq(listed, actual))
+      fail(
+        'J10 JOURNEY_PAGE',
+        `${row.page}.tsx ${stageLabel(step.id)} — 단계 표의 카드 [${[...listed].join(', ') || '없음'}] ≠ ` +
+          `페이지 소스 [${[...actual].join(', ') || '없음'}]`,
+      );
+  }
+
+  // 빌드된 페이지가 소스를 따라왔는지. 소스만 고치고 재빌드하지 않으면 공개된 페이지는 옛것이다.
+  const built = `docs/journeys/${row.page}/index.html`;
+  if (!existsSync(abs(built))) {
+    fail('J10 JOURNEY_PAGE', `${built} — 빌드된 여정 페이지가 없다(소스만 있고 배포물이 없다)`);
+    continue;
+  }
+  const builtHtml = read(built);
+  for (const step of page.steps)
+    if (!builtHtml.includes(step.id)) fail('J10 JOURNEY_PAGE', `${built} 에 단계 ${step.id} 가 없다 — 재빌드 필요`);
+  for (const c of new Set(page.steps.flatMap((s) => s.cards)))
+    if (!builtHtml.includes(c)) fail('J10 JOURNEY_PAGE', `${built} 에 카드 ${c} 가 없다 — 재빌드 필요`);
+}
+
+// 레지스트리가 모르는 여정 페이지가 소스에 생기면 그 여정은 검사 밖에 남는다.
+if (existsSync(abs(JOURNEY_SRC_DIR)))
+  for (const f of readdirSync(abs(JOURNEY_SRC_DIR)).filter((f) => f.endsWith('.tsx'))) {
+    const id = f.replace(/\.tsx$/, '');
+    if (id === 'JourneyShell' || pagedJourneys.includes(id)) continue;
+    fail('J10 JOURNEY_PAGE', `${JOURNEY_SRC_DIR}/${f} — 여정 페이지 소스가 있는데 여정 표의 「여정 페이지」 칸에 등재되지 않았다`);
+  }
+
 /* ---------- 5. J6 미시각화 원장 (래칫) ---------- */
 
 const unvisFound = new Set();
@@ -275,13 +393,13 @@ for (const cells of unvisRows) {
     continue;
   }
   unvisListed.add(key);
-  if (!unvisFound.has(key)) fail('J6 UNVISUALIZED', `${file} Stage ${stage} — 더 이상 미시각화가 아니다. 시각화했으면 원장에서 지울 것(공전 금지)`);
+  if (!unvisFound.has(key)) fail('J6 UNVISUALIZED', `${file} ${stageLabel(stage)} — 더 이상 미시각화가 아니다. 시각화했으면 원장에서 지울 것(공전 금지)`);
   if (!['제품 외부', '제품 내부'].includes(kind.replace(/[*`]/g, '').trim()))
-    fail('J6 UNVISUALIZED', `${file} Stage ${stage} — 성격은 '제품 외부' 또는 '제품 내부' 로 적을 것: "${kind}"`);
-  if (reason.replace(/[*`]/g, '').trim().length < 20) fail('J6 UNVISUALIZED', `${file} Stage ${stage} — 사유·해소 조건을 비워 둘 수 없다`);
+    fail('J6 UNVISUALIZED', `${file} ${stageLabel(stage)} — 성격은 '제품 외부' 또는 '제품 내부' 로 적을 것: "${kind}"`);
+  if (reason.replace(/[*`]/g, '').trim().length < 20) fail('J6 UNVISUALIZED', `${file} ${stageLabel(stage)} — 사유·해소 조건을 비워 둘 수 없다`);
 }
 for (const key of minus(unvisFound, unvisListed))
-  fail('J6 UNVISUALIZED', `${key.replace('|', ' Stage ')} — 대응 카드가 없는데 미시각화 원장에 없다. 시각화하거나 사유와 함께 등재할 것`);
+  fail('J6 UNVISUALIZED', `${key.split('|')[0]} ${stageLabel(key.split('|')[1])} — 대응 카드가 없는데 미시각화 원장에 없다. 시각화하거나 사유와 함께 등재할 것`);
 if (unvisRows.length > cap(registryMd, 'unvisualized'))
   fail('J6 UNVISUALIZED', `미시각화 원장 ${unvisRows.length}행 > 상한 ${cap(registryMd, 'unvisualized')}. 상한은 내릴 때만 고친다`);
 
@@ -402,7 +520,10 @@ for (const [where, declared, actual] of declaredCounts)
 
 /* ---------- 9. 리포트 ---------- */
 
-console.log(`여정 ${journeyFiles.length}개 · 단계 ${totalStages}개 · 카드 ${allCards.size}개 · 갤러리 그룹 ${groups.length}개`);
+console.log(
+  `여정 ${journeyFiles.length}개 · 단계 ${totalStages}개 · 카드 ${allCards.size}개 · ` +
+    `갤러리 그룹 ${groups.length}개 · 독립 여정 페이지 ${pagedJourneys.length}개`,
+);
 console.log(
   `미시각화 ${unvisFound.size}/${cap(registryMd, 'unvisualized')} · 고아 진입점 ${orphanFound.size}/${cap(registryMd, 'orphan')} · ` +
     `구 번호 라벨 ${staleFound.size}/${cap(registryMd, 'stale-label')} · 예외 등재 ${excepted.size}건`,
@@ -414,4 +535,4 @@ if (violations.length) {
   console.log(`\n실패: 위반 ${violations.length}건`);
   process.exit(1);
 }
-console.log('통과: 위반 0건 (J0~J9)');
+console.log('통과: 위반 0건 (J0~J10)');

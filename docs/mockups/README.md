@@ -104,13 +104,13 @@ pnpm dev    # http://localhost:5173 에서 hot reload
 | M-32 | 전체 미리보기 | Book Production · 10-2 |
 | M-33 | 결제 | Book Production · 10-3 |
 | M-34 | 제작·배송 추적 | Book Production · 11 |
-| M-36 | 일기 탭 — 목록 (단일 아이 통합) | Diary Browsing · 6½-1, 6½-2 |
-| M-37 | 일기 탭 — 다자녀 통합 (콩이+하준) + 필터 | Diary Browsing · 6½-2 |
-| M-38 | 기록 상세 + ⋯ 액션 시트 | Diary Browsing · 6½-3, 6½-4 |
-| M-39 | 일기 탭 — 빈 상태 (기록 0건) | Diary Browsing · 6½-1 |
-| M-40 | 기록 편집 (사후) | Diary Browsing · 6½-4 |
-| M-41 | 삭제 확인 모달 | Diary Browsing · 6½-4 |
-| M-42 | 필터 시트 (다자녀) | Diary Browsing · 6½-2 |
+| M-36 | 일기 탭 — 목록 (단일 아이 통합) | Diary Browsing · STP-diary-enter |
+| M-37 | 일기 탭 — 다자녀 통합 (콩이+하준) + 필터 | Diary Browsing · STP-diary-scroll |
+| M-38 | 기록 상세 + ⋯ 액션 시트 | Diary Browsing · STP-diary-detail |
+| M-39 | 일기 탭 — 빈 상태 (기록 0건) | Diary Browsing · STP-diary-enter |
+| M-40 | 기록 편집 (사후) | Diary Browsing · STP-diary-manage |
+| M-41 | 삭제 확인 모달 | Diary Browsing · STP-diary-manage |
+| M-42 | 필터 시트 (다자녀) | Diary Browsing · STP-diary-scroll |
 | **M-43** | **커뮤니티 — 메인 피드** | **Community · 여정 미작성 (고아 진입점) · PRD-009 AC-009-02·03·04·06** |
 
 ## ★ 감정 봉우리 페이지
@@ -180,8 +180,9 @@ Tailwind 사용:
 ## 정합성 검증 (design-doc-structure-validator)
 
 - ✅ M-01~M-42 는 6개 사용자 여정의 갤러리 그룹 6개에 빠짐없이 속한다(떠 있는 카드 0장) — 전수 매핑은 [여정 ↔ 목업 매핑 레지스트리](../journey-mockup-map.md) §2
+- ✅ **Diary Browsing 은 독립 여정 페이지로 이관** — `docs/journeys/diary-browse/index.html` 이 4단계(`STP-diary-*`)를 순서대로 걷게 한다. 그 여정의 단계별 카드 귀속은 손 선언이 아니라 페이지 소스와 기계 대조된다(레지스트리 J10). 나머지 5개 여정은 아직 갤러리 그룹만 갖는다
 - 🟡 **여정 25단계 중 5단계가 미시각화** — 제품 외부 3(발견 · 책 수령 · 선물)과 제품 내부 2(D-7 푸시 알림 · 서사 확정). 레지스트리 §3 원장 참조
-- 🟡 **화면 라벨의 단계 번호 34장이 구 체계** — `PhoneFrame` 라벨이 인용하는 `Stage <id>` 가 여정 문서에 없는 번호다(예: M-31~M-34 가 인용하는 `9-1`~`9-4` 는 문서상 AI Narrative 의 것이고 Book Production 은 `10-1`~`11`). 위 일람 표는 **여정 문서 기준으로 정정돼 있고**, 라벨 정정은 `data-journey`/`data-step` 도입·재빌드와 함께 하는 후속 작업이다. 레지스트리 §5 원장 참조
+- 🟡 **화면 라벨의 단계 번호 38장이 구 체계** — `PhoneFrame` 라벨이 인용하는 `Stage <id>` 가 여정 문서에 없는 번호다(예: M-31~M-34 가 인용하는 `9-1`~`9-4` 는 문서상 AI Narrative 의 것이고 Book Production 은 `10-1`~`11`). Diary Browsing 7장은 여정이 슬러그 체계로 이관되면서 전부 구 번호가 됐다. 위 일람 표는 **여정 문서 기준으로 정정돼 있고**, 라벨 정정은 재빌드와 함께 하는 후속 작업이다. 레지스트리 §5 원장 참조
 - 🟡 **M-43 (커뮤니티)은 여정 문서 부재** — 커뮤니티 사용자 여정이 아직 작성되지 않아 여정 stage 대신 PRD-009 의 AC 에 직접 매핑했다(레지스트리 §4 고아 진입점 원장 1건). 여정 문서 작성 시 stage 매핑으로 전환한다
 - ✅ 모든 mockup 이 1개 이상 가치(V-001~V-008)와 연결
 - ✅ Tailwind config 에 정의된 디자인 시스템 토큰만 사용 (raw hex 색상은 dear-baby palette 만 등장)
