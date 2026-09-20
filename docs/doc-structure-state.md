@@ -2,7 +2,7 @@
 
 `design-doc-structure-validator` 스킬의 상태 추적 산출물. 가치 → 사용자 여정 → 여정 mockup ↔
 디자인 시스템의 프론트엔드 사슬이 끊긴 데 없이 이어져 있는지, 그리고 그 전부가 실제로 공개되어
-읽히는지를 추적한다. 가치 → PRD → AC → 테스트의 백엔드 사슬은 [`doc-tracker.md`](doc-tracker.md) 소관.
+읽히는지를 추적한다. 가치 → PRD → AC → 테스트의 백엔드 사슬은 [`doc-tracker/`](doc-tracker/index.md) 소관.
 
 - **마지막 검증**: 2026-08-29
 - **공개 URL**: <https://dlddu.github.io/dear-baby/> (Pages: `Deploy from a branch` · `main` · `/docs`)

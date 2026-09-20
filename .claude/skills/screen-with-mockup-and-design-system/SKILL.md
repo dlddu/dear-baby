@@ -54,7 +54,7 @@ mockup 은 React + Tailwind 기반 단일 번들이다.
    - `screens/GalleryScreen.tsx` 의 `groups` 와 `ScreenId` 타입에 추가
    - `App.tsx` 의 switch 에 추가
    - 재빌드: `cd docs/mockups/source && pnpm install && bash <bundle-script>` 후 `bundle.html` 을 `docs/mockups/index.html` 로 복사
-3. mockup 이 만들어지면 `docs/mockups/README.md` 매핑 표 갱신, `docs/doc-tracker.md` 의 mockup 카운트 갱신
+3. mockup 이 만들어지면 `docs/mockups/README.md` 매핑 표 갱신, `docs/doc-tracker/` 의 mockup 카운트 갱신
 4. 그 다음에 RN 코드를 작성한다.
 
 ## ★ 감정 봉우리 화면 (M-24, M-29) 특별 주의사항
