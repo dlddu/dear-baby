@@ -20,6 +20,32 @@ describe('typography slots', () => {
     expect(typography.tagline.lineHeight).toBe(22);
   });
 
+  // M-43 (커뮤니티 탭 메인) 을 옮기며 추가한 슬롯 — 목업의 Tailwind 값을 px 로
+  // 환원한 수치를 그대로 잠근다.
+  it('exposes the h3Bold slot at 17/700 for tab headers and section titles', () => {
+    expect(typography.h3Bold.fontSize).toBe(17);
+    expect(typography.h3Bold.fontWeight).toBe('700');
+    // h3(17/600)와 굵기만 다르다 — 둘을 섞어 쓰지 않도록 값으로 구분해 둔다.
+    expect(typography.h3.fontWeight).toBe('600');
+  });
+
+  it('exposes the segmentLabel slot at 14/600 for segmented controls', () => {
+    expect(typography.segmentLabel.fontSize).toBe(14);
+    expect(typography.segmentLabel.fontWeight).toBe('600');
+  });
+
+  it('exposes the feedTitle slot at 15/700/22 (leading-[1.45])', () => {
+    expect(typography.feedTitle.fontSize).toBe(15);
+    expect(typography.feedTitle.fontWeight).toBe('700');
+    expect(typography.feedTitle.lineHeight).toBe(22);
+  });
+
+  it('exposes the feedBody slot at 13/22 (leading-[1.7]) — caption 보다 넓은 행간', () => {
+    expect(typography.feedBody.fontSize).toBe(13);
+    expect(typography.feedBody.lineHeight).toBe(22);
+    expect(typography.caption.lineHeight).toBe(18);
+  });
+
   it('keeps body fontSize=15 so TextInput screens can reference it without a magic number', () => {
     // a2 / b2 / b5 / c2 의 TextInput 이 typography.body.fontSize 를 참조한다.
     expect(typography.body.fontSize).toBe(15);

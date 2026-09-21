@@ -7,7 +7,7 @@
 // 그 상태였다.
 //
 // 홈 화면(AC-009-14)이 의존하는 표면은 `getTopThreeForHome(subjectId)` 하나다.
-// 커뮤니티 탭(AC-009-02)이 도착하면 같은 모듈의 `getCommunityFeed` 를 커서와
+// 커뮤니티 탭(AC-009-02)은 같은 모듈의 `getCommunityFeed` 를 커서·`type` 과
 // 함께 쓴다.
 
 import { apiFetch } from './client';
@@ -32,6 +32,16 @@ export type CommunityFeedItem = {
   preview: string;
   createdAt: string;
 };
+
+// CommunityFeedType — AC-009-06 콘텐츠 타입 필터. 값은 서버 enum 과 같은
+// 문자열이라 그대로 쿼리에 실린다. 어떤 기록이 어느 타입인지의 판정
+// (question_text 유무)은 전적으로 서버 몫이다 — 클라이언트가 페이지 안에서
+// 다시 거르면 커서 페이지네이션과 어긋나 "다음 페이지엔 있는데 빈 화면"이
+// 나온다.
+export type CommunityFeedType = 'all' | 'question' | 'diary';
+
+// AC-009-06 기본 선택값.
+export const DEFAULT_FEED_TYPE: CommunityFeedType = 'all';
 
 // 홈 "다른 엄마들의 기록" 섹션에 노출되는 최대 카드 수 (AC-009-14 — 최대 3개).
 export const HOME_FEED_LIMIT = 3;
@@ -79,6 +89,8 @@ export type CommunityFeedOptions = {
   subjectId: string;
   cursor?: string;
   limit?: number;
+  /** AC-009-06 콘텐츠 타입 필터. 생략 = `all`(전체) — 서버 기본값과 같다. */
+  type?: CommunityFeedType;
 };
 
 // getCommunityFeed — 피드 한 페이지. 비200 응답은 throw 해서 호출자가 오류
@@ -94,6 +106,11 @@ export async function getCommunityFeed(
   params.set('subject_id', options.subjectId);
   if (options.cursor) params.set('cursor', options.cursor);
   if (options.limit != null) params.set('limit', String(options.limit));
+  // `all` 은 서버 기본값이라 굳이 싣지 않는다 — 홈(AC-009-14)이 보내는
+  // 요청이 이 슬라이스 전후로 바이트 동일하게 유지된다.
+  if (options.type && options.type !== DEFAULT_FEED_TYPE) {
+    params.set('type', options.type);
+  }
   const res = await apiFetch(`/community/feed?${params.toString()}`, {
     method: 'GET',
   });

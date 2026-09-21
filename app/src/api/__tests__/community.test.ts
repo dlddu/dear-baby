@@ -5,6 +5,7 @@
 // 그대로, 빠짐없이, 가공 없이 카드 타입으로 옮기는가" 하나다.
 
 import {
+  DEFAULT_FEED_TYPE,
   HOME_FEED_LIMIT,
   getCommunityFeed,
   getTopThreeForHome,
@@ -143,5 +144,33 @@ describe('getTopThreeForHome', () => {
   it('공개 기록이 0건이면 빈 배열 (홈이 빈 상태를 그린다)', async () => {
     mockApiFetch.mockResolvedValue(okResponse({ items: [], next_cursor: '' }));
     await expect(getTopThreeForHome('subj-1')).resolves.toEqual([]);
+  });
+});
+
+// AC-009-06 콘텐츠 타입 필터 — 값은 서버 enum 그대로 전달된다. 클라이언트는
+// 어떤 기록이 어느 타입인지 판정하지 않으므로, 여기서 잠그는 것은 "정확히
+// 그 문자열을 실어 보내는가" 와 "기본값일 때는 아무것도 싣지 않는가" 뿐이다.
+describe('getCommunityFeed — type 필터 (AC-009-06)', () => {
+  it('type 을 쿼리에 그대로 싣는다', async () => {
+    for (const type of ['question', 'diary'] as const) {
+      mockApiFetch.mockReset();
+      mockApiFetch.mockResolvedValue(okResponse({ items: [], next_cursor: '' }));
+      await getCommunityFeed({ subjectId: 'subj-1', type });
+      const [path] = mockApiFetch.mock.calls[0];
+      expect(path).toContain(`type=${type}`);
+    }
+  });
+
+  it('기본값(전체)이면 type 을 싣지 않는다 — 홈 요청이 그대로 유지된다', async () => {
+    mockApiFetch.mockResolvedValue(okResponse({ items: [], next_cursor: '' }));
+    await getCommunityFeed({ subjectId: 'subj-1', type: DEFAULT_FEED_TYPE });
+    const [withDefault] = mockApiFetch.mock.calls[0];
+    expect(withDefault).not.toContain('type=');
+
+    mockApiFetch.mockReset();
+    mockApiFetch.mockResolvedValue(okResponse({ items: [], next_cursor: '' }));
+    await getCommunityFeed({ subjectId: 'subj-1' });
+    const [omitted] = mockApiFetch.mock.calls[0];
+    expect(omitted).toBe(withDefault);
   });
 });
