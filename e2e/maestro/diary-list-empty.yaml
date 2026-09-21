@@ -1,6 +1,7 @@
 appId: ${APP_ID}
 ---
-# 검증 대상: AC-008-09 (빈 상태 처리).
+# 검증 시나리오: TC-008-09-A (기록 0건 빈 상태).
+# 상위 AC: AC-008-09 (빈 상태 처리).
 # Diary list — empty state.  (헤더+네비 008-10 은 후속 전용 flow 대상 — 여기선 탭 이동 경유만.)
 #
 # Setup: reset_user → tester-login → Case A onboarding → home. The user has
