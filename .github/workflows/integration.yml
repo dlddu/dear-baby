@@ -121,20 +121,22 @@ jobs:
         run: |
           kubectl apply -f scripts/minio/deployment.yaml
 
-      # Records-audio config secret. Prod ships AWS_ASSUME_ROLE_ARN
-      # here and relies on IRSA for bootstrap creds (no static keys in
-      # the secret). CI doesn't have IRSA, so this secret carries the
-      # MinIO root credentials directly + the endpoint overrides.
-      # AWS_ASSUME_ROLE_ARN is intentionally omitted: there's no STS
-      # endpoint to call against MinIO.
-      - name: Create aws-records-audio secret (MinIO config)
+      # Records-audio config. Prod ships AWS_ASSUME_ROLE_ARN in the
+      # aws-records-audio ConfigMap and relies on IRSA for bootstrap
+      # creds (no static keys anywhere). CI doesn't have IRSA, so the
+      # ConfigMap carries the MinIO endpoint overrides and the MinIO
+      # root credentials go in the optional aws-records-audio-credentials
+      # Secret. AWS_ASSUME_ROLE_ARN is intentionally omitted: there's no
+      # STS endpoint to call against MinIO.
+      - name: Create aws-records-audio config + credentials (MinIO)
         run: |
-          kubectl create secret generic aws-records-audio \
+          kubectl create configmap aws-records-audio \
             --from-literal=AWS_REGION=us-east-1 \
             --from-literal=AWS_S3_BUCKET=dear-baby-ci \
             --from-literal=AWS_S3_KEY_PREFIX=ci/ \
             --from-literal=AWS_S3_FORCE_PATH_STYLE=1 \
-            --from-literal=AWS_ENDPOINT_URL_S3=http://minio:9000 \
+            --from-literal=AWS_ENDPOINT_URL_S3=http://minio:9000
+          kubectl create secret generic aws-records-audio-credentials \
             --from-literal=AWS_ACCESS_KEY_ID=ci-minio-access-key \
             --from-literal=AWS_SECRET_ACCESS_KEY=ci-minio-secret-key
 
