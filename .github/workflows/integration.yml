@@ -73,13 +73,13 @@ jobs:
         run: |
           kubectl create secret generic auth-secret \
             --from-literal=JWT_SECRET=integration-jwt-secret \
+            --from-literal=TEST_USER_PASSWORD=integration-password
+          # Non-secret auth settings live in auth-config, as in prod: the
+          # seeded account's email/name here; the Google/Apple client ids
+          # are left out because CI exercises neither sign-in.
+          kubectl create configmap auth-config \
             --from-literal=TEST_USER_EMAIL=integration@dear-baby.test \
-            --from-literal=TEST_USER_PASSWORD=integration-password \
             --from-literal=TEST_USER_NAME=Integration\ Tester
-          # Public identifiers (Google/Apple client ids) live in auth-config
-          # in prod; CI exercises neither sign-in, so it ships an empty one
-          # to satisfy the Deployment's (non-optional) configMapRef.
-          kubectl create configmap auth-config
 
       # CI uses an in-cluster mock OpenRouter server (see step below), so
       # the API key is non-secret and just needs to be non-empty for the
