@@ -78,7 +78,7 @@ Production uses two IAM principals layered on top of each other:
 
 Why two hops? IRSA gives a stable, audit-friendly identity to the pod; the explicit AssumeRole keeps the bucket-write role's trust policy small (it trusts a single role, not "any pod with this OIDC issuer"). Compromise of the IRSA role gives an attacker only `sts:AssumeRole`, not S3.
 
-CI doesn't have IRSA — kind doesn't run an OIDC issuer — so the integration job ships static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` for MinIO root in the same `aws-records-audio` Secret. `AWS_ASSUME_ROLE_ARN` is left unset in CI (MinIO has no STS endpoint), so the SDK uses the static creds directly against MinIO.
+CI doesn't have IRSA — kind doesn't run an OIDC issuer — so the integration job ships static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` for MinIO root in a separate, optional `aws-records-audio-credentials` Secret (the non-secret settings live in the `aws-records-audio` ConfigMap, in prod as well as CI). `AWS_ASSUME_ROLE_ARN` is left unset in CI (MinIO has no STS endpoint), so the SDK uses the static creds directly against MinIO.
 
 | Var | Required at boot | Example | Notes |
 |---|---|---|---|

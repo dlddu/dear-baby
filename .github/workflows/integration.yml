@@ -26,7 +26,7 @@ jobs:
       # LANGFUSE_{PUBLIC,SECRET}_KEY, when present, activate the OTLP
       # exporter inside the worker so CI runs ship traces. Both keys are
       # required together; the worker deployment references
-      # langfuse-secret as optional, so absence leaves the tracer
+      # langfuse-secret/langfuse-config as optional, so absence leaves the tracer
       # provider unset (spans are dropped without exporting).
       - name: Check Langfuse keys
         id: has_langfuse_keys
@@ -73,21 +73,26 @@ jobs:
         run: |
           kubectl create secret generic auth-secret \
             --from-literal=JWT_SECRET=integration-jwt-secret \
+            --from-literal=TEST_USER_PASSWORD=integration-password
+          # Non-secret auth settings live in auth-config, as in prod: the
+          # seeded account's email/name here; the Google/Apple client ids
+          # are left out because CI exercises neither sign-in.
+          kubectl create configmap auth-config \
             --from-literal=TEST_USER_EMAIL=integration@dear-baby.test \
-            --from-literal=TEST_USER_PASSWORD=integration-password \
             --from-literal=TEST_USER_NAME=Integration\ Tester
 
       # CI uses an in-cluster mock OpenRouter server (see step below), so
       # the API key is non-secret and just needs to be non-empty for the
-      # worker's requireEnv check. OPENROUTER_MODEL also ships via this
-      # secret (matches the production worker-deployment wiring).
-      - name: Create OpenRouter secret (mock)
+      # worker's requireEnv check. OPENROUTER_MODEL ships via the
+      # openrouter-config ConfigMap (matches the production wiring).
+      - name: Create OpenRouter secret + config (mock)
         run: |
           kubectl create secret generic openrouter-secret \
-            --from-literal=OPENROUTER_API_KEY=ci-mock-key \
+            --from-literal=OPENROUTER_API_KEY=ci-mock-key
+          kubectl create configmap openrouter-config \
             --from-literal=OPENROUTER_MODEL=openrouter-mock
 
-      # Worker's envFrom references langfuse-secret as optional: true, so
+      # Worker's envFrom references langfuse-secret/langfuse-config as optional: true, so
       # it's safe to skip this when keys aren't configured. Default base
       # URL is US (our account region); override by setting the
       # LANGFUSE_BASE_URL GitHub secret.
@@ -99,8 +104,9 @@ jobs:
           LF_BASE: ${{ secrets.LANGFUSE_BASE_URL }}
         run: |
           kubectl create secret generic langfuse-secret \
+            --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC"
+          kubectl create configmap langfuse-config \
             --from-literal=LANGFUSE_PUBLIC_KEY="$LF_PUB" \
-            --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC" \
             --from-literal=LANGFUSE_BASE_URL="${LF_BASE:-https://us.cloud.langfuse.com}"
 
       # mock-exception: MB-4 — LLM 공급자로의 HTTP 왕복만 치환한다(비결정적 산출 + 실 크레딧 소모).
@@ -121,20 +127,22 @@ jobs:
         run: |
           kubectl apply -f scripts/minio/deployment.yaml
 
-      # Records-audio config secret. Prod ships AWS_ASSUME_ROLE_ARN
-      # here and relies on IRSA for bootstrap creds (no static keys in
-      # the secret). CI doesn't have IRSA, so this secret carries the
-      # MinIO root credentials directly + the endpoint overrides.
-      # AWS_ASSUME_ROLE_ARN is intentionally omitted: there's no STS
-      # endpoint to call against MinIO.
-      - name: Create aws-records-audio secret (MinIO config)
+      # Records-audio config. Prod ships AWS_ASSUME_ROLE_ARN in the
+      # aws-records-audio ConfigMap and relies on IRSA for bootstrap
+      # creds (no static keys anywhere). CI doesn't have IRSA, so the
+      # ConfigMap carries the MinIO endpoint overrides and the MinIO
+      # root credentials go in the optional aws-records-audio-credentials
+      # Secret. AWS_ASSUME_ROLE_ARN is intentionally omitted: there's no
+      # STS endpoint to call against MinIO.
+      - name: Create aws-records-audio config + credentials (MinIO)
         run: |
-          kubectl create secret generic aws-records-audio \
+          kubectl create configmap aws-records-audio \
             --from-literal=AWS_REGION=us-east-1 \
             --from-literal=AWS_S3_BUCKET=dear-baby-ci \
             --from-literal=AWS_S3_KEY_PREFIX=ci/ \
             --from-literal=AWS_S3_FORCE_PATH_STYLE=1 \
-            --from-literal=AWS_ENDPOINT_URL_S3=http://minio:9000 \
+            --from-literal=AWS_ENDPOINT_URL_S3=http://minio:9000
+          kubectl create secret generic aws-records-audio-credentials \
             --from-literal=AWS_ACCESS_KEY_ID=ci-minio-access-key \
             --from-literal=AWS_SECRET_ACCESS_KEY=ci-minio-secret-key
 
@@ -174,11 +182,11 @@ jobs:
       # we pre-bake the alias via MC_HOST_local and invoke `mc mb`
       # directly. -p makes it idempotent on rerun.
       #
-      # Pulled from quay.io and pinned: docker.io/minio/mc no longer
-      # serves anonymous pulls, and `:latest` would drift under us.
+      # Chainguard's minio-client build (entrypoint `mc`): upstream no longer
+      # publishes community mc images on docker.io or quay.io.
       - name: Create MinIO bucket
         run: |
-          kubectl run --rm -i --restart=Never --image=quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z mc-mkbucket \
+          kubectl run --rm -i --restart=Never --image=cgr.dev/chainguard/minio-client:latest mc-mkbucket \
             --env=MC_HOST_local=http://ci-minio-access-key:ci-minio-secret-key@minio:9000 \
             -- mb -p local/dear-baby-ci
 
@@ -381,7 +389,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::verify object exists in MinIO"
-          kubectl run --rm -i --restart=Never --image=quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z mc-stat \
+          kubectl run --rm -i --restart=Never --image=cgr.dev/chainguard/minio-client:latest mc-stat \
             --env=MC_HOST_local=http://ci-minio-access-key:ci-minio-secret-key@minio:9000 \
             -- stat "local/dear-baby-ci/$server_audio_key"
           echo "::endgroup::"
