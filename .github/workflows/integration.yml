@@ -182,11 +182,11 @@ jobs:
       # we pre-bake the alias via MC_HOST_local and invoke `mc mb`
       # directly. -p makes it idempotent on rerun.
       #
-      # Pulled from quay.io and pinned: docker.io/minio/mc no longer
-      # serves anonymous pulls, and `:latest` would drift under us.
+      # Chainguard's minio-client build (entrypoint `mc`): upstream no longer
+      # publishes community mc images on docker.io or quay.io.
       - name: Create MinIO bucket
         run: |
-          kubectl run --rm -i --restart=Never --image=quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z mc-mkbucket \
+          kubectl run --rm -i --restart=Never --image=cgr.dev/chainguard/minio-client:latest mc-mkbucket \
             --env=MC_HOST_local=http://ci-minio-access-key:ci-minio-secret-key@minio:9000 \
             -- mb -p local/dear-baby-ci
 
@@ -389,7 +389,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::verify object exists in MinIO"
-          kubectl run --rm -i --restart=Never --image=quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z mc-stat \
+          kubectl run --rm -i --restart=Never --image=cgr.dev/chainguard/minio-client:latest mc-stat \
             --env=MC_HOST_local=http://ci-minio-access-key:ci-minio-secret-key@minio:9000 \
             -- stat "local/dear-baby-ci/$server_audio_key"
           echo "::endgroup::"
