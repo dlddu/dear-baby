@@ -26,7 +26,7 @@ jobs:
       # LANGFUSE_{PUBLIC,SECRET}_KEY, when present, activate the OTLP
       # exporter inside the worker so CI runs ship traces. Both keys are
       # required together; the worker deployment references
-      # langfuse-secret as optional, so absence leaves the tracer
+      # langfuse-secret/langfuse-config as optional, so absence leaves the tracer
       # provider unset (spans are dropped without exporting).
       - name: Check Langfuse keys
         id: has_langfuse_keys
@@ -76,18 +76,23 @@ jobs:
             --from-literal=TEST_USER_EMAIL=integration@dear-baby.test \
             --from-literal=TEST_USER_PASSWORD=integration-password \
             --from-literal=TEST_USER_NAME=Integration\ Tester
+          # Public identifiers (Google/Apple client ids) live in auth-config
+          # in prod; CI exercises neither sign-in, so it ships an empty one
+          # to satisfy the Deployment's (non-optional) configMapRef.
+          kubectl create configmap auth-config
 
       # CI uses an in-cluster mock OpenRouter server (see step below), so
       # the API key is non-secret and just needs to be non-empty for the
-      # worker's requireEnv check. OPENROUTER_MODEL also ships via this
-      # secret (matches the production worker-deployment wiring).
-      - name: Create OpenRouter secret (mock)
+      # worker's requireEnv check. OPENROUTER_MODEL ships via the
+      # openrouter-config ConfigMap (matches the production wiring).
+      - name: Create OpenRouter secret + config (mock)
         run: |
           kubectl create secret generic openrouter-secret \
-            --from-literal=OPENROUTER_API_KEY=ci-mock-key \
+            --from-literal=OPENROUTER_API_KEY=ci-mock-key
+          kubectl create configmap openrouter-config \
             --from-literal=OPENROUTER_MODEL=openrouter-mock
 
-      # Worker's envFrom references langfuse-secret as optional: true, so
+      # Worker's envFrom references langfuse-secret/langfuse-config as optional: true, so
       # it's safe to skip this when keys aren't configured. Default base
       # URL is US (our account region); override by setting the
       # LANGFUSE_BASE_URL GitHub secret.
@@ -99,8 +104,9 @@ jobs:
           LF_BASE: ${{ secrets.LANGFUSE_BASE_URL }}
         run: |
           kubectl create secret generic langfuse-secret \
+            --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC"
+          kubectl create configmap langfuse-config \
             --from-literal=LANGFUSE_PUBLIC_KEY="$LF_PUB" \
-            --from-literal=LANGFUSE_SECRET_KEY="$LF_SEC" \
             --from-literal=LANGFUSE_BASE_URL="${LF_BASE:-https://us.cloud.langfuse.com}"
 
       # mock-exception: MB-4 — LLM 공급자로의 HTTP 왕복만 치환한다(비결정적 산출 + 실 크레딧 소모).

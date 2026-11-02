@@ -45,8 +45,14 @@ spec:
             - name: REDIS_URL
               value: "redis://redis:6379"
           envFrom:
+            # JWT signing key, Apple private key, review test account.
             - secretRef:
                 name: auth-secret
+            # Public identifiers that ride the same SSM parameter in prod:
+            # GOOGLE_ALLOWED_AUDIENCES, APPLE_TEAM_ID, APPLE_CLIENT_ID,
+            # APPLE_KEY_ID. Not secrets, so they live in a ConfigMap.
+            - configMapRef:
+                name: auth-config
             # Records-audio configuration: AWS_REGION, AWS_S3_BUCKET,
             # AWS_S3_KEY_PREFIX, AWS_ASSUME_ROLE_ARN. None of these are
             # secrets, so they live in a ConfigMap. Prod ships the

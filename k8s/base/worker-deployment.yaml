@@ -24,14 +24,21 @@ spec:
             - name: REDIS_URL
               value: "redis://redis:6379"
           envFrom:
-            # Carries OPENROUTER_API_KEY plus OPENROUTER_MODEL — the model
-            # slug rides the same secret so operators rotate the key/model
-            # pair together without touching the manifest.
+            # OPENROUTER_API_KEY only.
             - secretRef:
                 name: openrouter-secret
+            # OPENROUTER_MODEL — the model slug is not a secret, so it lives
+            # in a ConfigMap and can change without touching the manifest.
+            - configMapRef:
+                name: openrouter-config
             # Optional: when langfuse-secret is missing, the worker's
             # tracing bootstrap returns a no-op handle and OpenRouter
             # spans are dropped silently, so the deployment still ships.
+            # The Secret carries LANGFUSE_SECRET_KEY; the public key and
+            # base URL live in the (equally optional) langfuse-config.
             - secretRef:
                 name: langfuse-secret
+                optional: true
+            - configMapRef:
+                name: langfuse-config
                 optional: true
